@@ -1,0 +1,843 @@
+'use client';
+
+import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import {
+  LayoutDashboard,
+  Dumbbell,
+  Utensils,
+  LineChart,
+  MessageCircle,
+  LogOut,
+  User,
+  Activity,
+  Scale,
+  Ruler,
+  Timer,
+  AlertTriangle,
+  Star,
+} from "lucide-react";
+
+type SectionId = "dashboard" | "plan" | "diet" | "progress" | "chat";
+
+const bodyStats = [
+  { label: "Wiek", value: "35", unit: "lat", icon: Timer },
+  { label: "Waga", value: "87.2", unit: "kg", icon: Scale },
+  { label: "Wzrost", value: "178", unit: "cm", icon: Ruler },
+  { label: "Biceps", value: "35.0", unit: "cm" },
+  { label: "Klatka", value: "100.0", unit: "cm" },
+  { label: "Brzuch", value: "75.0", unit: "cm" },
+  { label: "Pas", value: "80.0", unit: "cm" },
+  { label: "Uda", value: "60.0", unit: "cm" },
+  { label: "Łydki", value: "35.0", unit: "cm" },
+];
+
+const trainingDays = [
+  { day: 1, label: "Dzień", rest: false },
+  { day: 2, label: "Dzień (odpoczynek)", rest: true },
+  { day: 3, label: "Dzień", rest: false },
+  { day: 4, label: "Dzień", rest: false },
+  { day: 5, label: "Dzień", rest: false },
+  { day: 6, label: "Dzień (odpoczynek)", rest: true },
+  { day: 7, label: "Dzień", rest: false },
+];
+
+const exercises = [
+  {
+    lp: 1,
+    name: "Pompki w wąskim podparciu",
+    sets: 4,
+    reps: [9, 7, 13, 9],
+    difficulty: 3,
+  },
+  {
+    lp: 2,
+    name: "Unoszenie nóg do klatki piersiowej w zwisie na drążku",
+    sets: 3,
+    reps: [6, 16, 5],
+    difficulty: 4,
+  },
+  {
+    lp: 3,
+    name: "Unoszenie nóg do klatki w zwisie na drabinkach",
+    sets: 3,
+    reps: [6, 9, 14],
+    difficulty: 2,
+  },
+];
+
+const meals = ["Śniadanie", "II śniadanie", "Obiad", "Przekąska", "Podwieczorek"];
+
+const trainers = [
+  {
+    id: "t1",
+    name: "Michał Kowalski",
+    title: "Trener sylwetki i redukcji",
+    specialization: "Redukcja tkanki tłuszczowej, budowa sylwetki",
+    price: "od 249 zł / mies.",
+    rating: 4.9,
+    reviews: 38,
+  },
+  {
+    id: "t2",
+    name: "Anna Nowak",
+    title: "Trenerka kobiecej sylwetki",
+    specialization: "Pośladki, brzuch, zdrowy kręgosłup",
+    price: "od 289 zł / mies.",
+    rating: 5.0,
+    reviews: 52,
+  },
+  {
+    id: "t3",
+    name: "Piotr Zieliński",
+    title: "Trener siły i sportów walki",
+    specialization: "Siła, kondycja, przygotowanie motoryczne",
+    price: "od 269 zł / mies.",
+    rating: 4.8,
+    reviews: 24,
+  },
+];
+
+export default function ClientDashboardPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [activeSection, setActiveSection] = useState<SectionId>("dashboard");
+  const [activeTrainingDay, setActiveTrainingDay] = useState(1);
+  const [activeMealIndex, setActiveMealIndex] = useState(2); // obiad
+  const [hasTrainer, setHasTrainer] = useState(false);
+  const [showTrainerPicker, setShowTrainerPicker] = useState(false);
+
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const loggedIn = window.localStorage.getItem("fitcoach_client_logged_in");
+    const storedEmail = window.localStorage.getItem("fitcoach_client_email");
+    const trainerId = window.localStorage.getItem("fitcoach_client_trainer_id");
+
+    if (loggedIn !== "true") {
+      router.replace("/login");
+      return;
+    }
+
+    setEmail(storedEmail);
+    setHasTrainer(Boolean(trainerId));
+    setReady(true);
+  }, [router]);
+
+  const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("fitcoach_client_logged_in");
+      window.localStorage.removeItem("fitcoach_client_email");
+      window.localStorage.removeItem("fitcoach_client_trainer_id");
+    }
+    router.push("/");
+  };
+
+  const handleSelectTrainer = (trainerId: string) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("fitcoach_client_trainer_id", trainerId);
+    }
+    setHasTrainer(true);
+    setShowTrainerPicker(false);
+    setActiveSection("dashboard");
+  };
+
+  const handleChangeTrainer = () => {
+    setShowTrainerPicker(true);
+  };
+
+  const handleBackToTrainer = () => {
+    setShowTrainerPicker(false);
+  };
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <p className="text-slate-200">Ładowanie panelu...</p>
+      </div>
+    );
+  }
+
+  const navItems: { id: SectionId; label: string; icon: any }[] = [
+    {
+      id: "dashboard",
+      label: "Panel główny",
+      icon: LayoutDashboard,
+    },
+    {
+      id: "plan",
+      label: "Plan treningowy",
+      icon: Dumbbell,
+    },
+    {
+      id: "diet",
+      label: "Plan żywieniowy",
+      icon: Utensils,
+    },
+    {
+      id: "progress",
+      label: "Postępy",
+      icon: LineChart,
+    },
+    {
+      id: "chat",
+      label: "Czat z trenerem",
+      icon: MessageCircle,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+      {/* Lewy pasek nawigacji */}
+      <aside className="hidden md:flex w-64 bg-slate-950/95 border-r border-slate-800 flex-col">
+        <div className="h-16 px-5 flex items-center border-b border-slate-800">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-900 text-sm font-bold shadow-lg">
+              FC
+            </div>
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold tracking-tight">
+                FitCoach AI
+              </span>
+              <span className="text-[11px] text-slate-400">
+                Panel podopiecznego
+              </span>
+            </div>
+          </Link>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          <div>
+            <p className="px-2 mb-2 text-[11px] font-semibold uppercase text-slate-500">
+              Panel
+            </p>
+            <nav className="space-y-1">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const active = item.id === activeSection;
+                const disabled = !hasTrainer && item.id !== "dashboard";
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      if (disabled) return;
+                      setActiveSection(item.id);
+                    }}
+                    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                      disabled
+                        ? "text-slate-600 cursor-not-allowed border border-slate-900"
+                        : active
+                        ? "bg-slate-800 text-white shadow-inner"
+                        : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div>
+            <p className="px-2 mb-2 text-[11px] font-semibold uppercase text-slate-500">
+              Moje konto
+            </p>
+            <div className="space-y-1">
+              <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 bg-slate-900/70 border border-slate-800">
+                <User className="h-4 w-4" />
+                <span className="truncate">
+                  {email ?? "podopieczny@fitcoach.ai"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/60 hover:text-white transition"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Wyloguj</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Główna część */}
+      <main className="flex-1 bg-slate-950">
+        {/* Górny pasek dla mobile */}
+        <header className="md:hidden bg-slate-900/95 text-slate-100 border-b border-slate-800">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <Link href="/" className="font-semibold">
+              FitCoach AI
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-xs text-slate-300 hover:text-white flex items-center gap-1"
+            >
+              <LogOut className="h-3 w-3" />
+              Wyloguj
+            </button>
+          </div>
+        </header>
+
+        <div className="max-w-6xl mx-auto px-4 py-6 lg:py-8">
+          <div className="flex items-center justify-between mb-4 lg:mb-6 gap-3">
+            <div>
+              <h1 className="text-xl lg:text-2xl font-bold text-slate-50 tracking-tight">
+                Twój panel podopiecznego
+              </h1>
+              <p className="text-xs lg:text-sm text-slate-400 mt-1 max-w-2xl">
+                {!hasTrainer && (
+                  <>
+                    Najpierw wybierz trenera, z którym chcesz współpracować. Na
+                    podstawie tego trener przygotuje Twoje plany treningowe i
+                    dietę.
+                  </>
+                )}
+                {hasTrainer && activeSection === "dashboard" && (
+                  <>
+                    Tu w przyszłości pojawią się: plany treningowe, dieta,
+                    postępy i czat z trenerem. Na razie to wersja
+                    demonstracyjna logowania i przykładowe statystyki sylwetki.
+                  </>
+                )}
+                {hasTrainer && activeSection === "plan" && (
+                  <>
+                    Plan treningowy na wybrany dzień: liczba serii, powtórzeń i
+                    przerwy między ćwiczeniami.
+                  </>
+                )}
+                {hasTrainer && activeSection === "diet" && (
+                  <>Twój przykładowy plan żywieniowy na dziś.</>
+                )}
+                {hasTrainer && activeSection === "progress" && (
+                  <>Tutaj pojawią się wykresy wagi, pomiarów i zdjęcia progresu.</>
+                )}
+                {hasTrainer && activeSection === "chat" && (
+                  <>Tutaj w przyszłości będzie czat z Twoim trenerem.</>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col items-end gap-2 text-[11px] text-slate-400">
+              <div className="hidden md:flex flex-col items-end">
+                <span className="uppercase font-semibold tracking-wide">
+                  Zalogowany jako
+                </span>
+                <span className="text-xs text-slate-100 font-medium">
+                  {email ?? "podopieczny@fitcoach.ai"}
+                </span>
+              </div>
+              {hasTrainer && (
+                <button
+                  type="button"
+                  onClick={handleChangeTrainer}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200 hover:border-emerald-400 hover:text-emerald-300 transition"
+                >
+                  Zmień trenera
+                </button>
+              )}
+            </div>
+          </div>
+
+          {!hasTrainer || showTrainerPicker ? (
+            <TrainersListSection
+              onSelectTrainer={handleSelectTrainer}
+              onBackToTrainer={showTrainerPicker ? handleBackToTrainer : undefined}
+            />
+          ) : (
+            <>
+              {activeSection === "dashboard" && <DashboardSection />}
+
+              {activeSection === "plan" && (
+                <TrainingPlanSection
+                  activeDay={activeTrainingDay}
+                  setActiveDay={setActiveTrainingDay}
+                />
+              )}
+
+              {activeSection === "diet" && (
+                <NutritionPlanSection
+                  activeMealIndex={activeMealIndex}
+                  setActiveMealIndex={setActiveMealIndex}
+                />
+              )}
+
+              {activeSection !== "dashboard" &&
+                activeSection !== "plan" &&
+                activeSection !== "diet" && <PlaceholderSection />}
+            </>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function DashboardSection() {
+  const bmi = 27.5;
+  const bmiScaleX =
+    bmi < 18.5 ? 0.9 : bmi < 25 ? 1 : bmi < 30 ? 1.08 : 1.15;
+
+  return (
+    <section className="mt-4 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] items-stretch">
+      {/* Lewy mini-panel */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-4">
+        <div>
+          <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1">
+            Tryb
+          </p>
+          <div className="inline-flex items-center gap-2 rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-100">
+            <Activity className="h-3 w-3 text-emerald-400" />
+            Aktualna forma
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] uppercase text-slate-500 font-semibold mb-2">
+            Sekcje
+          </p>
+          <ul className="space-y-1 text-xs text-slate-300">
+            <li className="flex items-center justify-between">
+              <span>Wymiary</span>
+              <span className="h-1.5 w-8 rounded-full bg-emerald-500" />
+            </li>
+            <li className="text-slate-500">
+              <Link
+                href="/client/stats"
+                className="flex items-center justify-between hover:text-emerald-300 transition"
+              >
+                <span>Statystyki</span>
+                <span className="h-1.5 w-6 rounded-full bg-slate-700" />
+              </Link>
+            </li>
+            <li className="text-slate-500">
+              <Link
+                href="/client/progress"
+                className="flex items-center justify-between hover:text-emerald-300 transition"
+              >
+                <span>Postępy</span>
+                <span className="h-1.5 w-4 rounded-full bg-slate-700" />
+              </Link>
+            </li>
+          </ul>
+        </div>
+        <div className="text-[11px] text-slate-500 leading-snug">
+          Dane są przykładowe. Docelowo tutaj Twój trener będzie widział
+          raporty z pomiarów i aktualną formę.
+        </div>
+      </div>
+
+      {/* Duża karta ze statystykami sylwetki */}
+      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-5 lg:px-6 lg:py-6 flex flex-col lg:flex-row gap-6">
+        {/* Sylwetka i BMI */}
+        <div className="flex flex-col items-center justify-center w-full lg:w-[360px] gap-4">
+          <div className="relative h-[30rem] w-full max-w-2xl flex items-center justify-center">
+            <div className="absolute inset-0 rounded-full bg-emerald-500/45 blur-3xl" />
+            <div
+              className="relative h-[26rem] w-full origin-center transition-transform duration-300"
+              style={{ transform: `scaleX(${bmiScaleX})` }}
+            >
+              <Image
+                src="/body-male.png"
+                alt="Sylwetka podopiecznego"
+                fill
+                sizes="480px"
+                className="object-contain"
+              />
+            </div>
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">
+              Twoje BMI
+            </p>
+            <p className="text-3xl font-semibold text-emerald-400">{bmi}</p>
+            <p className="text-xs text-slate-400">
+              Nadwaga – do omówienia z trenerem
+            </p>
+          </div>
+        </div>
+
+        {/* Prawa część z kartami */}
+        <div className="flex-1 grid gap-4 md:grid-cols-3">
+          {bodyStats.map((stat) => {
+            const Icon = stat.icon as typeof Activity | undefined;
+            return (
+              <div
+                key={stat.label}
+                className="bg-slate-900 rounded-xl border border-slate-800 px-3 py-3 flex flex-col gap-1 shadow-inner"
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] uppercase text-slate-500 font-semibold">
+                    {stat.label}
+                  </p>
+                  {Icon && <Icon className="h-3.5 w-3.5 text-slate-500" />}
+                </div>
+                <div className="flex items-baseline gap-1 mt-1">
+                  <span className="text-lg font-semibold text-slate-50">
+                    {stat.value}
+                  </span>
+                  <span className="text-[11px] text-slate-400">{stat.unit}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TrainingPlanSection({
+  activeDay,
+  setActiveDay,
+}: {
+  activeDay: number;
+  setActiveDay: (day: number) => void;
+}) {
+  return (
+    <section className="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-5 lg:px-6 lg:py-6 space-y-5">
+      {/* Pasek dni */}
+      <div className="flex flex-wrap items-stretch gap-2 border-b border-slate-800 pb-3">
+        {trainingDays.map((d) => {
+          const active = d.day === activeDay;
+          return (
+            <button
+              key={d.day}
+              type="button"
+              onClick={() => setActiveDay(d.day)}
+              className={`flex flex-col items-center justify-center px-3 py-2 rounded-md min-w-[70px] text-xs border transition ${
+                active
+                  ? "border-emerald-500 bg-slate-900 text-slate-50 shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                  : "border-slate-700 bg-slate-900/40 text-slate-400 hover:border-emerald-400/60 hover:text-slate-50"
+              }`}
+            >
+              <span className="text-sm font-semibold">{d.day}</span>
+              <span className="uppercase tracking-wide text-[10px]">
+                {d.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Ostrzeżenie i przycisk rozgrzewki */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex items-start gap-2 text-xs text-amber-300">
+          <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-400" />
+          <p>
+            <span className="font-semibold">Uwaga!</span> Pamiętaj, aby wykonać
+            rozgrzewkę przed każdym treningiem.
+          </p>
+        </div>
+        <button className="self-start inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-950 hover:bg-emerald-400 transition shadow-[0_0_20px_rgba(16,185,129,0.6)]">
+          Zacznij rozgrzewkę
+        </button>
+      </div>
+
+      {/* Przerwy */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="bg-slate-900 rounded-xl border border-slate-800 px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] uppercase text-slate-500 font-semibold">
+              Przerwa pomiędzy seriami
+            </p>
+            <p className="text-xs text-slate-300">Czas odpoczynku w trakcie serii.</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-semibold text-emerald-400">4</p>
+            <p className="text-[11px] uppercase text-slate-400">minuty</p>
+          </div>
+        </div>
+        <div className="bg-slate-900 rounded-xl border border-slate-800 px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] uppercase text-slate-500 font-semibold">
+              Przerwa pomiędzy ćwiczeniami
+            </p>
+            <p className="text-xs text-slate-300">Czas przejścia do kolejnego ćwiczenia.</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-semibold text-emerald-400">6</p>
+            <p className="text-[11px] uppercase text-slate-400">minut</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Spis ćwiczeń */}
+      <div className="bg-slate-950/60 rounded-xl border border-slate-800 overflow-hidden text-xs">
+        <div className="bg-slate-900/80 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
+          <span className="font-semibold text-slate-100 uppercase tracking-wide text-[11px]">
+            Spis ćwiczeń
+          </span>
+          <span className="text-slate-400 text-[11px]">
+            Zestaw {activeDay} (przykładowy)
+          </span>
+        </div>
+        <div className="bg-slate-900/60 px-4 py-2 border-b border-slate-800 grid grid-cols-[40px_minmax(0,1fr)_60px_minmax(0,120px)_60px] gap-2 text-[10px] font-semibold text-slate-400">
+          <span>LP.</span>
+          <span>Nazwa ćwiczenia</span>
+          <span className="text-center">Serie</span>
+          <span className="text-center">Ilość powtórzeń</span>
+          <span className="text-center">Trudność</span>
+        </div>
+        <div>
+          {exercises.map((ex) => (
+            <div
+              key={ex.lp}
+              className="px-4 py-2 border-b border-slate-800/80 last:border-none grid grid-cols-[40px_minmax(0,1fr)_60px_minmax(0,120px)_60px] gap-2 items-center text-[11px] text-slate-200"
+            >
+              <span className="text-slate-400">{ex.lp}</span>
+              <span>{ex.name}</span>
+              <span className="text-center text-slate-300">{ex.sets}</span>
+              <span className="flex flex-wrap gap-1 justify-center">
+                {ex.reps.map((r, idx) => (
+                  <span
+                    key={idx}
+                    className="px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-100"
+                  >
+                    {r}
+                  </span>
+                ))}
+              </span>
+              <span className="flex justify-center gap-[2px]">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-2 w-2 rounded-full ${
+                      i < ex.difficulty
+                        ? i >= 3
+                          ? "bg-red-500"
+                          : "bg-emerald-400"
+                        : "bg-slate-700"
+                    }`}
+                  />
+                ))}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function NutritionPlanSection({
+  activeMealIndex,
+  setActiveMealIndex,
+}: {
+  activeMealIndex: number;
+  setActiveMealIndex: (i: number) => void;
+}) {
+  return (
+    <section className="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-5 lg:px-6 lg:py-6 space-y-5">
+      {/* Pasek posiłków */}
+      <div className="flex flex-wrap items-stretch gap-2 border-b border-slate-800 pb-3">
+        {meals.map((meal, index) => {
+          const active = index === activeMealIndex;
+          return (
+            <button
+              key={meal}
+              type="button"
+              onClick={() => setActiveMealIndex(index)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border transition ${
+                active
+                  ? "border-emerald-500 bg-slate-900 text-slate-50 shadow-[0_0_20px_rgba(16,185,129,0.4)]"
+                  : "border-slate-700 bg-slate-900/40 text-slate-400 hover:border-emerald-400/60 hover:text-slate-50"
+              }`}
+            >
+              <span>{meal}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
+        {/* Zdjęcie posiłku */}
+        <div className="bg-slate-950/60 rounded-2xl border border-slate-800 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-300 font-semibold">
+              Łosoś pieczony z warzywami
+            </span>
+            <span className="text-slate-500">przykładowy posiłek</span>
+          </div>
+          <div className="aspect-video bg-slate-900 flex items-center justify-center text-slate-500 text-xs">
+            Tu w przyszłości będzie zdjęcie posiłku.
+          </div>
+          <div className="px-4 py-3 text-[11px] text-slate-300">
+            Posiłek bogaty w białko i zdrowe tłuszcze. Zdjęcie i dokładne
+            składniki będzie uzupełniał Twój trener.
+          </div>
+        </div>
+
+        {/* Koło makro + woda + kalorie */}
+        <div className="space-y-4">
+          <div className="bg-slate-950/60 rounded-2xl border border-slate-800 px-4 py-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="space-y-2 text-xs text-slate-300">
+              <p className="text-[11px] uppercase text-slate-500 font-semibold">
+                Wartości odżywcze (przykład)
+              </p>
+              <p>
+                Węglowodany: <span className="font-semibold">100 kcal</span>
+              </p>
+              <p>
+                Białko: <span className="font-semibold">40 kcal</span>
+              </p>
+              <p>
+                Tłuszcze: <span className="font-semibold">135 kcal</span>
+              </p>
+            </div>
+            <div className="relative h-40 w-40 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-slate-800" />
+              <div className="absolute inset-1 rounded-full border-4 border-emerald-500 border-l-transparent border-b-transparent rotate-12" />
+              <div className="absolute inset-3 rounded-full border-4 border-sky-500 border-r-transparent border-b-transparent -rotate-6" />
+              <div className="absolute inset-5 rounded-full border-4 border-amber-400 border-t-transparent border-r-transparent rotate-24" />
+              <div className="relative h-20 w-20 rounded-full bg-slate-900 flex flex-col items-center justify-center">
+                <span className="text-xs text-slate-400">Kcal</span>
+                <span className="text-2xl font-semibold text-slate-50">275</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-950/60 rounded-2xl border border-slate-800 px-4 py-3 flex flex-col gap-3 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-300 font-semibold">
+                Woda w ciągu dnia
+              </span>
+              <span className="text-emerald-400 font-semibold">1.5L</span>
+            </div>
+            <div className="flex gap-1">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex-1 h-8 rounded-b-lg border border-slate-700 bg-gradient-to-t from-sky-500/80 to-sky-400/40"
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-slate-950/60 rounded-2xl border border-slate-800 px-4 py-3 text-xs space-y-2">
+            <p className="text-[11px] uppercase text-slate-500 font-semibold">
+              Kaloryczność posiłków (przykład)
+            </p>
+            <div className="h-2 rounded-full bg-slate-800 overflow-hidden flex">
+              <div className="flex-1 bg-emerald-500" />
+              <div className="flex-[0.7] bg-sky-500" />
+              <div className="flex-[0.8] bg-amber-400" />
+              <div className="flex-[0.5] bg-fuchsia-500" />
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Docelowo tutaj zobaczysz rozkład kaloryczności wszystkich posiłków
+              w ciągu dnia.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TrainersListSection({
+  onSelectTrainer,
+  onBackToTrainer,
+}: {
+  onSelectTrainer: (id: string) => void;
+  onBackToTrainer?: () => void;
+}) {
+  return (
+    <section className="mt-4 space-y-4">
+      {onBackToTrainer && (
+        <div className="rounded-2xl border border-emerald-500/50 bg-emerald-950/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-sm text-slate-200">
+            Przeglądasz listę trenerów. Aby wrócić do panelu z planami i dietą, kliknij poniżej.
+          </p>
+          <button
+            type="button"
+            onClick={onBackToTrainer}
+            className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 transition shrink-0"
+          >
+            Wróć do swojego trenera
+          </button>
+        </div>
+      )}
+      <p className="text-xs text-slate-400 max-w-2xl">
+        Wybierz trenera, z którym chcesz współpracować. To tylko przykładowe
+        profile – w docelowej wersji pojawią się tu prawdziwi trenerzy z ich
+        opisami i ocenami od podopiecznych.
+      </p>
+      <div className="space-y-3">
+        {trainers.map((trainer) => (
+          <article
+            key={trainer.id}
+            className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+          >
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-full bg-emerald-500/90 flex items-center justify-center text-slate-950 text-sm font-semibold">
+                {trainer.name[0]}
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-50">
+                  {trainer.name}
+                </h2>
+                <p className="text-[11px] text-emerald-300 font-semibold">
+                  {trainer.title}
+                </p>
+                <p className="text-xs text-slate-300 mt-1">
+                  {trainer.specialization}
+                </p>
+                <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-300">
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-3 w-3 ${
+                          i < Math.round(trainer.rating)
+                            ? "text-amber-400"
+                            : "text-slate-600"
+                        }`}
+                        fill={
+                          i < Math.round(trainer.rating)
+                            ? "currentColor"
+                            : "none"
+                        }
+                      />
+                    ))}
+                  </div>
+                  <span>
+                    {trainer.rating.toFixed(1)} ({trainer.reviews} opinii)
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2 text-xs">
+              <span className="text-emerald-400 font-semibold">
+                {trainer.price}
+              </span>
+              <button
+                type="button"
+                onClick={() => onSelectTrainer(trainer.id)}
+                className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-950 hover:bg-emerald-400 transition"
+              >
+                Wybierz tego trenera
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PlaceholderSection() {
+  return (
+    <section className="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl px-5 py-4 text-xs text-slate-300">
+      <p>
+        To miejsce na dalszą część panelu (plan żywieniowy, postępy, czat).
+        Aktualnie to tylko widok poglądowy.
+      </p>
+    </section>
+  );
+}
+

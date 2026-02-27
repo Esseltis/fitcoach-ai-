@@ -1,9 +1,8 @@
-'use client';
+"use client";
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import {
   LayoutDashboard,
   Dumbbell,
@@ -108,8 +107,6 @@ export default function ClientDashboardPage() {
   const [activeTrainingDay, setActiveTrainingDay] = useState(1);
   const [activeMealIndex, setActiveMealIndex] = useState(2); // obiad
   const [hasTrainer, setHasTrainer] = useState(false);
-  const [showTrainerPicker, setShowTrainerPicker] = useState(false);
-
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -141,16 +138,15 @@ export default function ClientDashboardPage() {
       window.localStorage.setItem("fitcoach_client_trainer_id", trainerId);
     }
     setHasTrainer(true);
-    setShowTrainerPicker(false);
     setActiveSection("dashboard");
   };
 
   const handleChangeTrainer = () => {
-    setShowTrainerPicker(true);
-  };
-
-  const handleBackToTrainer = () => {
-    setShowTrainerPicker(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("fitcoach_client_trainer_id");
+    }
+    setHasTrainer(false);
+    setActiveSection("dashboard");
   };
 
   if (!ready) {
@@ -268,223 +264,265 @@ export default function ClientDashboardPage() {
       </aside>
 
       {/* Główna część */}
-      <main className="flex-1 bg-slate-950">
-        {/* Górny pasek dla mobile */}
-        <header className="md:hidden bg-slate-900/95 text-slate-100 border-b border-slate-800">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <Link href="/" className="font-semibold">
-              FitCoach AI
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="text-xs text-slate-300 hover:text-white flex items-center gap-1"
-            >
-              <LogOut className="h-3 w-3" />
-              Wyloguj
-            </button>
+      <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+        <header className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-emerald-400">
+              Panel podopiecznego
+            </p>
+            <h1 className="text-xl font-semibold tracking-tight text-slate-50">
+              {hasTrainer
+                ? "Twój trening i współpraca z trenerem"
+                : "Wybierz trenera, aby rozpocząć współpracę"}
+            </h1>
           </div>
+          {hasTrainer && (
+            <button
+              type="button"
+              onClick={handleChangeTrainer}
+              className="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800/80 transition"
+            >
+              Zmień trenera
+            </button>
+          )}
         </header>
 
-        <div className="max-w-6xl mx-auto px-4 py-6 lg:py-8">
-          <div className="flex items-center justify-between mb-4 lg:mb-6 gap-3">
-            <div>
-              <h1 className="text-xl lg:text-2xl font-bold text-slate-50 tracking-tight">
-                Twój panel podopiecznego
-              </h1>
-              <p className="text-xs lg:text-sm text-slate-400 mt-1 max-w-2xl">
-                {!hasTrainer && (
-                  <>
-                    Najpierw wybierz trenera, z którym chcesz współpracować. Na
-                    podstawie tego trener przygotuje Twoje plany treningowe i
-                    dietę.
-                  </>
-                )}
-                {hasTrainer && activeSection === "dashboard" && (
-                  <>
-                    Tu w przyszłości pojawią się: plany treningowe, dieta,
-                    postępy i czat z trenerem. Na razie to wersja
-                    demonstracyjna logowania i przykładowe statystyki sylwetki.
-                  </>
-                )}
-                {hasTrainer && activeSection === "plan" && (
-                  <>
-                    Plan treningowy na wybrany dzień: liczba serii, powtórzeń i
-                    przerwy między ćwiczeniami.
-                  </>
-                )}
-                {hasTrainer && activeSection === "diet" && (
-                  <>Twój przykładowy plan żywieniowy na dziś.</>
-                )}
-                {hasTrainer && activeSection === "progress" && (
-                  <>Tutaj pojawią się wykresy wagi, pomiarów i zdjęcia progresu.</>
-                )}
-                {hasTrainer && activeSection === "chat" && (
-                  <>Tutaj w przyszłości będzie czat z Twoim trenerem.</>
-                )}
-              </p>
-            </div>
-            <div className="flex flex-col items-end gap-2 text-[11px] text-slate-400">
-              <div className="hidden md:flex flex-col items-end">
-                <span className="uppercase font-semibold tracking-wide">
-                  Zalogowany jako
-                </span>
-                <span className="text-xs text-slate-100 font-medium">
-                  {email ?? "podopieczny@fitcoach.ai"}
-                </span>
-              </div>
-              {hasTrainer && (
-                <button
-                  type="button"
-                  onClick={handleChangeTrainer}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200 hover:border-emerald-400 hover:text-emerald-300 transition"
-                >
-                  Zmień trenera
-                </button>
-              )}
-            </div>
-          </div>
-
-          {!hasTrainer || showTrainerPicker ? (
-            <TrainersListSection
-              onSelectTrainer={handleSelectTrainer}
-              onBackToTrainer={showTrainerPicker ? handleBackToTrainer : undefined}
-            />
-          ) : (
-            <>
-              {activeSection === "dashboard" && <DashboardSection />}
-
-              {activeSection === "plan" && (
-                <TrainingPlanSection
-                  activeDay={activeTrainingDay}
-                  setActiveDay={setActiveTrainingDay}
-                />
-              )}
-
-              {activeSection === "diet" && (
-                <NutritionPlanSection
-                  activeMealIndex={activeMealIndex}
-                  setActiveMealIndex={setActiveMealIndex}
-                />
-              )}
-
-              {activeSection !== "dashboard" &&
-                activeSection !== "plan" &&
-                activeSection !== "diet" && <PlaceholderSection />}
-            </>
-          )}
-        </div>
+        {!hasTrainer ? (
+          <TrainersListSection onSelectTrainer={handleSelectTrainer} />
+        ) : (
+          <>
+            {activeSection === "dashboard" && <DashboardSection />}
+            {activeSection === "plan" && (
+              <TrainingPlanSection
+                activeTrainingDay={activeTrainingDay}
+                setActiveTrainingDay={setActiveTrainingDay}
+              />
+            )}
+            {activeSection === "diet" && (
+              <DietSection
+                activeMealIndex={activeMealIndex}
+                setActiveMealIndex={setActiveMealIndex}
+              />
+            )}
+            {activeSection === "progress" && <ProgressSection />}
+            {activeSection === "chat" && <ChatSection />}
+          </>
+        )}
       </main>
     </div>
   );
 }
 
 function DashboardSection() {
-  const bmi = 27.5;
-  const bmiScaleX =
-    bmi < 18.5 ? 0.9 : bmi < 25 ? 1 : bmi < 30 ? 1.08 : 1.15;
-
   return (
-    <section className="mt-4 grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] items-stretch">
-      {/* Lewy mini-panel */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 space-y-4">
-        <div>
-          <p className="text-[11px] uppercase text-slate-500 font-semibold mb-1">
-            Tryb
-          </p>
-          <div className="inline-flex items-center gap-2 rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-100">
-            <Activity className="h-3 w-3 text-emerald-400" />
-            Aktualna forma
-          </div>
-        </div>
-        <div>
-          <p className="text-[11px] uppercase text-slate-500 font-semibold mb-2">
-            Sekcje
-          </p>
-          <ul className="space-y-1 text-xs text-slate-300">
-            <li className="flex items-center justify-between">
-              <span>Wymiary</span>
-              <span className="h-1.5 w-8 rounded-full bg-emerald-500" />
-            </li>
-            <li className="text-slate-500">
-              <Link
-                href="/client/stats"
-                className="flex items-center justify-between hover:text-emerald-300 transition"
-              >
-                <span>Statystyki</span>
-                <span className="h-1.5 w-6 rounded-full bg-slate-700" />
-              </Link>
-            </li>
-            <li className="text-slate-500">
-              <Link
-                href="/client/progress"
-                className="flex items-center justify-between hover:text-emerald-300 transition"
-              >
-                <span>Postępy</span>
-                <span className="h-1.5 w-4 rounded-full bg-slate-700" />
-              </Link>
-            </li>
-          </ul>
-        </div>
-        <div className="text-[11px] text-slate-500 leading-snug">
-          Dane są przykładowe. Docelowo tutaj Twój trener będzie widział
-          raporty z pomiarów i aktualną formę.
-        </div>
-      </div>
+    <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
+      {/* Karta z BMI i wymiarami */}
+      <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
+        <div className="flex flex-col gap-4 lg:flex-row">
+          {/* Tryb i sekcje */}
+          <div className="flex w-full flex-col gap-3 lg:w-40">
+            <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-b from-emerald-950/70 to-slate-950/80 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+                Tryb
+              </p>
+              <p className="mt-1 text-xs text-slate-200">
+                Trening online z trenerem, personalizowane plany i raporty.
+              </p>
+              <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-950/60 px-2 py-1.5 text-[11px]">
+                <span className="text-slate-300">Status</span>
+                <span className="flex items-center gap-1 font-medium text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Aktywny
+                </span>
+              </div>
+            </div>
 
-      {/* Duża karta ze statystykami sylwetki */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-5 lg:px-6 lg:py-6 flex flex-col lg:flex-row gap-6">
-        {/* Sylwetka i BMI */}
-        <div className="flex flex-col items-center justify-center w-full lg:w-[360px] gap-4">
-          <div className="relative h-[30rem] w-full max-w-2xl flex items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-emerald-500/45 blur-3xl" />
-            <div
-              className="relative h-[26rem] w-full origin-center transition-transform duration-300"
-              style={{ transform: `scaleX(${bmiScaleX})` }}
-            >
-              <Image
-                src="/body-male.png"
-                alt="Sylwetka podopiecznego"
-                fill
-                sizes="480px"
-                className="object-contain"
-              />
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Sekcje
+              </p>
+              <ul className="mt-2 space-y-1.5 text-[11px] text-slate-300">
+                <li className="flex items-center justify-between">
+                  <span>Wymiary</span>
+                  <span className="h-1 w-8 rounded-full bg-emerald-500/70" />
+                </li>
+                <li className="flex items-center justify-between">
+                  <span>Statystyki</span>
+                  <span className="h-1 w-8 rounded-full bg-slate-700" />
+                </li>
+                <li className="flex items-center justify-between">
+                  <span>Postępy</span>
+                  <span className="h-1 w-8 rounded-full bg-slate-700" />
+                </li>
+              </ul>
             </div>
           </div>
-          <div className="text-center space-y-1">
-            <p className="text-[11px] uppercase tracking-wide text-slate-400">
-              Twoje BMI
-            </p>
-            <p className="text-3xl font-semibold text-emerald-400">{bmi}</p>
-            <p className="text-xs text-slate-400">
-              Nadwaga – do omówienia z trenerem
-            </p>
+
+          {/* Środek z sylwetką i BMI */}
+          <div className="flex w-full flex-col items-center justify-center gap-4 lg:w-[260px]">
+            <div className="relative flex h-72 w-full max-w-xs items-center justify-center">
+              <div className="absolute inset-8 rounded-[999px] bg-emerald-500/10 blur-3xl" />
+              <div className="relative flex h-72 w-36 items-center justify-center">
+                <div className="absolute bottom-6 h-40 w-28 rounded-full bg-gradient-to-t from-emerald-500/25 via-emerald-400/5 to-transparent blur-2xl" />
+                <img
+                  src="/body-male.png"
+                  alt="Sylwetka podopiecznego"
+                  className="relative h-64 w-auto object-contain"
+                />
+              </div>
+            </div>
+            <div className="space-y-1 text-center">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Twoje BMI
+              </p>
+              <p className="text-3xl font-semibold text-emerald-400">27.5</p>
+              <p className="text-xs text-slate-400">
+                Nadwaga – do omówienia z trenerem
+              </p>
+            </div>
+          </div>
+
+          {/* Karta z licznikiem dni */}
+          <div className="flex w-full flex-col justify-between rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs lg:w-52">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                Twój plan
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-50">
+                Redukcja – 12 tygodni
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Aktualny etap: tydzień 4 z 12.
+              </p>
+            </div>
+            <div className="mt-4 rounded-xl bg-slate-900/80 p-3">
+              <p className="text-[11px] text-slate-400">Do końca planu:</p>
+              <p className="mt-1 text-2xl font-semibold text-emerald-400">
+                56 dni
+              </p>
+              <div className="mt-2 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500" />
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">
+                33% planu za Tobą – trzymaj tempo!
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Prawa część z kartami */}
-        <div className="flex-1 grid gap-4 md:grid-cols-3">
+        {/* Wymiary ciała */}
+        <div className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-200 sm:grid-cols-3">
           {bodyStats.map((stat) => {
-            const Icon = stat.icon as typeof Activity | undefined;
+            const Icon = stat.icon ?? Activity;
             return (
               <div
                 key={stat.label}
-                className="bg-slate-900 rounded-xl border border-slate-800 px-3 py-3 flex flex-col gap-1 shadow-inner"
+                className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2"
               >
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] uppercase text-slate-500 font-semibold">
-                    {stat.label}
-                  </p>
-                  {Icon && <Icon className="h-3.5 w-3.5 text-slate-500" />}
-                </div>
-                <div className="flex items-baseline gap-1 mt-1">
-                  <span className="text-lg font-semibold text-slate-50">
-                    {stat.value}
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[11px] text-emerald-300">
+                    <Icon className="h-3 w-3" />
                   </span>
-                  <span className="text-[11px] text-slate-400">{stat.unit}</span>
+                  <span className="text-[11px] text-slate-300">
+                    {stat.label}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-50">
+                    {stat.value}{" "}
+                    <span className="text-[11px] text-slate-400">
+                      {stat.unit}
+                    </span>
+                  </p>
                 </div>
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Prawa kolumna – plan i komunikaty */}
+      <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+              Dzisiejsze zadania
+            </p>
+            <p className="text-xs text-slate-300">
+              Zrealizuj plan, wypełnij raport i wyślij do trenera.
+            </p>
+          </div>
+          <button className="rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400">
+            Wyślij raport
+          </button>
+        </div>
+
+        <ol className="space-y-2 text-xs text-slate-200">
+          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-slate-950">
+              1
+            </span>
+            <div>
+              <p className="font-semibold text-slate-50">
+                Przeczytaj plan na dziś
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Sprawdź ćwiczenia, serie i powtórzenia oraz uwagi od trenera.
+              </p>
+            </div>
+          </li>
+          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-200">
+              2
+            </span>
+            <div>
+              <p className="font-semibold text-slate-50">
+                Zrealizuj trening i posiłki
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Zaznacz, co udało się wykonać, a co wymagało modyfikacji.
+              </p>
+            </div>
+          </li>
+          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-200">
+              3
+            </span>
+            <div>
+              <p className="font-semibold text-slate-50">
+                Wypełnij krótki raport
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Napisz, jak się czułeś, co było łatwe, a co trudniejsze.
+              </p>
+            </div>
+          </li>
+          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-200">
+              4
+            </span>
+            <div>
+              <p className="font-semibold text-slate-50">
+                Wyślij do trenera i czekaj na feedback
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Trener dostosuje kolejne dni na podstawie Twoich raportów.
+              </p>
+            </div>
+          </li>
+        </ol>
+
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-900/30 p-3 text-xs text-amber-100">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+            <div>
+              <p className="font-semibold">Przypomnienie od trenera</p>
+              <p className="text-[11px] text-amber-100/90">
+                Pamiętaj o zdjęciach sylwetki raz na 2 tygodnie – pomoże to lepiej
+                ocenić postępy niż sama waga.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -492,187 +530,178 @@ function DashboardSection() {
 }
 
 function TrainingPlanSection({
-  activeDay,
-  setActiveDay,
+  activeTrainingDay,
+  setActiveTrainingDay,
 }: {
-  activeDay: number;
-  setActiveDay: (day: number) => void;
+  activeTrainingDay: number;
+  setActiveTrainingDay: (day: number) => void;
 }) {
   return (
-    <section className="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-5 lg:px-6 lg:py-6 space-y-5">
-      {/* Pasek dni */}
-      <div className="flex flex-wrap items-stretch gap-2 border-b border-slate-800 pb-3">
-        {trainingDays.map((d) => {
-          const active = d.day === activeDay;
-          return (
+    <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)]">
+      <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+              Plan treningowy
+            </p>
+            <p className="text-xs text-slate-300">
+              Przykładowy plan na 7 dni. W docelowej wersji dane będą pochodzić
+              od Twojego trenera.
+            </p>
+          </div>
+          <div className="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-200">
+            Plan: góra / dół + core
+          </div>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-2 text-xs">
+          {trainingDays.map((day) => (
             <button
-              key={d.day}
+              key={day.day}
               type="button"
-              onClick={() => setActiveDay(d.day)}
-              className={`flex flex-col items-center justify-center px-3 py-2 rounded-md min-w-[70px] text-xs border transition ${
-                active
-                  ? "border-emerald-500 bg-slate-900 text-slate-50 shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-                  : "border-slate-700 bg-slate-900/40 text-slate-400 hover:border-emerald-400/60 hover:text-slate-50"
+              onClick={() => setActiveTrainingDay(day.day)}
+              className={`min-w-[80px] rounded-lg border px-3 py-2 text-left transition ${
+                activeTrainingDay === day.day
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-100"
+                  : "border-slate-800 bg-slate-900/60 text-slate-300 hover:border-slate-700"
               }`}
             >
-              <span className="text-sm font-semibold">{d.day}</span>
-              <span className="uppercase tracking-wide text-[10px]">
-                {d.label}
-              </span>
+              <p className="text-[11px] font-semibold">
+                Dzień {day.day}
+                {day.rest && <span className="ml-1 text-[10px]">(odpoczynek)</span>}
+              </p>
+              {!day.rest && (
+                <p className="mt-0.5 text-[10px] text-slate-400">
+                  Trening siłowy + core
+                </p>
+              )}
             </button>
-          );
-        })}
-      </div>
-
-      {/* Ostrzeżenie i przycisk rozgrzewki */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div className="flex items-start gap-2 text-xs text-amber-300">
-          <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-400" />
-          <p>
-            <span className="font-semibold">Uwaga!</span> Pamiętaj, aby wykonać
-            rozgrzewkę przed każdym treningiem.
-          </p>
-        </div>
-        <button className="self-start inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-950 hover:bg-emerald-400 transition shadow-[0_0_20px_rgba(16,185,129,0.6)]">
-          Zacznij rozgrzewkę
-        </button>
-      </div>
-
-      {/* Przerwy */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="bg-slate-900 rounded-xl border border-slate-800 px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] uppercase text-slate-500 font-semibold">
-              Przerwa pomiędzy seriami
-            </p>
-            <p className="text-xs text-slate-300">Czas odpoczynku w trakcie serii.</p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-semibold text-emerald-400">4</p>
-            <p className="text-[11px] uppercase text-slate-400">minuty</p>
-          </div>
-        </div>
-        <div className="bg-slate-900 rounded-xl border border-slate-800 px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-[11px] uppercase text-slate-500 font-semibold">
-              Przerwa pomiędzy ćwiczeniami
-            </p>
-            <p className="text-xs text-slate-300">Czas przejścia do kolejnego ćwiczenia.</p>
-          </div>
-          <div className="text-right">
-            <p className="text-2xl font-semibold text-emerald-400">6</p>
-            <p className="text-[11px] uppercase text-slate-400">minut</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Spis ćwiczeń */}
-      <div className="bg-slate-950/60 rounded-xl border border-slate-800 overflow-hidden text-xs">
-        <div className="bg-slate-900/80 px-4 py-2 border-b border-slate-800 flex items-center justify-between">
-          <span className="font-semibold text-slate-100 uppercase tracking-wide text-[11px]">
-            Spis ćwiczeń
-          </span>
-          <span className="text-slate-400 text-[11px]">
-            Zestaw {activeDay} (przykładowy)
-          </span>
-        </div>
-        <div className="bg-slate-900/60 px-4 py-2 border-b border-slate-800 grid grid-cols-[40px_minmax(0,1fr)_60px_minmax(0,120px)_60px] gap-2 text-[10px] font-semibold text-slate-400">
-          <span>LP.</span>
-          <span>Nazwa ćwiczenia</span>
-          <span className="text-center">Serie</span>
-          <span className="text-center">Ilość powtórzeń</span>
-          <span className="text-center">Trudność</span>
-        </div>
-        <div>
-          {exercises.map((ex) => (
-            <div
-              key={ex.lp}
-              className="px-4 py-2 border-b border-slate-800/80 last:border-none grid grid-cols-[40px_minmax(0,1fr)_60px_minmax(0,120px)_60px] gap-2 items-center text-[11px] text-slate-200"
-            >
-              <span className="text-slate-400">{ex.lp}</span>
-              <span>{ex.name}</span>
-              <span className="text-center text-slate-300">{ex.sets}</span>
-              <span className="flex flex-wrap gap-1 justify-center">
-                {ex.reps.map((r, idx) => (
-                  <span
-                    key={idx}
-                    className="px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-100"
-                  >
-                    {r}
-                  </span>
-                ))}
-              </span>
-              <span className="flex justify-center gap-[2px]">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`h-2 w-2 rounded-full ${
-                      i < ex.difficulty
-                        ? i >= 3
-                          ? "bg-red-500"
-                          : "bg-emerald-400"
-                        : "bg-slate-700"
-                    }`}
-                  />
-                ))}
-              </span>
-            </div>
           ))}
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Ćwiczenia (przykład)
+          </p>
+          <div className="grid gap-2 text-slate-200">
+            {exercises.map((ex) => (
+              <div
+                key={ex.lp}
+                className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2"
+              >
+                <div>
+                  <p className="text-xs font-semibold text-slate-50">
+                    {ex.lp}. {ex.name}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Serie: {ex.sets} • Powtórzenia: {ex.reps.join(" / ")}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end text-[11px] text-slate-400">
+                  <span>Trudność:</span>
+                  <div className="mt-1 flex gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`h-1.5 w-3 rounded-full ${
+                          i < ex.difficulty ? "bg-emerald-400" : "bg-slate-700"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Notatki do dnia {activeTrainingDay}
+          </p>
+          <span className="rounded-full bg-slate-900/80 px-2 py-1 text-[10px] text-slate-300">
+            Przykładowe dane
+          </span>
+        </div>
+        <ul className="space-y-2 text-[11px] text-slate-300">
+          <li>• Skup się na technice, nie na ciężarze.</li>
+          <li>• Przerwy między seriami 60–90 sekund.</li>
+          <li>• Po treningu minimum 10 minut spokojnego rozciągania.</li>
+        </ul>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3">
+          <p className="text-[11px] font-semibold text-slate-50">
+            Raport z dnia (demo)
+          </p>
+          <p className="mt-1 text-[11px] text-slate-400">
+            Tu w przyszłości wpiszesz, jak poszedł trening, a trener zobaczy to
+            w swoim panelu.
+          </p>
         </div>
       </div>
     </section>
   );
 }
 
-function NutritionPlanSection({
+function DietSection({
   activeMealIndex,
   setActiveMealIndex,
 }: {
   activeMealIndex: number;
-  setActiveMealIndex: (i: number) => void;
+  setActiveMealIndex: (index: number) => void;
 }) {
   return (
-    <section className="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-5 lg:px-6 lg:py-6 space-y-5">
-      {/* Pasek posiłków */}
-      <div className="flex flex-wrap items-stretch gap-2 border-b border-slate-800 pb-3">
-        {meals.map((meal, index) => {
-          const active = index === activeMealIndex;
-          return (
+    <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)]">
+      <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+              Plan żywieniowy
+            </p>
+            <p className="text-xs text-slate-300">
+              Przykładowy rozkład posiłków. W docelowej wersji będzie pochodził
+              z planu od trenera.
+            </p>
+          </div>
+          <div className="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-200">
+            Cel: redukcja, 2100 kcal
+          </div>
+        </div>
+
+        <div className="flex gap-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80 p-2 text-xs">
+          {meals.map((meal, index) => (
             <button
               key={meal}
               type="button"
               onClick={() => setActiveMealIndex(index)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border transition ${
-                active
-                  ? "border-emerald-500 bg-slate-900 text-slate-50 shadow-[0_0_20px_rgba(16,185,129,0.4)]"
-                  : "border-slate-700 bg-slate-900/40 text-slate-400 hover:border-emerald-400/60 hover:text-slate-50"
+              className={`min-w-[110px] rounded-lg border px-3 py-2 text-left transition ${
+                activeMealIndex === index
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-100"
+                  : "border-slate-800 bg-slate-900/60 text-slate-300 hover:border-slate-700"
               }`}
             >
-              <span>{meal}</span>
+              <p className="text-[11px] font-semibold">{meal}</p>
+              <p className="mt-0.5 text-[10px] text-slate-400">Przykładowy opis</p>
             </button>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] items-start">
-        {/* Zdjęcie posiłku */}
-        <div className="bg-slate-950/60 rounded-2xl border border-slate-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between text-xs">
-            <span className="text-slate-300 font-semibold">
-              Łosoś pieczony z warzywami
-            </span>
-            <span className="text-slate-500">przykładowy posiłek</span>
-          </div>
-          <div className="aspect-video bg-slate-900 flex items-center justify-center text-slate-500 text-xs">
-            Tu w przyszłości będzie zdjęcie posiłku.
-          </div>
-          <div className="px-4 py-3 text-[11px] text-slate-300">
-            Posiłek bogaty w białko i zdrowe tłuszcze. Zdjęcie i dokładne
-            składniki będzie uzupełniał Twój trener.
-          </div>
+          ))}
         </div>
 
-        {/* Koło makro + woda + kalorie */}
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Szczegóły posiłku (demo)
+          </p>
+          <ul className="space-y-1 text-slate-200">
+            <li>• Źródło białka</li>
+            <li>• Źródło węglowodanów złożonych</li>
+            <li>• Warzywa / owoce</li>
+            <li>• Zdrowe tłuszcze</li>
+          </ul>
+          <p className="text-[11px] text-slate-400">
+            W finalnej wersji skład i gramatury będzie uzupełniał Twój trener.
+          </p>
+        </div>
+
         <div className="space-y-4">
           <div className="bg-slate-950/60 rounded-2xl border border-slate-800 px-4 py-4 flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="space-y-2 text-xs text-slate-300">
@@ -739,30 +768,92 @@ function NutritionPlanSection({
   );
 }
 
+function ProgressSection() {
+  return (
+    <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+            Postępy
+          </p>
+          <p className="text-xs text-slate-300">
+            Przykładowy widok – w przyszłości wykresy i zdjęcia progresu.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Waga (przykład)
+          </p>
+          <div className="h-32 rounded-xl bg-slate-950/80 border border-slate-800 flex items-end gap-1 px-2 pb-2">
+            {["108", "104", "101", "99", "97"].map((v, i) => (
+              <div
+                key={v}
+                className="flex-1 flex flex-col items-center justify-end gap-1"
+              >
+                <div
+                  className={`w-5 rounded-t-full ${
+                    i === 0
+                      ? "h-24 bg-slate-700"
+                      : "h-16 bg-emerald-500/80"
+                  }`}
+                />
+                <span className="text-[9px] text-slate-500">{v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Obwody (przykład)
+          </p>
+          <ul className="space-y-1 text-[11px] text-slate-300">
+            <li>• Pas: -4.5 cm</li>
+            <li>• Brzuch: -3.0 cm</li>
+            <li>• Uda: -2.0 cm</li>
+            <li>• Klata: +1.5 cm</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ChatSection() {
+  return (
+    <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+            Czat z trenerem (demo)
+          </p>
+          <p className="text-xs text-slate-300">
+            W wersji produkcyjnej tutaj będzie lista wiadomości i szybkie
+            odpowiedzi AI.
+          </p>
+        </div>
+      </div>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+        <p className="text-[11px] text-slate-400">
+          Na razie to tylko makieta – w przyszłości zobaczysz tu historię
+          rozmów z trenerem, wpisy z raportów i podpowiedzi AI.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function TrainersListSection({
   onSelectTrainer,
-  onBackToTrainer,
 }: {
   onSelectTrainer: (id: string) => void;
-  onBackToTrainer?: () => void;
 }) {
   return (
-    <section className="mt-4 space-y-4">
-      {onBackToTrainer && (
-        <div className="rounded-2xl border border-emerald-500/50 bg-emerald-950/30 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <p className="text-sm text-slate-200">
-            Przeglądasz listę trenerów. Aby wrócić do panelu z planami i dietą, kliknij poniżej.
-          </p>
-          <button
-            type="button"
-            onClick={onBackToTrainer}
-            className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 transition shrink-0"
-          >
-            Wróć do swojego trenera
-          </button>
-        </div>
-      )}
-      <p className="text-xs text-slate-400 max-w-2xl">
+    <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+      <p className="text-sm text-slate-200">
         Wybierz trenera, z którym chcesz współpracować. To tylko przykładowe
         profile – w docelowej wersji pojawią się tu prawdziwi trenerzy z ich
         opisami i ocenami od podopiecznych.
@@ -826,17 +917,6 @@ function TrainersListSection({
           </article>
         ))}
       </div>
-    </section>
-  );
-}
-
-function PlaceholderSection() {
-  return (
-    <section className="mt-4 bg-slate-900/80 border border-slate-800 rounded-2xl px-5 py-4 text-xs text-slate-300">
-      <p>
-        To miejsce na dalszą część panelu (plan żywieniowy, postępy, czat).
-        Aktualnie to tylko widok poglądowy.
-      </p>
     </section>
   );
 }

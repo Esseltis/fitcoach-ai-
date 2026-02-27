@@ -16,15 +16,8 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const loggedIn = window.localStorage.getItem("fitcoach_client_logged_in");
-    const hasTrainerFlag =
-      window.localStorage.getItem("fitcoach_client_has_trainer") === "true";
-    const trainerId = window.localStorage.getItem(
-      "fitcoach_client_trainer_id",
-    );
-
     if (loggedIn === "true") {
-      const hasTrainer = hasTrainerFlag || Boolean(trainerId);
-      router.replace(hasTrainer ? "/client" : "/trainers");
+      router.replace("/client");
     }
   }, [router]);
 
@@ -37,19 +30,7 @@ export default function LoginPage() {
         window.localStorage.setItem("fitcoach_client_logged_in", "true");
         window.localStorage.setItem("fitcoach_client_email", email);
       }
-
-      let hasTrainer = false;
-      if (typeof window !== "undefined") {
-        const hasTrainerFlag =
-          window.localStorage.getItem("fitcoach_client_has_trainer") ===
-          "true";
-        const trainerId = window.localStorage.getItem(
-          "fitcoach_client_trainer_id",
-        );
-        hasTrainer = hasTrainerFlag || Boolean(trainerId);
-      }
-
-      router.push(hasTrainer ? "/client" : "/trainers");
+      router.push("/client");
     } else {
       setError("Nieprawidłowy e-mail lub hasło.");
     }

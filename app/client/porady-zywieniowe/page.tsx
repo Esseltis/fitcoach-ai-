@@ -1,3 +1,7 @@
+'use client';
+
+import Link from "next/link";
+
 export default function PoradyZywieniowePage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -24,6 +28,15 @@ export default function PoradyZywieniowePage() {
             referencyjnym widoku.
           </p>
         </section>
+
+        <div>
+          <Link
+            href="/client"
+            className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800 hover:text-white"
+          >
+            ← Wróć do panelu
+          </Link>
+        </div>
       </main>
     </div>
   );

@@ -650,8 +650,60 @@ function DietSection({
   activeMealIndex: number;
   setActiveMealIndex: (index: number) => void;
 }) {
+  type DietSubSection =
+    | "wprowadzenie"
+    | "analiza"
+    | "plan"
+    | "porady"
+    | "dieta"
+    | "suplementy"
+    | "nawodnienie"
+    | "trening"
+    | "catering";
+
+  const [dietSection, setDietSection] =
+    useState<DietSubSection>("wprowadzenie");
+
+  const dietNavItems: { id: DietSubSection; label: string }[] = [
+    { id: "wprowadzenie", label: "Wprowadzenie" },
+    { id: "analiza", label: "Analiza żywieniowa" },
+    { id: "plan", label: "Plan żywieniowy" },
+    { id: "porady", label: "Porady żywieniowe" },
+    { id: "dieta", label: "Dieta" },
+    { id: "suplementy", label: "Suplementy" },
+    { id: "nawodnienie", label: "Nawodnienie" },
+    { id: "trening", label: "Trening" },
+    { id: "catering", label: "Catering" },
+  ];
+
   return (
-    <section className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)]">
+    <section className="grid gap-6 lg:grid-cols-[200px_minmax(0,1.5fr)_minmax(0,1.1fr)]">
+      {/* Lewa kolumna – sekcje żywieniowe */}
+      <aside className="space-y-2 rounded-2xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-200">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          Plan żywieniowy
+        </p>
+        <div className="mt-2 space-y-1.5">
+          {dietNavItems.map((item) => {
+            const active = dietSection === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setDietSection(item.id)}
+                className={`w-full rounded-lg px-3 py-2 text-left text-[11px] transition ${
+                  active
+                    ? "bg-emerald-500 text-slate-950 font-semibold shadow-[0_0_12px_rgba(16,185,129,0.6)]"
+                    : "bg-slate-900/70 text-slate-300 hover:bg-slate-900"
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
       <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
         <div className="flex items-center justify-between gap-3">
           <div>

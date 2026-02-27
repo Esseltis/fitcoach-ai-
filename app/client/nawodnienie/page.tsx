@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-export default function NawodnieniePage() {
+export default function HydrationPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-10">

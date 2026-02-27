@@ -128,7 +128,6 @@ export default function ClientDashboardPage() {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("fitcoach_client_logged_in");
       window.localStorage.removeItem("fitcoach_client_email");
-      window.localStorage.removeItem("fitcoach_client_trainer_id");
     }
     router.push("/");
   };

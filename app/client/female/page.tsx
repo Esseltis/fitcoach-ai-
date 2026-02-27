@@ -67,12 +67,62 @@ export default function ClientFemaleDashboardPage() {
     );
   }
 
-  const navItems: { id: SectionId; label: string; icon: any }[] = [
-    { id: "dashboard", label: "Panel główny", icon: LayoutDashboard },
-    { id: "plan", label: "Plan treningowy", icon: Dumbbell },
-    { id: "diet", label: "Plan żywieniowy", icon: Utensils },
-    { id: "progress", label: "Postępy", icon: LineChart },
-    { id: "chat", label: "Czat z trenerem", icon: MessageCircle },
+  const navItems: { id: string; label: string; icon: any; href?: string }[] = [
+    {
+      id: "dashboard",
+      label: "Panel główny",
+      icon: LayoutDashboard,
+      href: "/client/female",
+    },
+    {
+      id: "wprowadzenie",
+      label: "Wprowadzenie",
+      icon: Activity,
+      href: "/client/wprowadzenie",
+    },
+    {
+      id: "analiza",
+      label: "Analiza żywieniowa",
+      icon: LineChart,
+      href: "/client/analiza-zywieniowa",
+    },
+    {
+      id: "plan-zywieniowy",
+      label: "Plan żywieniowy",
+      icon: Utensils,
+      href: "/client/plan-zywieniowy",
+    },
+    {
+      id: "porady",
+      label: "Porady żywieniowe",
+      icon: MessageCircle,
+      href: "/client/porady-zywieniowe",
+    },
+    { id: "dieta", label: "Dieta", icon: Utensils, href: "/client/dieta" },
+    {
+      id: "suplementy",
+      label: "Suplementy",
+      icon: Dumbbell,
+      href: "/client/suplementy",
+    },
+    {
+      id: "nawodnienie",
+      label: "Nawodnienie",
+      icon: Activity,
+      href: "/client/nawodnienie",
+    },
+    {
+      id: "trening",
+      label: "Trening",
+      icon: Dumbbell,
+      href: "/client/trening",
+    },
+    {
+      id: "catering",
+      label: "Catering",
+      icon: Utensils,
+      href: "/client/catering",
+    },
   ];
 
   return (
@@ -103,12 +153,20 @@ export default function ClientFemaleDashboardPage() {
             <nav className="space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const active = item.id === activeSection;
+                const isDashboard = item.id === "dashboard";
+                const active = isDashboard && activeSection === "dashboard";
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setActiveSection(item.id)}
+                    onClick={() => {
+                      if (isDashboard) {
+                        setActiveSection("dashboard");
+                        router.push("/client/female");
+                      } else if (item.href) {
+                        router.push(item.href);
+                      }
+                    }}
                     className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                       active
                         ? "bg-pink-500/90 text-slate-950 shadow-inner"

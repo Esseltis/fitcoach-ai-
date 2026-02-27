@@ -56,18 +56,18 @@ const EXERCISES: Exercise[] = [
   },
 ];
 
-const trainingTabs = [
-  "Wstęp",
-  "Rozgrzewka",
-  "Trening główny",
-  "Dodatkowe serie",
-  "Cardio",
-  "Rozciąganie",
-  "Podsumowanie",
+const trainingDays = [
+  { id: 1, label: "Dzień 1", status: "Treningowy" },
+  { id: 2, label: "Dzień 2", status: "Treningowy" },
+  { id: 3, label: "Dzień 3", status: "Aktywny" },
+  { id: 4, label: "Dzień 4", status: "Treningowy" },
+  { id: 5, label: "Dzień 5", status: "Treningowy" },
+  { id: 6, label: "Dzień 6", status: "Aktywny" },
+  { id: 7, label: "Dzień 7", status: "Odpoczynek" },
 ];
 
 export default function TreningPage() {
-  const [activeTab, setActiveTab] = useState(2); // "Trening główny"
+  const [activeDay, setActiveDay] = useState(1);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -84,18 +84,23 @@ export default function TreningPage() {
           </p>
 
           <div className="mt-2 flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-2 text-xs text-slate-200">
-            {trainingTabs.map((label, idx) => (
+            {trainingDays.map((day) => (
               <button
-                key={label}
+                key={day.id}
                 type="button"
-                onClick={() => setActiveTab(idx)}
-                className={`flex-1 min-w-[90px] rounded-lg px-4 py-2 text-center uppercase tracking-wide ${
-                  activeTab === idx
+                onClick={() => setActiveDay(day.id)}
+                className={`flex-1 min-w-[110px] rounded-lg px-4 py-2 text-left uppercase tracking-wide ${
+                  activeDay === day.id
                     ? "bg-emerald-500 text-slate-950 font-semibold shadow-[0_0_18px_rgba(16,185,129,0.6)]"
                     : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
                 }`}
               >
-                {label}
+                <div className="flex flex-col leading-tight">
+                  <span>{day.label}</span>
+                  <span className="text-[10px] normal-case opacity-80">
+                    {day.status}
+                  </span>
+                </div>
               </button>
             ))}
           </div>

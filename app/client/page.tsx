@@ -728,40 +728,33 @@ function DashboardSection({
 
 function IntroSection() {
   return (
-    <section className="mx-auto flex max-w-5xl flex-col gap-8">
-      <header className="space-y-4">
-        <div className="flex flex-col items-center justify-center gap-2 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
-            Plan współpracy
-          </p>
-          <h1 className="text-3xl font-extrabold tracking-[0.15em] text-slate-50 md:text-4xl">
-            START PLANU
-          </h1>
+    <section className="mx-auto flex max-w-5xl flex-col gap-6">
+      {/* Pasek aktualizacji u góry */}
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center gap-3 rounded-full bg-gradient-to-r from-emerald-500/10 via-emerald-500/30 to-emerald-500/10 px-5 py-2 border border-emerald-400/70 shadow-[0_0_25px_rgba(16,185,129,0.6)]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-400">
+            <span className="text-emerald-300 text-xl">!</span>
+          </div>
+          <div className="flex flex-col leading-tight text-xs">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.25em] text-emerald-200">
+              Aktualizacja 6
+            </span>
+            <span className="text-[11px] text-emerald-100">03.03.2026</span>
+          </div>
         </div>
+      </div>
 
-        <div className="mt-2 flex flex-col items-center gap-1 text-xs text-slate-300">
-          <span className="rounded-full border border-emerald-500/50 bg-slate-900/70 px-4 py-1 text-emerald-300">
-            AKTUALIZACJA • wersja demo
-          </span>
-          <span className="text-[11px] text-slate-500">
-            Tutaj w przyszłości trener będzie wpisywał numer aktualizacji planu i
-            datę.
-          </span>
-        </div>
+      {/* Pasek tytułu sekcji „Wstęp” */}
+      <div className="mt-4 flex items-center gap-2 rounded-full bg-slate-900/70 px-5 py-2 border border-slate-700/80 shadow-[0_10px_30px_rgba(15,23,42,0.9)]">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-200">
+          Wstęp
+        </span>
+      </div>
 
-        <div className="mt-6 h-px w-full bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
-      </header>
-
-      <section className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm leading-relaxed text-slate-200">
-        <div className="mb-1 flex items-center gap-3">
-          <div className="h-0.5 w-10 bg-sky-500" />
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-400">
-            WSTĘP
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <p className="font-semibold text-emerald-300">Siema Mateusz!</p>
+      {/* Główna karta tekstowa */}
+      <section className="rounded-2xl border border-slate-800 bg-slate-950/90 px-5 py-6 text-[13px] leading-relaxed text-slate-200 shadow-[0_20px_40px_rgba(15,23,42,0.9)]">
+        <div className="space-y-3">
+          <p className="font-semibold text-slate-100">Siema Mateusz!</p>
           <p>
             Tutaj trener wprowadzi Cię w aktualną wersję planu – napisze, co
             zostało zmienione, na co masz zwracać uwagę w raportach i jak
@@ -774,8 +767,10 @@ function IntroSection() {
           </p>
         </div>
 
-        <div className="space-y-1">
-          <p className="font-semibold text-slate-100">W aktualizacji planu:</p>
+        <div className="mt-4 space-y-2">
+          <p className="font-semibold text-slate-100">
+            W aktualizacji planu:
+          </p>
           <ul className="list-disc space-y-1 pl-5 text-slate-200">
             <li>kaloryczność planu utrzymana na podobnym poziomie,</li>
             <li>lekko zwiększona liczba posiłków w ciągu dnia,</li>
@@ -783,16 +778,6 @@ function IntroSection() {
             <li>zmodyfikowany plan treningowy pod aktualny etap,</li>
             <li>ustalenia dotyczące suplementacji i nawodnienia bez zmian.</li>
           </ul>
-        </div>
-
-        <div className="space-y-2">
-          <p className="font-semibold text-red-400">Ogień!</p>
-          <p>
-            Poniżej możesz dodać szczegółowe wskazówki dotyczące pomiarów,
-            raportów tygodniowych i wszystkiego, co jest ważne z perspektywy
-            Twojego trenera. Struktura jest przygotowana tak, żeby łatwo było ją
-            czytać na telefonie i komputerze.
-          </p>
         </div>
       </section>
     </section>

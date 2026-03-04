@@ -2323,176 +2323,79 @@ function ProgressSection() {
                 />
               </svg>
             )}
-
-            {/* Kropki i wartości na liniach */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              {isVisible("klatka") &&
-                chestDots.map((d) => (
-                  <g key={`klatka-${d.x}-${d.value}`}>
-                    <circle
-                      cx={d.x}
-                      cy={d.y}
-                      r={1.6}
-                      fill="rgba(74,222,128,1)"
-                    />
-                    <text
-                      x={d.x}
-                      y={d.y - 4}
-                      fontSize="4"
-                      fontWeight="bold"
-                      fill="#f9fafb"
-                      stroke="#020617"
-                      strokeWidth="0.25"
-                      textAnchor="middle"
-                    >
-                      {d.value}
-                    </text>
-                  </g>
-                ))}
-              {isVisible("pas") &&
-                waistDots.map((d) => (
-                  <g key={`pas-${d.x}-${d.value}`}>
-                    <circle
-                      cx={d.x}
-                      cy={d.y}
-                      r={1.6}
-                      fill="rgba(244,114,182,1)"
-                    />
-                    <text
-                      x={d.x}
-                      y={d.y - 4}
-                      fontSize="4"
-                      fontWeight="bold"
-                      fill="#f9fafb"
-                      stroke="#020617"
-                      strokeWidth="0.25"
-                      textAnchor="middle"
-                    >
-                      {d.value}
-                    </text>
-                  </g>
-                ))}
-              {isVisible("brzuch") &&
-                bellyDots.map((d) => (
-                  <g key={`brzuch-${d.x}-${d.value}`}>
-                    <circle
-                      cx={d.x}
-                      cy={d.y}
-                      r={1.6}
-                      fill="rgba(251,146,60,1)"
-                    />
-                    <text
-                      x={d.x}
-                      y={d.y - 4}
-                      fontSize="4"
-                      fontWeight="bold"
-                      fill="#f9fafb"
-                      stroke="#020617"
-                      strokeWidth="0.25"
-                      textAnchor="middle"
-                    >
-                      {d.value}
-                    </text>
-                  </g>
-                ))}
-              {isVisible("uda") &&
-                thighDots.map((d) => (
-                  <g key={`uda-${d.x}-${d.value}`}>
-                    <circle
-                      cx={d.x}
-                      cy={d.y}
-                      r={1.6}
-                      fill="rgba(250,204,21,1)"
-                    />
-                    <text
-                      x={d.x}
-                      y={d.y - 4}
-                      fontSize="4"
-                      fontWeight="bold"
-                      fill="#f9fafb"
-                      stroke="#020617"
-                      strokeWidth="0.25"
-                      textAnchor="middle"
-                    >
-                      {d.value}
-                    </text>
-                  </g>
-                ))}
-              {isVisible("waga") &&
-                weightDots.map((d) => (
-                  <g key={`waga-${d.x}-${d.value}`}>
-                    <circle
-                      cx={d.x}
-                      cy={d.y}
-                      r={1.6}
-                      fill="rgba(34,211,238,1)"
-                    />
-                    <text
-                      x={d.x}
-                      y={d.y - 4}
-                      fontSize="4"
-                      fontWeight="bold"
-                      fill="#f9fafb"
-                      stroke="#020617"
-                      strokeWidth="0.25"
-                      textAnchor="middle"
-                    >
-                      {d.value}
-                    </text>
-                  </g>
-                ))}
-              {isVisible("biceps") &&
-                bicepsDots.map((d) => (
-                  <g key={`biceps-${d.x}-${d.value}`}>
-                    <circle
-                      cx={d.x}
-                      cy={d.y}
-                      r={1.6}
-                      fill="rgba(59,130,246,1)"
-                    />
-                    <text
-                      x={d.x}
-                      y={d.y - 4}
-                      fontSize="4"
-                      fontWeight="bold"
-                      fill="#f9fafb"
-                      stroke="#020617"
-                      strokeWidth="0.25"
-                      textAnchor="middle"
-                    >
-                      {d.value}
-                    </text>
-                  </g>
-                ))}
-              {isVisible("lydki") &&
-                calvesDots.map((d) => (
-                  <g key={`lydki-${d.x}-${d.value}`}>
-                    <circle
-                      cx={d.x}
-                      cy={d.y}
-                      r={1.6}
-                      fill="rgba(139,92,246,1)"
-                    />
-                    <text
-                      x={d.x}
-                      y={d.y - 4}
-                      fontSize="4"
-                      fontWeight="bold"
-                      fill="#f9fafb"
-                      stroke="#020617"
-                      strokeWidth="0.25"
-                      textAnchor="middle"
-                    >
-                      {d.value}
-                    </text>
-                  </g>
-                ))}
-            </svg>
           </div>
+
+          {/* Etykiety wartości jako HTML, żeby nie były rozciągane */}
+          {isVisible("klatka") &&
+            chestDots.map((d) => (
+              <div
+                key={`klatka-${d.x}-${d.value}`}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                {d.value}
+              </div>
+            ))}
+          {isVisible("pas") &&
+            waistDots.map((d) => (
+              <div
+                key={`pas-${d.x}-${d.value}`}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                {d.value}
+              </div>
+            ))}
+          {isVisible("brzuch") &&
+            bellyDots.map((d) => (
+              <div
+                key={`brzuch-${d.x}-${d.value}`}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                {d.value}
+              </div>
+            ))}
+          {isVisible("uda") &&
+            thighDots.map((d) => (
+              <div
+                key={`uda-${d.x}-${d.value}`}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                {d.value}
+              </div>
+            ))}
+          {isVisible("waga") &&
+            weightDots.map((d) => (
+              <div
+                key={`waga-${d.x}-${d.value}`}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                {d.value}
+              </div>
+            ))}
+          {isVisible("biceps") &&
+            bicepsDots.map((d) => (
+              <div
+                key={`biceps-${d.x}-${d.value}`}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                {d.value}
+              </div>
+            ))}
+          {isVisible("lydki") &&
+            calvesDots.map((d) => (
+              <div
+                key={`lydki-${d.x}-${d.value}`}
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                style={{ left: `${d.x}%`, top: `${d.y}%` }}
+              >
+                {d.value}
+              </div>
+            ))}
 
           {/* Oś czasu na dole */}
           <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between text-[9px] text-slate-400">

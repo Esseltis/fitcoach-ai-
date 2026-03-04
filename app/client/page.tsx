@@ -2336,14 +2336,17 @@ function ProgressSection() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={1.4}
+                      r={1.6}
                       fill="rgba(74,222,128,1)"
                     />
                     <text
                       x={d.x}
-                      y={d.y - 3}
-                      fontSize="3"
-                      fill="#e5e7eb"
+                      y={d.y - 4}
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="#f9fafb"
+                      stroke="#020617"
+                      strokeWidth="0.25"
                       textAnchor="middle"
                     >
                       {d.value}
@@ -2356,14 +2359,17 @@ function ProgressSection() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={1.4}
+                      r={1.6}
                       fill="rgba(244,114,182,1)"
                     />
                     <text
                       x={d.x}
-                      y={d.y - 3}
-                      fontSize="3"
-                      fill="#f9a8d4"
+                      y={d.y - 4}
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="#f9fafb"
+                      stroke="#020617"
+                      strokeWidth="0.25"
                       textAnchor="middle"
                     >
                       {d.value}
@@ -2376,14 +2382,17 @@ function ProgressSection() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={1.4}
+                      r={1.6}
                       fill="rgba(251,146,60,1)"
                     />
                     <text
                       x={d.x}
-                      y={d.y - 3}
-                      fontSize="3"
-                      fill="#fed7aa"
+                      y={d.y - 4}
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="#f9fafb"
+                      stroke="#020617"
+                      strokeWidth="0.25"
                       textAnchor="middle"
                     >
                       {d.value}
@@ -2396,14 +2405,17 @@ function ProgressSection() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={1.4}
+                      r={1.6}
                       fill="rgba(250,204,21,1)"
                     />
                     <text
                       x={d.x}
-                      y={d.y - 3}
-                      fontSize="3"
-                      fill="#fef3c7"
+                      y={d.y - 4}
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="#f9fafb"
+                      stroke="#020617"
+                      strokeWidth="0.25"
                       textAnchor="middle"
                     >
                       {d.value}
@@ -2416,14 +2428,17 @@ function ProgressSection() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={1.4}
+                      r={1.6}
                       fill="rgba(34,211,238,1)"
                     />
                     <text
                       x={d.x}
-                      y={d.y - 3}
-                      fontSize="3"
-                      fill="#a5f3fc"
+                      y={d.y - 4}
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="#f9fafb"
+                      stroke="#020617"
+                      strokeWidth="0.25"
                       textAnchor="middle"
                     >
                       {d.value}
@@ -2436,14 +2451,17 @@ function ProgressSection() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={1.4}
+                      r={1.6}
                       fill="rgba(59,130,246,1)"
                     />
                     <text
                       x={d.x}
-                      y={d.y - 3}
-                      fontSize="3"
-                      fill="#bfdbfe"
+                      y={d.y - 4}
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="#f9fafb"
+                      stroke="#020617"
+                      strokeWidth="0.25"
                       textAnchor="middle"
                     >
                       {d.value}
@@ -2456,14 +2474,17 @@ function ProgressSection() {
                     <circle
                       cx={d.x}
                       cy={d.y}
-                      r={1.4}
+                      r={1.6}
                       fill="rgba(139,92,246,1)"
                     />
                     <text
                       x={d.x}
-                      y={d.y - 3}
-                      fontSize="3"
-                      fill="#ddd6fe"
+                      y={d.y - 4}
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="#f9fafb"
+                      stroke="#020617"
+                      strokeWidth="0.25"
                       textAnchor="middle"
                     >
                       {d.value}

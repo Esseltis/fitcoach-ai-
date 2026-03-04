@@ -1899,7 +1899,7 @@ function SettingsSection() {
 
           <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-              Zmień numer telefonu
+              Numer telefonu
             </p>
             <p className="text-[11px] text-slate-500">Aktualny</p>
             <p className="text-sm font-semibold text-emerald-300">

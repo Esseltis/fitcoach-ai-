@@ -2008,6 +2008,9 @@ function DietSection({
 
 function ProgressSection() {
   const [dateLabels, setDateLabels] = useState<string[]>([]);
+  const [focusedMetric, setFocusedMetric] = useState<
+    "waga" | "pas" | "brzuch" | "biceps" | "klatka" | "uda" | "lydki" | null
+  >(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2069,6 +2072,59 @@ function ProgressSection() {
     setDateLabels(labels);
   }, []);
 
+  const isVisible = (key:
+    | "waga"
+    | "pas"
+    | "brzuch"
+    | "biceps"
+    | "klatka"
+    | "uda"
+    | "lydki",
+  ) => !focusedMetric || focusedMetric === key;
+
+  const chestDots = [
+    { x: 8, y: 55, value: 108 },
+    { x: 32, y: 60, value: 101 },
+    { x: 66, y: 54, value: 108 },
+    { x: 92, y: 48, value: 108 },
+  ];
+  const waistDots = [
+    { x: 8, y: 70, value: 83 },
+    { x: 32, y: 68, value: 78 },
+    { x: 66, y: 69, value: 82 },
+    { x: 92, y: 72, value: 93 },
+  ];
+  const bellyDots = [
+    { x: 8, y: 65, value: 93 },
+    { x: 32, y: 64, value: 90 },
+    { x: 66, y: 64, value: 92 },
+    { x: 92, y: 66, value: 95 },
+  ];
+  const thighDots = [
+    { x: 8, y: 80, value: 57 },
+    { x: 32, y: 78, value: 53 },
+    { x: 66, y: 78, value: 53 },
+    { x: 92, y: 81, value: 61 },
+  ];
+  const weightDots = [
+    { x: 8, y: 88, value: 81 },
+    { x: 32, y: 87, value: 81 },
+    { x: 66, y: 88, value: 81 },
+    { x: 92, y: 88, value: 81 },
+  ];
+  const bicepsDots = [
+    { x: 8, y: 83, value: 38 },
+    { x: 32, y: 82, value: 38 },
+    { x: 66, y: 83, value: 38 },
+    { x: 92, y: 83, value: 38 },
+  ];
+  const calvesDots = [
+    { x: 8, y: 87, value: 37 },
+    { x: 32, y: 86, value: 37 },
+    { x: 66, y: 87, value: 37 },
+    { x: 92, y: 88, value: 37 },
+  ];
+
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800 bg-slate-950/90 p-4 text-xs text-slate-200">
       {/* Legenda / przełączniki jak na screenie */}
@@ -2077,36 +2133,52 @@ function ProgressSection() {
           {
             label: "WAGA",
             color: "border-cyan-400 bg-cyan-500/20 text-cyan-300", // jasny turkus
+            key: "waga",
           },
           {
             label: "PAS",
             color: "border-rose-400 bg-rose-500/20 text-rose-300", // róż
+            key: "pas",
           },
           {
             label: "BRZUCH",
             color: "border-orange-400 bg-orange-500/25 text-orange-300", // pomarańcz
+            key: "brzuch",
           },
           {
             label: "BICEPS",
             color: "border-blue-400 bg-blue-500/25 text-blue-300", // niebieski
+            key: "biceps",
           },
           {
             label: "KLATKA",
             color: "border-emerald-400 bg-emerald-500/20 text-emerald-300", // zielony
+            key: "klatka",
           },
           {
             label: "UDA",
             color: "border-amber-400 bg-amber-500/25 text-amber-300", // żółty
+            key: "uda",
           },
           {
             label: "ŁYDKI",
             color: "border-violet-400 bg-violet-500/25 text-violet-300", // fiolet
+            key: "lydki",
           },
         ].map((item) => (
           <button
             key={item.label}
             type="button"
-            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${item.color}`}
+            onClick={() =>
+              setFocusedMetric(
+                focusedMetric === item.key ? null : (item.key as any),
+              )
+            }
+            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${
+              focusedMetric === item.key
+                ? `${item.color} ring-1 ring-offset-1 ring-offset-slate-900`
+                : item.color
+            }`}
           >
             <span className="inline-flex h-3 w-3 items-center justify-center rounded-full border border-current">
               ✓
@@ -2114,6 +2186,13 @@ function ProgressSection() {
             <span>{item.label}</span>
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setFocusedMetric(null)}
+          className="ml-auto rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200 hover:bg-slate-800"
+        >
+          Wszystkie
+        </button>
       </div>
 
       {/* „Wykres” z wieloma liniami – wersja statyczna / dekoracyjna */}
@@ -2140,95 +2219,257 @@ function ProgressSection() {
           {/* Linie „obwodów” jako proste pseudo-wykresy (tylko wygląd) */}
           <div className="relative h-full w-full">
             {/* Klatka – zielona */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <polyline
-                points="0,55 16,50 33,60 50,52 67,54 84,50 100,48"
-                fill="none"
-                stroke="rgba(74,222,128,1)" /* klatka */
-                strokeWidth="2"
-              />
-            </svg>
+            {isVisible("klatka") && (
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <polyline
+                  points="0,55 16,50 33,60 50,52 67,54 84,50 100,48"
+                  fill="none"
+                  stroke="rgba(74,222,128,1)" /* klatka */
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
             {/* Pas – różowy */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <polyline
-                points="0,70 16,68 33,66 50,65 67,67 84,69 100,72"
-                fill="none"
-                stroke="rgba(244,114,182,1)" /* pas */
-                strokeWidth="2"
-              />
-            </svg>
+            {isVisible("pas") && (
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <polyline
+                  points="0,70 16,68 33,66 50,65 67,67 84,69 100,72"
+                  fill="none"
+                  stroke="rgba(244,114,182,1)" /* pas */
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
             {/* Brzuch – pomarańczowy */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <polyline
-                points="0,65 16,64 33,63 50,62 67,63 84,64 100,66"
-                fill="none"
-                stroke="rgba(251,146,60,1)" /* brzuch */
-                strokeWidth="2"
-              />
-            </svg>
+            {isVisible("brzuch") && (
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <polyline
+                  points="0,65 16,64 33,63 50,62 67,63 84,64 100,66"
+                  fill="none"
+                  stroke="rgba(251,146,60,1)" /* brzuch */
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
             {/* Uda – żółte */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <polyline
-                points="0,80 16,78 33,76 50,75 67,76 84,78 100,81"
-                fill="none"
-                stroke="rgba(250,204,21,1)" /* uda */
-                strokeWidth="2"
-              />
-            </svg>
+            {isVisible("uda") && (
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <polyline
+                  points="0,80 16,78 33,76 50,75 67,76 84,78 100,81"
+                  fill="none"
+                  stroke="rgba(250,204,21,1)" /* uda */
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
             {/* Waga – niebieska, blisko dołu */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <polyline
-                points="0,88 16,87 33,86 50,86 67,87 84,88 100,88"
-                fill="none"
-                stroke="rgba(34,211,238,1)" /* waga */
-                strokeWidth="2"
-              />
-            </svg>
+            {isVisible("waga") && (
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <polyline
+                  points="0,88 16,87 33,86 50,86 67,87 84,88 100,88"
+                  fill="none"
+                  stroke="rgba(34,211,238,1)" /* waga */
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
             {/* Biceps – niebieski (nad wagą) */}
-            <svg
-              className="absolute inset-0 h-full w-full"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-            >
-              <polyline
-                points="0,83 16,82 33,81 50,81 67,82 84,83 100,83"
-                fill="none"
-                stroke="rgba(59,130,246,1)" /* biceps */
-                strokeWidth="2"
-              />
-            </svg>
+            {isVisible("biceps") && (
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <polyline
+                  points="0,83 16,82 33,81 50,81 67,82 84,83 100,83"
+                  fill="none"
+                  stroke="rgba(59,130,246,1)" /* biceps */
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
             {/* Łydki – fioletowe (najniższa linia, wyżej nad datami) */}
+            {isVisible("lydki") && (
+              <svg
+                className="absolute inset-0 h-full w-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                <polyline
+                  points="0,87 16,86 33,86 50,87 67,87 84,88 100,88"
+                  fill="none"
+                  stroke="rgba(139,92,246,1)" /* łydki */
+                  strokeWidth="2"
+                />
+              </svg>
+            )}
+
+            {/* Kropki i wartości na liniach */}
             <svg
               className="absolute inset-0 h-full w-full"
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
             >
-              <polyline
-                points="0,87 16,86 33,86 50,87 67,87 84,88 100,88"
-                fill="none"
-                stroke="rgba(139,92,246,1)" /* łydki */
-                strokeWidth="2"
-              />
+              {isVisible("klatka") &&
+                chestDots.map((d) => (
+                  <g key={`klatka-${d.x}-${d.value}`}>
+                    <circle
+                      cx={d.x}
+                      cy={d.y}
+                      r={1.4}
+                      fill="rgba(74,222,128,1)"
+                    />
+                    <text
+                      x={d.x}
+                      y={d.y - 3}
+                      fontSize="3"
+                      fill="#e5e7eb"
+                      textAnchor="middle"
+                    >
+                      {d.value}
+                    </text>
+                  </g>
+                ))}
+              {isVisible("pas") &&
+                waistDots.map((d) => (
+                  <g key={`pas-${d.x}-${d.value}`}>
+                    <circle
+                      cx={d.x}
+                      cy={d.y}
+                      r={1.4}
+                      fill="rgba(244,114,182,1)"
+                    />
+                    <text
+                      x={d.x}
+                      y={d.y - 3}
+                      fontSize="3"
+                      fill="#f9a8d4"
+                      textAnchor="middle"
+                    >
+                      {d.value}
+                    </text>
+                  </g>
+                ))}
+              {isVisible("brzuch") &&
+                bellyDots.map((d) => (
+                  <g key={`brzuch-${d.x}-${d.value}`}>
+                    <circle
+                      cx={d.x}
+                      cy={d.y}
+                      r={1.4}
+                      fill="rgba(251,146,60,1)"
+                    />
+                    <text
+                      x={d.x}
+                      y={d.y - 3}
+                      fontSize="3"
+                      fill="#fed7aa"
+                      textAnchor="middle"
+                    >
+                      {d.value}
+                    </text>
+                  </g>
+                ))}
+              {isVisible("uda") &&
+                thighDots.map((d) => (
+                  <g key={`uda-${d.x}-${d.value}`}>
+                    <circle
+                      cx={d.x}
+                      cy={d.y}
+                      r={1.4}
+                      fill="rgba(250,204,21,1)"
+                    />
+                    <text
+                      x={d.x}
+                      y={d.y - 3}
+                      fontSize="3"
+                      fill="#fef3c7"
+                      textAnchor="middle"
+                    >
+                      {d.value}
+                    </text>
+                  </g>
+                ))}
+              {isVisible("waga") &&
+                weightDots.map((d) => (
+                  <g key={`waga-${d.x}-${d.value}`}>
+                    <circle
+                      cx={d.x}
+                      cy={d.y}
+                      r={1.4}
+                      fill="rgba(34,211,238,1)"
+                    />
+                    <text
+                      x={d.x}
+                      y={d.y - 3}
+                      fontSize="3"
+                      fill="#a5f3fc"
+                      textAnchor="middle"
+                    >
+                      {d.value}
+                    </text>
+                  </g>
+                ))}
+              {isVisible("biceps") &&
+                bicepsDots.map((d) => (
+                  <g key={`biceps-${d.x}-${d.value}`}>
+                    <circle
+                      cx={d.x}
+                      cy={d.y}
+                      r={1.4}
+                      fill="rgba(59,130,246,1)"
+                    />
+                    <text
+                      x={d.x}
+                      y={d.y - 3}
+                      fontSize="3"
+                      fill="#bfdbfe"
+                      textAnchor="middle"
+                    >
+                      {d.value}
+                    </text>
+                  </g>
+                ))}
+              {isVisible("lydki") &&
+                calvesDots.map((d) => (
+                  <g key={`lydki-${d.x}-${d.value}`}>
+                    <circle
+                      cx={d.x}
+                      cy={d.y}
+                      r={1.4}
+                      fill="rgba(139,92,246,1)"
+                    />
+                    <text
+                      x={d.x}
+                      y={d.y - 3}
+                      fontSize="3"
+                      fill="#ddd6fe"
+                      textAnchor="middle"
+                    >
+                      {d.value}
+                    </text>
+                  </g>
+                ))}
             </svg>
           </div>
 

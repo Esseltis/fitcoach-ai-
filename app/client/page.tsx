@@ -414,7 +414,12 @@ export default function ClientDashboardPage() {
           <IntroSection />
         ) : (
           <>
-            {activeSection === "dashboard" && <DashboardSection />}
+            {activeSection === "dashboard" && (
+              <DashboardSection
+                activeSection={activeSection}
+                setActiveSection={setActiveSection}
+              />
+            )}
             {activeSection === "analiza" && <NutritionAnalysisSection />}
             {activeSection === "plan-zywieniowy" && <DietPlanSection />}
             {activeSection === "porady" && <NutritionTipsSection />}
@@ -444,7 +449,13 @@ export default function ClientDashboardPage() {
   );
 }
 
-function DashboardSection() {
+function DashboardSection({
+  activeSection,
+  setActiveSection,
+}: {
+  activeSection: SectionId;
+  setActiveSection: (id: SectionId) => void;
+}) {
   return (
     <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
       {/* Karta z BMI i wymiarami */}
@@ -472,20 +483,44 @@ function DashboardSection() {
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                 Sekcje
               </p>
-              <ul className="mt-2 space-y-1.5 text-[11px] text-slate-300">
-                <li className="flex items-center justify-between">
+              <div className="mt-2 space-y-1.5 text-[11px] text-slate-300">
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("dashboard")}
+                  className="flex w-full items-center justify-between rounded-lg px-1 py-1 hover:bg-slate-900/80 transition"
+                >
                   <span>Wymiary</span>
-                  <span className="h-1 w-8 rounded-full bg-emerald-500/70" />
-                </li>
-                <li className="flex items-center justify-between">
+                  <span
+                    className={`h-1 w-8 rounded-full ${
+                      activeSection === "dashboard"
+                        ? "bg-emerald-500/80"
+                        : "bg-slate-700"
+                    }`}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("progress")}
+                  className="flex w-full items-center justify-between rounded-lg px-1 py-1 hover:bg-slate-900/80 transition"
+                >
                   <span>Statystyki</span>
-                  <span className="h-1 w-8 rounded-full bg-slate-700" />
-                </li>
-                <li className="flex items-center justify-between">
+                  <span
+                    className={`h-1 w-8 rounded-full ${
+                      activeSection === "progress"
+                        ? "bg-sky-400/80"
+                        : "bg-slate-700"
+                    }`}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSection("progress")}
+                  className="flex w-full items-center justify-between rounded-lg px-1 py-1 hover:bg-slate-900/80 transition"
+                >
                   <span>Postępy</span>
                   <span className="h-1 w-8 rounded-full bg-slate-700" />
-                </li>
-              </ul>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1973,52 +2008,187 @@ function DietSection({
 
 function ProgressSection() {
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-            Postępy
+    <section className="space-y-6 rounded-2xl border border-slate-800 bg-slate-950/90 p-4 text-xs text-slate-200">
+      {/* Legenda / przełączniki jak na screenie */}
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 px-3 py-2">
+        {[
+          { label: "WAGA", color: "border-sky-400 bg-sky-500/20 text-sky-300" },
+          { label: "PAS", color: "border-rose-400 bg-rose-500/20 text-rose-300" },
+          {
+            label: "BRZUCH",
+            color: "border-red-400 bg-red-500/20 text-red-300",
+          },
+          {
+            label: "BICEPS",
+            color: "border-blue-400 bg-blue-500/20 text-blue-300",
+          },
+          {
+            label: "KLATKA",
+            color: "border-emerald-400 bg-emerald-500/20 text-emerald-300",
+          },
+          {
+            label: "UDA",
+            color: "border-amber-400 bg-amber-500/20 text-amber-300",
+          },
+          {
+            label: "ŁYDKI",
+            color: "border-yellow-400 bg-yellow-500/20 text-yellow-300",
+          },
+        ].map((item) => (
+          <button
+            key={item.label}
+            type="button"
+            className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${item.color}`}
+          >
+            <span className="inline-flex h-3 w-3 items-center justify-center rounded-full border border-current">
+              ✓
+            </span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* „Wykres” z wieloma liniami – wersja statyczna / dekoracyjna */}
+      <div className="rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-950 to-slate-950/95 p-4">
+        <div className="relative h-56 w-full overflow-hidden rounded-xl bg-slate-950/80">
+          {/* Pionowe i poziome linie siatki */}
+          <div className="absolute inset-0 opacity-40">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={`h-${i}`}
+                className="absolute left-0 right-0 h-px bg-slate-800"
+                style={{ top: `${(i + 1) * 14}%` }}
+              />
+            ))}
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={`v-${i}`}
+                className="absolute top-0 bottom-0 w-px bg-slate-800"
+                style={{ left: `${(i + 1) * 14}%` }}
+              />
+            ))}
+          </div>
+
+          {/* Linie „obwodów” jako proste pseudo-wykresy (tylko wygląd) */}
+          <div className="relative h-full w-full">
+            {/* Klatka – zielona */}
+            <svg className="absolute inset-0 h-full w-full">
+              <polyline
+                points="5,55 20,50 35,60 50,52 65,54 80,50 95,48"
+                fill="none"
+                stroke="rgba(74,222,128,1)"
+                strokeWidth="2"
+              />
+            </svg>
+            {/* Pas – czerwony */}
+            <svg className="absolute inset-0 h-full w-full">
+              <polyline
+                points="5,70 20,68 35,66 50,65 65,67 80,69 95,72"
+                fill="none"
+                stroke="rgba(248,113,113,1)"
+                strokeWidth="2"
+              />
+            </svg>
+            {/* Brzuch – biały */}
+            <svg className="absolute inset-0 h-full w-full">
+              <polyline
+                points="5,65 20,64 35,63 50,62 65,63 80,64 95,66"
+                fill="none"
+                stroke="rgba(248,250,252,1)"
+                strokeWidth="2"
+              />
+            </svg>
+            {/* Uda – pomarańczowe */}
+            <svg className="absolute inset-0 h-full w-full">
+              <polyline
+                points="5,80 20,78 35,76 50,75 65,76 80,78 95,81"
+                fill="none"
+                stroke="rgba(251,191,36,1)"
+                strokeWidth="2"
+              />
+            </svg>
+            {/* Waga – niebieska, blisko dołu */}
+            <svg className="absolute inset-0 h-full w-full">
+              <polyline
+                points="5,88 20,87 35,86 50,86 65,87 80,88 95,88"
+                fill="none"
+                stroke="rgba(59,130,246,1)"
+                strokeWidth="2"
+              />
+            </svg>
+          </div>
+
+          {/* Oś czasu na dole */}
+          <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between text-[9px] text-slate-400">
+            <span>13.06.2023</span>
+            <span>11.07.2023</span>
+            <span>06.08.2023</span>
+            <span>03.09.2023</span>
+            <span>26.02.2026</span>
+          </div>
+        </div>
+
+        {/* Podsumowanie wagi jak na screenie */}
+        <div className="mt-4 flex flex-col items-center gap-1">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+            Aktualna waga
           </p>
-          <p className="text-xs text-slate-300">
-            Przykładowy widok – w przyszłości wykresy i zdjęcia progresu.
+          <p className="text-3xl font-bold text-slate-50">
+            <span className="align-middle text-emerald-400 mr-1">↑</span>81{" "}
+            <span className="text-sm text-slate-300">kg</span>
           </p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            Waga (przykład)
+      {/* Dolne kafelki z obwodami – uproszczona wersja */}
+      <div className="grid gap-3 text-xs text-slate-200 md:grid-cols-3">
+        <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-400">
+            Biceps
           </p>
-          <div className="h-32 rounded-xl bg-slate-950/80 border border-slate-800 flex items-end gap-1 px-2 pb-2">
-            {["108", "104", "101", "99", "97"].map((v, i) => (
-              <div
-                key={v}
-                className="flex-1 flex flex-col items-center justify-end gap-1"
-              >
-                <div
-                  className={`w-5 rounded-t-full ${
-                    i === 0
-                      ? "h-24 bg-slate-700"
-                      : "h-16 bg-emerald-500/80"
-                  }`}
-                />
-                <span className="text-[9px] text-slate-500">{v}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-lg font-semibold text-slate-50">
+            38 <span className="text-[11px] text-slate-400">cm</span>
+          </p>
         </div>
-
-        <div className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            Obwody (przykład)
+        <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
+            Klatka
           </p>
-          <ul className="space-y-1 text-[11px] text-slate-300">
-            <li>• Pas: -4.5 cm</li>
-            <li>• Brzuch: -3.0 cm</li>
-            <li>• Uda: -2.0 cm</li>
-            <li>• Klata: +1.5 cm</li>
-          </ul>
+          <p className="text-lg font-semibold text-slate-50">
+            108 <span className="text-[11px] text-slate-400">cm</span>
+          </p>
+        </div>
+        <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-rose-400">
+            Pas
+          </p>
+          <p className="text-lg font-semibold text-slate-50">
+            90 <span className="text-[11px] text-slate-400">cm</span>
+          </p>
+        </div>
+        <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-400">
+            Brzuch
+          </p>
+          <p className="text-lg font-semibold text-slate-50">
+            93 <span className="text-[11px] text-slate-400">cm</span>
+          </p>
+        </div>
+        <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-400">
+            Uda
+          </p>
+          <p className="text-lg font-semibold text-slate-50">
+            61 <span className="text-[11px] text-slate-400">cm</span>
+          </p>
+        </div>
+        <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-yellow-300">
+            Łydki
+          </p>
+          <p className="text-lg font-semibold text-slate-50">
+            37 <span className="text-[11px] text-slate-400">cm</span>
+          </p>
         </div>
       </div>
     </section>

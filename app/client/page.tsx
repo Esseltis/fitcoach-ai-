@@ -2217,14 +2217,14 @@ function ProgressSection() {
                 strokeWidth="2"
               />
             </svg>
-            {/* Łydki – fioletowe (najniższa linia, lekko podniesiona nad daty) */}
+            {/* Łydki – fioletowe (najniższa linia, wyżej nad datami) */}
             <svg
               className="absolute inset-0 h-full w-full"
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
             >
               <polyline
-                points="0,90 16,89 33,89 50,90 67,90 84,91 100,91"
+                points="0,87 16,86 33,86 50,87 67,87 84,88 100,88"
                 fill="none"
                 stroke="rgba(139,92,246,1)" /* łydki */
                 strokeWidth="2"

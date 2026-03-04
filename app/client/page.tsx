@@ -29,6 +29,7 @@ type SectionId =
   | "nawodnienie"
   | "trening"
   | "catering"
+  | "settings"
   | "plan"
   | "diet"
   | "progress"
@@ -365,6 +366,23 @@ export default function ClientDashboardPage() {
               Moje konto
             </p>
             <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowIntro(false);
+                  setActiveSection("settings");
+                }}
+                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                  activeSection === "settings"
+                    ? "bg-slate-800 text-white shadow-inner"
+                    : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                }`}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-500 text-[11px]">
+                  ⚙
+                </span>
+                <span>Ustawienia</span>
+              </button>
               <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 bg-slate-900/70 border border-slate-800">
                 <User className="h-4 w-4" />
                 <span className="truncate">
@@ -428,6 +446,7 @@ export default function ClientDashboardPage() {
             {activeSection === "nawodnienie" && <HydrationSection />}
             {activeSection === "trening" && <TrainingSection />}
             {activeSection === "catering" && <CateringSection />}
+            {activeSection === "settings" && <SettingsSection />}
             {activeSection === "plan" && (
               <TrainingPlanSection
                 activeTrainingDay={activeTrainingDay}
@@ -1711,6 +1730,214 @@ function CateringSection() {
           jak dopasować gotowe posiłki do planu.
         </p>
       </section>
+    </section>
+  );
+}
+
+function SettingsSection() {
+  return (
+    <section className="mx-auto flex max-w-6xl flex-col gap-8">
+      <header className="flex flex-col gap-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-400">
+          Ustawienia
+        </p>
+        <h1 className="text-2xl font-extrabold tracking-[0.15em] text-slate-50 md:text-3xl">
+          Zarządzanie kontem i historią zakupów
+        </h1>
+      </header>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1.8fr)_minmax(0,1.2fr)]">
+        {/* Miniaturka / avatar */}
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-3">
+              Miniaturka
+            </p>
+            <div className="flex items-center justify-center">
+              <button
+                type="button"
+                className="flex h-32 w-32 items-center justify-center rounded-full border-2 border-sky-400 bg-slate-950 text-4xl text-sky-400"
+              >
+                +
+              </button>
+            </div>
+            <p className="mt-3 text-[11px] text-slate-500 text-center">
+              Dozwolone formaty: .jpg, .png. Rozmiar do 4&nbsp;MB.
+            </p>
+          </div>
+
+          {/* Zmiana hasła – makieta */}
+          <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-400">
+              Zmień hasło
+            </p>
+            <div className="space-y-2">
+              <input
+                type="password"
+                placeholder="Obecne hasło"
+                className="w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                disabled
+              />
+              <input
+                type="password"
+                placeholder="Nowe hasło"
+                className="w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                disabled
+              />
+              <input
+                type="password"
+                placeholder="Powtórz hasło"
+                className="w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                disabled
+              />
+            </div>
+            <button
+              type="button"
+              className="mt-1 inline-flex items-center justify-center rounded-full bg-sky-500 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-950 hover:bg-sky-400"
+              disabled
+            >
+              Zmień hasło (demo)
+            </button>
+          </div>
+        </div>
+
+        {/* Historia zakupów – tabela */}
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300 text-center mb-1">
+            Historia zakupów
+          </p>
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-left text-[11px]">
+              <thead>
+                <tr className="text-slate-400">
+                  <th className="border-b border-slate-800 py-2 pr-4 font-semibold">
+                    Nazwa planu
+                  </th>
+                  <th className="border-b border-slate-800 py-2 pr-4 font-semibold">
+                    Data zakupu
+                  </th>
+                  <th className="border-b border-slate-800 py-2 pr-4 font-semibold">
+                    Okres
+                  </th>
+                  <th className="border-b border-slate-800 py-2 pr-4 font-semibold">
+                    Kwota
+                  </th>
+                  <th className="border-b border-slate-800 py-2 pr-4 font-semibold">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  {
+                    name: "Prowadzenie online 1 miesiąc",
+                    date: "26.02.2026",
+                    duration: "1 mies.",
+                    price: "229 zł",
+                    status: "Zaakceptowana",
+                  },
+                  {
+                    name: "Prowadzenie online 1 miesiąc",
+                    date: "07.09.2023",
+                    duration: "1 mies.",
+                    price: "149 zł",
+                    status: "Zaakceptowana",
+                  },
+                  {
+                    name: "Prowadzenie online 1 miesiąc",
+                    date: "06.08.2023",
+                    duration: "1 mies.",
+                    price: "149 zł",
+                    status: "Zaakceptowana",
+                  },
+                  {
+                    name: "Dieta 1 miesiąc",
+                    date: "11.06.2023",
+                    duration: "1 mies.",
+                    price: "99 zł",
+                    status: "Anulowana",
+                  },
+                ].map((row) => (
+                  <tr key={`${row.name}-${row.date}`} className="border-b border-slate-900/60">
+                    <td className="py-2 pr-4 text-slate-100">{row.name}</td>
+                    <td className="py-2 pr-4 text-slate-300">{row.date}</td>
+                    <td className="py-2 pr-4 text-slate-300">{row.duration}</td>
+                    <td className="py-2 pr-4 text-amber-300">{row.price}</td>
+                    <td className="py-2 pr-4">
+                      <span className="inline-flex items-center rounded-full border border-emerald-500/60 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Informacje o koncie / numerze / usuwanie */}
+        <div className="space-y-4">
+          <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+              Informacje
+            </p>
+            <div className="space-y-1">
+              <p className="text-[11px] text-slate-500">Imię</p>
+              <p className="text-sm font-semibold text-slate-50">Mateusz</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] text-slate-500">Adres e-mail</p>
+              <p className="text-sm font-mono text-slate-100">
+                podopieczny@fitcoach.ai
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] text-slate-500">Data urodzenia</p>
+              <p className="text-sm text-slate-100">1994-04-16</p>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+              Zmień numer telefonu
+            </p>
+            <p className="text-[11px] text-slate-500">Aktualny</p>
+            <p className="text-sm font-semibold text-emerald-300">
+              +48 517 751 589
+            </p>
+            <input
+              type="tel"
+              placeholder="Nowy numer telefonu"
+              className="mt-2 w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-[11px] text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+              disabled
+            />
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-full bg-sky-500 px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-950 hover:bg-sky-400"
+              disabled
+            >
+              Zmień numer (demo)
+            </button>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-red-500/40 bg-red-950/40 p-4 text-xs text-slate-200">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-300">
+              Usuwanie konta
+            </p>
+            <p className="text-[11px] text-red-200">
+              Uwaga! Jeśli usuniesz konto, wszystkie Twoje dane zostaną
+              bezpowrotnie skasowane i stracisz możliwość logowania się do
+              panelu. W wersji demo ta funkcja jest wyłączona.
+            </p>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-red-600 to-red-500 px-6 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-50 opacity-60 cursor-not-allowed"
+            >
+              Usuń konto (demo)
+            </button>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }

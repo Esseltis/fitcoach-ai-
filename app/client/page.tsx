@@ -2330,7 +2330,7 @@ function ProgressSection() {
             chestDots.map((d) => (
               <div
                 key={`klatka-${d.x}-${d.value}`}
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2.5 text-[11px] font-semibold text-slate-50 drop-shadow-[0_0_6px_rgba(15,23,42,0.95)]"
                 style={{ left: `${d.x}%`, top: `${d.y}%` }}
               >
                 {d.value}
@@ -2340,7 +2340,7 @@ function ProgressSection() {
             waistDots.map((d) => (
               <div
                 key={`pas-${d.x}-${d.value}`}
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2.5 text-[11px] font-semibold text-slate-50 drop-shadow-[0_0_6px_rgba(15,23,42,0.95)]"
                 style={{ left: `${d.x}%`, top: `${d.y}%` }}
               >
                 {d.value}
@@ -2350,7 +2350,7 @@ function ProgressSection() {
             bellyDots.map((d) => (
               <div
                 key={`brzuch-${d.x}-${d.value}`}
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2.5 text-[11px] font-semibold text-slate-50 drop-shadow-[0_0_6px_rgba(15,23,42,0.95)]"
                 style={{ left: `${d.x}%`, top: `${d.y}%` }}
               >
                 {d.value}
@@ -2360,7 +2360,7 @@ function ProgressSection() {
             thighDots.map((d) => (
               <div
                 key={`uda-${d.x}-${d.value}`}
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2.5 text-[11px] font-semibold text-slate-50 drop-shadow-[0_0_6px_rgba(15,23,42,0.95)]"
                 style={{ left: `${d.x}%`, top: `${d.y}%` }}
               >
                 {d.value}
@@ -2370,7 +2370,7 @@ function ProgressSection() {
             weightDots.map((d) => (
               <div
                 key={`waga-${d.x}-${d.value}`}
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2.5 text-[11px] font-semibold text-slate-50 drop-shadow-[0_0_6px_rgba(15,23,42,0.95)]"
                 style={{ left: `${d.x}%`, top: `${d.y}%` }}
               >
                 {d.value}
@@ -2380,7 +2380,7 @@ function ProgressSection() {
             bicepsDots.map((d) => (
               <div
                 key={`biceps-${d.x}-${d.value}`}
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2.5 text-[11px] font-semibold text-slate-50 drop-shadow-[0_0_6px_rgba(15,23,42,0.95)]"
                 style={{ left: `${d.x}%`, top: `${d.y}%` }}
               >
                 {d.value}
@@ -2390,7 +2390,7 @@ function ProgressSection() {
             calvesDots.map((d) => (
               <div
                 key={`lydki-${d.x}-${d.value}`}
-                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2 text-[10px] font-semibold text-slate-50 drop-shadow-[0_0_4px_rgba(15,23,42,0.9)]"
+                className="pointer-events-none absolute -translate-x-1/2 -translate-y-2.5 text-[11px] font-semibold text-slate-50 drop-shadow-[0_0_6px_rgba(15,23,42,0.95)]"
                 style={{ left: `${d.x}%`, top: `${d.y}%` }}
               >
                 {d.value}

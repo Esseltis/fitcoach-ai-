@@ -2204,6 +2204,32 @@ function ProgressSection() {
                 strokeWidth="2"
               />
             </svg>
+            {/* Biceps – niebieski (nad wagą) */}
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              <polyline
+                points="0,83 16,82 33,81 50,81 67,82 84,83 100,83"
+                fill="none"
+                stroke="rgba(59,130,246,1)" /* biceps */
+                strokeWidth="2"
+              />
+            </svg>
+            {/* Łydki – fioletowe (najniższa linia) */}
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              <polyline
+                points="0,92 16,91 33,91 50,92 67,92 84,93 100,93"
+                fill="none"
+                stroke="rgba(139,92,246,1)" /* łydki */
+                strokeWidth="2"
+              />
+            </svg>
           </div>
 
           {/* Oś czasu na dole */}

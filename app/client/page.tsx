@@ -2016,20 +2016,25 @@ function ProgressSection() {
     let stored = window.localStorage.getItem(key);
     let start: Date;
 
-    if (!stored) {
-      // Demo: pokaż zakres mniej więcej 6 miesięcy wstecz,
-      // a z czasem realne dane będą zastępować ten okres.
+    const setDemoStart = () => {
+      // Demo: pokaż zakres mniej więcej 6 miesięcy wstecz.
       const sixMonthsAgo = new Date(today);
       sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      start = sixMonthsAgo;
-      window.localStorage.setItem(key, start.toISOString().slice(0, 10));
+      window.localStorage.setItem(key, sixMonthsAgo.toISOString().slice(0, 10));
+      return sixMonthsAgo;
+    };
+
+    if (!stored) {
+      start = setDemoStart();
     } else {
       const parsed = new Date(stored);
-      if (Number.isNaN(parsed.getTime())) {
-        const sixMonthsAgo = new Date(today);
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-        start = sixMonthsAgo;
-        window.localStorage.setItem(key, start.toISOString().slice(0, 10));
+      const diffMs = today.getTime() - parsed.getTime();
+      const diffDaysExisting = diffMs / (1000 * 60 * 60 * 24);
+
+      if (Number.isNaN(parsed.getTime()) || diffDaysExisting < 1) {
+        // Jeśli wcześniej zapisaliśmy "dziś" (bardzo krótki okres),
+        // zresetuj na 6 miesięcy wstecz, żeby oś nie była pusta.
+        start = setDemoStart();
       } else {
         start = parsed;
       }
@@ -2071,31 +2076,31 @@ function ProgressSection() {
         {[
           {
             label: "WAGA",
-            color: "border-cyan-400 bg-cyan-500/20 text-cyan-300",
+            color: "border-cyan-400 bg-cyan-500/20 text-cyan-300", // jasny turkus
           },
           {
             label: "PAS",
-            color: "border-rose-400 bg-rose-500/20 text-rose-300",
+            color: "border-rose-400 bg-rose-500/20 text-rose-300", // róż
           },
           {
             label: "BRZUCH",
-            color: "border-orange-400 bg-orange-500/25 text-orange-300",
+            color: "border-orange-400 bg-orange-500/25 text-orange-300", // pomarańcz
           },
           {
             label: "BICEPS",
-            color: "border-blue-400 bg-blue-500/25 text-blue-300",
+            color: "border-blue-400 bg-blue-500/25 text-blue-300", // niebieski
           },
           {
             label: "KLATKA",
-            color: "border-emerald-400 bg-emerald-500/20 text-emerald-300",
+            color: "border-emerald-400 bg-emerald-500/20 text-emerald-300", // zielony
           },
           {
             label: "UDA",
-            color: "border-amber-400 bg-amber-500/25 text-amber-300",
+            color: "border-amber-400 bg-amber-500/25 text-amber-300", // żółty
           },
           {
             label: "ŁYDKI",
-            color: "border-violet-400 bg-violet-500/25 text-violet-300",
+            color: "border-violet-400 bg-violet-500/25 text-violet-300", // fiolet
           },
         ].map((item) => (
           <button
@@ -2135,45 +2140,65 @@ function ProgressSection() {
           {/* Linie „obwodów” jako proste pseudo-wykresy (tylko wygląd) */}
           <div className="relative h-full w-full">
             {/* Klatka – zielona */}
-            <svg className="absolute inset-0 h-full w-full">
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
               <polyline
-                points="5,55 20,50 35,60 50,52 65,54 80,50 95,48"
+                points="0,55 16,50 33,60 50,52 67,54 84,50 100,48"
                 fill="none"
                 stroke="rgba(74,222,128,1)" /* klatka */
                 strokeWidth="2"
               />
             </svg>
             {/* Pas – różowy */}
-            <svg className="absolute inset-0 h-full w-full">
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
               <polyline
-                points="5,70 20,68 35,66 50,65 65,67 80,69 95,72"
+                points="0,70 16,68 33,66 50,65 67,67 84,69 100,72"
                 fill="none"
                 stroke="rgba(244,114,182,1)" /* pas */
                 strokeWidth="2"
               />
             </svg>
             {/* Brzuch – pomarańczowy */}
-            <svg className="absolute inset-0 h-full w-full">
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
               <polyline
-                points="5,65 20,64 35,63 50,62 65,63 80,64 95,66"
+                points="0,65 16,64 33,63 50,62 67,63 84,64 100,66"
                 fill="none"
                 stroke="rgba(251,146,60,1)" /* brzuch */
                 strokeWidth="2"
               />
             </svg>
             {/* Uda – żółte */}
-            <svg className="absolute inset-0 h-full w-full">
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
               <polyline
-                points="5,80 20,78 35,76 50,75 65,76 80,78 95,81"
+                points="0,80 16,78 33,76 50,75 67,76 84,78 100,81"
                 fill="none"
                 stroke="rgba(250,204,21,1)" /* uda */
                 strokeWidth="2"
               />
             </svg>
             {/* Waga – niebieska, blisko dołu */}
-            <svg className="absolute inset-0 h-full w-full">
+            <svg
+              className="absolute inset-0 h-full w-full"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
               <polyline
-                points="5,88 20,87 35,86 50,86 65,87 80,88 95,88"
+                points="0,88 16,87 33,86 50,86 67,87 84,88 100,88"
                 fill="none"
                 stroke="rgba(34,211,238,1)" /* waga */
                 strokeWidth="2"

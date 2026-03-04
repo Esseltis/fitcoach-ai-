@@ -86,7 +86,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full inline-flex justify-center items-center px-4 py-2.5 bg-primary-600 text-white rounded-lg text-sm font-semibold hover:bg-primary-700 transition"
+            className="w-full inline-flex justify-center items-center px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition"
           >
             Zaloguj się
           </button>

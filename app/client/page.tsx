@@ -787,147 +787,203 @@ function IntroSection() {
 function NutritionAnalysisSection() {
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-8">
-      <header className="text-center md:text-left">
-        <h1 className="text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-4xl">
-          ANALIZA ŻYWIENIOWA
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm text-slate-300">
-          Tutaj wyjaśnione są aspekty bilansu kalorycznego, który ustalam na
-          obecny okres treningowy. Znajdziesz tutaj także krótkie uzasadnienie
-          moich decyzji dotyczących tego tematu.
+      {/* Pasek tytułu sekcji */}
+      <header className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-sky-400">
+          Analiza żywieniowa
         </p>
+        <h1 className="text-2xl font-extrabold tracking-[0.15em] text-slate-50 md:text-3xl">
+          Bilans kaloryczny i makroskładniki
+        </h1>
       </header>
 
-      <section className="grid gap-6 md:grid-cols-[2.2fr_1.2fr]">
-        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-xs text-slate-200">
-          <div className="mb-2 flex items-center justify-between">
+      {/* Bilans kaloryczny – pasek + „zegar” */}
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-5 text-xs text-slate-200 shadow-[0_20px_40px_rgba(15,23,42,0.9)]">
+        <div className="flex items-center justify-between gap-6">
+          <div className="flex-1">
+            <div className="mb-3 h-0.5 w-full rounded-full bg-slate-800">
+              <div className="h-full w-40 rounded-full bg-gradient-to-r from-sky-500 via-slate-100 to-transparent" />
+            </div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-              MAKROSKŁADNIKI
+              Bilans kaloryczny
+            </p>
+            <p className="mt-3 text-[13px] text-slate-200 leading-relaxed">
+              Po wnikliwej analizie Twoich bieżących wymiarów, masy ciała i
+              odpowiedzi na pytania w ankietach, bilans kaloryczny ustalony
+              został na wartość dodatnią. Oznacza to, że dostarczasz nieco więcej
+              energii niż minimalne zapotrzebowanie.
+            </p>
+            <p className="mt-2 text-[13px] text-slate-300">
+              Przy obecnym trybie życia nie potrzebujemy od razu głębokiej
+              redukcji – zamiast tego stawiamy na kontrolowany deficyt i
+              obserwację reakcji organizmu. W razie potrzeby ten bilans może
+              zostać skorygowany lekko w dół.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                Węglowodany
-              </p>
-              <p className="text-lg font-semibold text-emerald-400">
-                282.5{" "}
-                <span className="text-[11px] font-normal text-slate-300">g</span>
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                Białko
-              </p>
-              <p className="text-lg font-semibold text-sky-400">
-                162.8{" "}
-                <span className="text-[11px] font-normal text-slate-300">g</span>
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                Tłuszcze
-              </p>
-              <p className="text-lg font-semibold text-rose-400">
-                73.2{" "}
-                <span className="text-[11px] font-normal text-slate-300">g</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <p className="text-[11px] uppercase tracking-wide text-slate-400">
-              Suma kalorii
-            </p>
-            <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-800">
-              <div className="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-emerald-400 via-yellow-400 to-red-500" />
-            </div>
-            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
-              <span>
-                Węglowodany:{" "}
-                <span className="font-semibold text-emerald-300">
-                  1129.8 kcal
-                </span>
-              </span>
-              <span>
-                Białko:{" "}
-                <span className="font-semibold text-sky-300">651.2 kcal</span>
-              </span>
-              <span>
-                Tłuszcze:{" "}
-                <span className="font-semibold text-rose-300">658.7 kcal</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
-          <div className="relative h-40 w-40 md:h-48 md:w-48">
-            <div className="absolute inset-0 rounded-full border-[10px] border-slate-800" />
-            <div className="absolute inset-1 rounded-full border-[10px] border-emerald-500/60 border-r-transparent border-b-transparent rotate-[40deg]" />
-            <div className="absolute inset-3 rounded-full border-[10px] border-rose-500/70 border-l-transparent border-t-transparent -rotate-[10deg]" />
-            <div className="absolute inset-6 flex h-full w-full flex-col items-center justify-center rounded-full bg-slate-950/90">
-              <p className="text-[11px] uppercase tracking-wide text-rose-300">
-                Redukcja
-              </p>
-              <p className="mt-1 text-3xl font-semibold text-slate-50">-15%</p>
-              <p className="mt-1 px-4 text-center text-[11px] text-slate-400">
-                2433 kcal przyjęte vs. <br />
-                zapotrzebowanie
-              </p>
+          <div className="flex items-center justify-center">
+            <div className="relative h-40 w-40">
+              <div className="absolute inset-0 rounded-full border-[10px] border-slate-800" />
+              <div className="absolute inset-1 rounded-full border-[10px] border-slate-700 border-b-transparent border-l-transparent rotate-20" />
+              <div className="absolute inset-5 rounded-full bg-slate-950/95 flex flex-col items-center justify-center">
+                <p className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
+                  Nadwyżka
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-emerald-400">
+                  +12%
+                </p>
+                <p className="mt-1 text-[11px] text-slate-400">3420 kcal</p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="grid gap-6 text-xs text-slate-200 md:grid-cols-[2.2fr_1.2fr]">
-        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-          <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Zawartość węglowodanów w diecie
+      {/* Makroskładniki – okrąg + sylwetka */}
+      <section className="grid gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)] text-xs text-slate-200">
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+          <div className="mb-1 flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+              Makroskładniki
             </p>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full w-[46%] bg-emerald-400" />
+            <div className="flex items-center gap-3 text-[10px]">
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-4 rounded-full bg-emerald-400" />
+                Węglowodany
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-4 rounded-full bg-red-400" />
+                Białko
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-4 rounded-full bg-sky-400" />
+                Tłuszcze
+              </span>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Zawartość białka w diecie
-            </p>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full w-[26%] bg-sky-400" />
+          <div className="flex items-center gap-6">
+            <div className="relative h-40 w-40 flex-shrink-0">
+              <div className="absolute inset-0 rounded-full border-[10px] border-slate-800" />
+              <div className="absolute inset-1 rounded-full border-[10px] border-emerald-400 border-t-transparent border-r-transparent rotate-10" />
+              <div className="absolute inset-3 rounded-full border-[10px] border-red-400 border-b-transparent border-l-transparent -rotate-15" />
+              <div className="absolute inset-5 rounded-full border-[10px] border-sky-400 border-t-transparent border-l-transparent rotate-25" />
+              <div className="absolute inset-9 flex flex-col items-center justify-center rounded-full bg-slate-950">
+                <p className="text-[11px] text-slate-400 uppercase tracking-[0.25em]">
+                  Razem
+                </p>
+                <p className="mt-1 text-2xl font-semibold text-slate-50">
+                  3420
+                </p>
+                <p className="text-[11px] text-slate-400">kcal</p>
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Zawartość tłuszczów w diecie
-            </p>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full w-[27%] bg-rose-400" />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">
+                  Węglowodany
+                </p>
+                <p className="text-[11px] font-semibold text-emerald-300">
+                  1764 kcal
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">
+                  Białko
+                </p>
+                <p className="text-[11px] font-semibold text-red-300">
+                  800 kcal
+                </p>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-slate-300">
+                  Tłuszcze
+                </p>
+                <p className="text-[11px] font-semibold text-sky-300">
+                  856 kcal
+                </p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-            Ilość makroskładników na 1 kg masy ciała
-          </p>
-          <div className="space-y-2">
-            <p>
-              Ilość węglowodanów:{" "}
-              <span className="font-semibold text-emerald-300">3.5 g</span>
-            </p>
-            <p>
-              Ilość białka:{" "}
-              <span className="font-semibold text-sky-300">2.0 g</span>
-            </p>
-            <p>
-              Ilość tłuszczów:{" "}
-              <span className="font-semibold text-rose-300">0.9 g</span>
-            </p>
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2 text-[13px] text-slate-200">
+              <p>
+                Podział makroskładników w formie wskaźników, które widzisz na
+                wykresach, jest dostosowany indywidualnie do Twoich celów i
+                aktualnej masy ciała.
+              </p>
+              <p>
+                Zapamiętaj – białka i węglowodany są głównym „paliwem” dla
+                treningu oraz regeneracji, a tłuszcze odpowiadają za gospodarkę
+                hormonalną i układ nerwowy. Dlatego ważne jest pilnowanie
+                zarówno ilości kcal, jak i proporcji między makroskładnikami.
+              </p>
+            </div>
+            <div className="flex flex-col items-center gap-2 text-[10px] text-slate-300">
+              <div className="relative h-32 w-20 rounded-full bg-gradient-to-b from-sky-500/40 via-sky-400/10 to-transparent border border-sky-400/60 flex items-end justify-center">
+                <span className="mb-2 text-xs font-semibold text-slate-50">
+                  81 kg
+                </span>
+              </div>
+              <div className="space-y-1 text-left">
+                <p className="font-semibold text-slate-100">Twoje parametry</p>
+                <p>Waga: 81 kg</p>
+                <p>Wzrost: 173 cm</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Dolne paski procentowe */}
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/90 p-5 text-xs text-slate-200">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+          Rozkład makroskładników
+        </p>
+        <div className="space-y-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[11px]">
+              <span className="font-semibold text-slate-200">Węglowodany</span>
+              <span className="text-emerald-300">60%</span>
+            </div>
+            <div className="h-3 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div className="h-full w-[60%] rounded-full bg-emerald-400" />
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[11px]">
+              <span className="font-semibold text-slate-200">Białko</span>
+              <span className="text-red-300">27%</span>
+            </div>
+            <div className="h-3 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div className="h-full w-[27%] rounded-full bg-red-400" />
+            </div>
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between text-[11px]">
+              <span className="font-semibold text-slate-200">Tłuszcze</span>
+              <span className="text-sky-300">13%</span>
+            </div>
+            <div className="h-3 w-full rounded-full bg-slate-800 overflow-hidden">
+              <div className="h-full w-[13%] rounded-full bg-sky-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 grid gap-3 text-[11px] text-slate-300 md:grid-cols-3">
+          <div>
+            Węglowodany:{" "}
+            <span className="font-semibold text-emerald-300">441 g</span>
+          </div>
+          <div>
+            Białko: <span className="font-semibold text-red-300">200 g</span>
+          </div>
+          <div>
+            Tłuszcze: <span className="font-semibold text-sky-300">95 g</span>
           </div>
         </div>
       </section>

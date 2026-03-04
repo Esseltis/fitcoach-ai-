@@ -2014,20 +2014,37 @@ function ProgressSection() {
     const key = "fitcoach_client_start_date";
     const today = new Date();
     let stored = window.localStorage.getItem(key);
-    let start = stored ? new Date(stored) : today;
-    if (Number.isNaN(start.getTime())) {
-      start = today;
-    }
+    let start: Date;
+
     if (!stored) {
-      window.localStorage.setItem(key, today.toISOString().slice(0, 10));
+      // Demo: pokaż zakres mniej więcej 6 miesięcy wstecz,
+      // a z czasem realne dane będą zastępować ten okres.
+      const sixMonthsAgo = new Date(today);
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      start = sixMonthsAgo;
+      window.localStorage.setItem(key, start.toISOString().slice(0, 10));
+    } else {
+      const parsed = new Date(stored);
+      if (Number.isNaN(parsed.getTime())) {
+        const sixMonthsAgo = new Date(today);
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        start = sixMonthsAgo;
+        window.localStorage.setItem(key, start.toISOString().slice(0, 10));
+      } else {
+        start = parsed;
+      }
     }
 
-    const totalMs = Math.max(0, today.getTime() - start.getTime());
+    const totalMs = Math.max(
+      1000 * 60 * 60 * 24,
+      today.getTime() - start.getTime(),
+    );
     const diffDays = Math.max(
       1,
       Math.round(totalMs / (1000 * 60 * 60 * 24)),
     );
-    const steps = Math.min(7, Math.max(2, Math.round(diffDays / 30) + 1));
+    // Im dłużej trwa współpraca, tym więcej punktów, ale max 7
+    const steps = Math.min(7, Math.max(3, Math.round(diffDays / 30) + 2));
 
     const labels: string[] = [];
     for (let i = 0; i < steps; i++) {
@@ -2054,7 +2071,7 @@ function ProgressSection() {
         {[
           {
             label: "WAGA",
-            color: "border-sky-400 bg-sky-500/20 text-sky-300",
+            color: "border-cyan-400 bg-cyan-500/20 text-cyan-300",
           },
           {
             label: "PAS",
@@ -2066,7 +2083,7 @@ function ProgressSection() {
           },
           {
             label: "BICEPS",
-            color: "border-indigo-400 bg-indigo-500/25 text-indigo-300",
+            color: "border-blue-400 bg-blue-500/25 text-blue-300",
           },
           {
             label: "KLATKA",
@@ -2122,7 +2139,7 @@ function ProgressSection() {
               <polyline
                 points="5,55 20,50 35,60 50,52 65,54 80,50 95,48"
                 fill="none"
-                stroke="rgba(74,222,128,1)"  /* klatka */
+                stroke="rgba(74,222,128,1)" /* klatka */
                 strokeWidth="2"
               />
             </svg>
@@ -2158,7 +2175,7 @@ function ProgressSection() {
               <polyline
                 points="5,88 20,87 35,86 50,86 65,87 80,88 95,88"
                 fill="none"
-                stroke="rgba(59,130,246,1)"
+                stroke="rgba(34,211,238,1)" /* waga */
                 strokeWidth="2"
               />
             </svg>
@@ -2166,11 +2183,12 @@ function ProgressSection() {
 
           {/* Oś czasu na dole */}
           <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between text-[9px] text-slate-400">
-            {(dateLabels.length ? dateLabels : ["13.06.2023", "11.07.2023"]).map(
-              (label) => (
-                <span key={label}>{label}</span>
-              ),
-            )}
+            {(dateLabels.length
+              ? dateLabels
+              : ["04.03.2026", "04.03.2026"]
+            ).map((label, idx) => (
+              <span key={`${label}-${idx}`}>{label}</span>
+            ))}
           </div>
         </div>
 
@@ -2189,7 +2207,7 @@ function ProgressSection() {
       {/* Dolne kafelki z obwodami – uproszczona wersja */}
       <div className="grid gap-3 text-xs text-slate-200 md:grid-cols-3">
         <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-400">
             Biceps
           </p>
           <p className="text-lg font-semibold text-slate-50">
@@ -2221,7 +2239,7 @@ function ProgressSection() {
           </p>
         </div>
         <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-yellow-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-400">
             Uda
           </p>
           <p className="text-lg font-semibold text-slate-50">

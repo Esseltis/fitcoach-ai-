@@ -19,7 +19,20 @@ import {
   Star,
 } from "lucide-react";
 
-type SectionId = "dashboard" | "plan" | "diet" | "progress" | "chat";
+type SectionId =
+  | "dashboard"
+  | "analiza"
+  | "plan-zywieniowy"
+  | "porady"
+  | "dieta"
+  | "suplementy"
+  | "nawodnienie"
+  | "trening"
+  | "catering"
+  | "plan"
+  | "diet"
+  | "progress"
+  | "chat";
 
 const bodyStats = [
   { label: "Wiek", value: "35", unit: "lat", icon: Timer },
@@ -107,6 +120,7 @@ export default function ClientDashboardPage() {
   const [activeTrainingDay, setActiveTrainingDay] = useState(1);
   const [activeMealIndex, setActiveMealIndex] = useState(2); // obiad
   const [hasTrainer, setHasTrainer] = useState(false);
+  const [showIntro, setShowIntro] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -248,7 +262,26 @@ export default function ClientDashboardPage() {
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isDashboard = item.id === "dashboard";
-                const active = isDashboard && activeSection === "dashboard";
+                const isIntro = item.id === "wprowadzenie";
+                const isAnalysis = item.id === "analiza";
+                const isDietPlan = item.id === "plan-zywieniowy";
+                const isTips = item.id === "porady";
+                const isMeals = item.id === "dieta";
+                const isSupplements = item.id === "suplementy";
+                const isHydration = item.id === "nawodnienie";
+                const isTraining = item.id === "trening";
+                const isCatering = item.id === "catering";
+                const active =
+                  (isDashboard && activeSection === "dashboard" && !showIntro) ||
+                  (isIntro && showIntro) ||
+                  (isAnalysis && activeSection === "analiza") ||
+                  (isDietPlan && activeSection === "plan-zywieniowy") ||
+                  (isTips && activeSection === "porady") ||
+                  (isMeals && activeSection === "dieta") ||
+                  (isSupplements && activeSection === "suplementy") ||
+                  (isHydration && activeSection === "nawodnienie") ||
+                  (isTraining && activeSection === "trening") ||
+                  (isCatering && activeSection === "catering");
                 const disabled = !hasTrainer && item.id !== "dashboard";
                 return (
                   <button
@@ -257,9 +290,56 @@ export default function ClientDashboardPage() {
                     onClick={() => {
                       if (disabled) return;
                       if (isDashboard) {
+                        setShowIntro(false);
                         setActiveSection("dashboard");
                         return;
                       }
+                      if (isIntro) {
+                        setShowIntro(true);
+                        setActiveSection("dashboard");
+                        return;
+                      }
+                      if (isAnalysis) {
+                        setShowIntro(false);
+                        setActiveSection("analiza");
+                        return;
+                      }
+                      if (isDietPlan) {
+                        setShowIntro(false);
+                        setActiveSection("plan-zywieniowy");
+                        return;
+                      }
+                      if (isTips) {
+                        setShowIntro(false);
+                        setActiveSection("porady");
+                        return;
+                      }
+                      if (isMeals) {
+                        setShowIntro(false);
+                        setActiveSection("dieta");
+                        return;
+                      }
+                      if (isSupplements) {
+                        setShowIntro(false);
+                        setActiveSection("suplementy");
+                        return;
+                      }
+                      if (isHydration) {
+                        setShowIntro(false);
+                        setActiveSection("nawodnienie");
+                        return;
+                      }
+                      if (isTraining) {
+                        setShowIntro(false);
+                        setActiveSection("trening");
+                        return;
+                      }
+                      if (isCatering) {
+                        setShowIntro(false);
+                        setActiveSection("catering");
+                        return;
+                      }
+                      setShowIntro(false);
                       if (item.href) {
                         router.push(item.href);
                       }
@@ -330,9 +410,19 @@ export default function ClientDashboardPage() {
 
         {!hasTrainer ? (
           <TrainersListSection onSelectTrainer={handleSelectTrainer} />
+        ) : showIntro ? (
+          <IntroSection />
         ) : (
           <>
             {activeSection === "dashboard" && <DashboardSection />}
+            {activeSection === "analiza" && <NutritionAnalysisSection />}
+            {activeSection === "plan-zywieniowy" && <DietPlanSection />}
+            {activeSection === "porady" && <NutritionTipsSection />}
+            {activeSection === "dieta" && <MealsVariantsSection />}
+            {activeSection === "suplementy" && <SupplementsSection />}
+            {activeSection === "nawodnienie" && <HydrationSection />}
+            {activeSection === "trening" && <TrainingSection />}
+            {activeSection === "catering" && <CateringSection />}
             {activeSection === "plan" && (
               <TrainingPlanSection
                 activeTrainingDay={activeTrainingDay}
@@ -566,6 +656,1026 @@ function DashboardSection() {
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+function IntroSection() {
+  return (
+    <section className="mx-auto flex max-w-5xl flex-col gap-8">
+      <header className="space-y-4">
+        <div className="flex flex-col items-center justify-center gap-2 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
+            Plan współpracy
+          </p>
+          <h1 className="text-3xl font-extrabold tracking-[0.15em] text-slate-50 md:text-4xl">
+            START PLANU
+          </h1>
+        </div>
+
+        <div className="mt-2 flex flex-col items-center gap-1 text-xs text-slate-300">
+          <span className="rounded-full border border-emerald-500/50 bg-slate-900/70 px-4 py-1 text-emerald-300">
+            AKTUALIZACJA • wersja demo
+          </span>
+          <span className="text-[11px] text-slate-500">
+            Tutaj w przyszłości trener będzie wpisywał numer aktualizacji planu i
+            datę.
+          </span>
+        </div>
+
+        <div className="mt-6 h-px w-full bg-gradient-to-r from-transparent via-slate-700 to-transparent" />
+      </header>
+
+      <section className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm leading-relaxed text-slate-200">
+        <div className="mb-1 flex items-center gap-3">
+          <div className="h-0.5 w-10 bg-sky-500" />
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-400">
+            WSTĘP
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-semibold text-emerald-300">Siema Mateusz!</p>
+          <p>
+            Tutaj trener wprowadzi Cię w aktualną wersję planu – napisze, co
+            zostało zmienione, na co masz zwracać uwagę w raportach i jak
+            podchodzić do kolejnych tygodni współpracy.
+          </p>
+          <p>
+            Ten tekst jest na razie przykładowy. Możesz go śmiało zastąpić
+            dowolną treścią, którą normalnie dostajesz od trenera na ekranie
+            „Start planu”.
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold text-slate-100">W aktualizacji planu:</p>
+          <ul className="list-disc space-y-1 pl-5 text-slate-200">
+            <li>kaloryczność planu utrzymana na podobnym poziomie,</li>
+            <li>lekko zwiększona liczba posiłków w ciągu dnia,</li>
+            <li>odświeżone menu i nowe propozycje posiłków,</li>
+            <li>zmodyfikowany plan treningowy pod aktualny etap,</li>
+            <li>ustalenia dotyczące suplementacji i nawodnienia bez zmian.</li>
+          </ul>
+        </div>
+
+        <div className="space-y-2">
+          <p className="font-semibold text-red-400">Ogień!</p>
+          <p>
+            Poniżej możesz dodać szczegółowe wskazówki dotyczące pomiarów,
+            raportów tygodniowych i wszystkiego, co jest ważne z perspektywy
+            Twojego trenera. Struktura jest przygotowana tak, żeby łatwo było ją
+            czytać na telefonie i komputerze.
+          </p>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function NutritionAnalysisSection() {
+  return (
+    <section className="mx-auto flex max-w-6xl flex-col gap-8">
+      <header className="text-center md:text-left">
+        <h1 className="text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-4xl">
+          ANALIZA ŻYWIENIOWA
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm text-slate-300">
+          Tutaj wyjaśnione są aspekty bilansu kalorycznego, który ustalam na
+          obecny okres treningowy. Znajdziesz tutaj także krótkie uzasadnienie
+          moich decyzji dotyczących tego tematu.
+        </p>
+      </header>
+
+      <section className="grid gap-6 md:grid-cols-[2.2fr_1.2fr]">
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-xs text-slate-200">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+              MAKROSKŁADNIKI
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-1">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Węglowodany
+              </p>
+              <p className="text-lg font-semibold text-emerald-400">
+                282.5{" "}
+                <span className="text-[11px] font-normal text-slate-300">g</span>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Białko
+              </p>
+              <p className="text-lg font-semibold text-sky-400">
+                162.8{" "}
+                <span className="text-[11px] font-normal text-slate-300">g</span>
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                Tłuszcze
+              </p>
+              <p className="text-lg font-semibold text-rose-400">
+                73.2{" "}
+                <span className="text-[11px] font-normal text-slate-300">g</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">
+              Suma kalorii
+            </p>
+            <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-emerald-400 via-yellow-400 to-red-500" />
+            </div>
+            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+              <span>
+                Węglowodany:{" "}
+                <span className="font-semibold text-emerald-300">
+                  1129.8 kcal
+                </span>
+              </span>
+              <span>
+                Białko:{" "}
+                <span className="font-semibold text-sky-300">651.2 kcal</span>
+              </span>
+              <span>
+                Tłuszcze:{" "}
+                <span className="font-semibold text-rose-300">658.7 kcal</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/80 p-6">
+          <div className="relative h-40 w-40 md:h-48 md:w-48">
+            <div className="absolute inset-0 rounded-full border-[10px] border-slate-800" />
+            <div className="absolute inset-1 rounded-full border-[10px] border-emerald-500/60 border-r-transparent border-b-transparent rotate-[40deg]" />
+            <div className="absolute inset-3 rounded-full border-[10px] border-rose-500/70 border-l-transparent border-t-transparent -rotate-[10deg]" />
+            <div className="absolute inset-6 flex h-full w-full flex-col items-center justify-center rounded-full bg-slate-950/90">
+              <p className="text-[11px] uppercase tracking-wide text-rose-300">
+                Redukcja
+              </p>
+              <p className="mt-1 text-3xl font-semibold text-slate-50">-15%</p>
+              <p className="mt-1 px-4 text-center text-[11px] text-slate-400">
+                2433 kcal przyjęte vs. <br />
+                zapotrzebowanie
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 text-xs text-slate-200 md:grid-cols-[2.2fr_1.2fr]">
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Zawartość węglowodanów w diecie
+            </p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full w-[46%] bg-emerald-400" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Zawartość białka w diecie
+            </p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full w-[26%] bg-sky-400" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Zawartość tłuszczów w diecie
+            </p>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full w-[27%] bg-rose-400" />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Ilość makroskładników na 1 kg masy ciała
+          </p>
+          <div className="space-y-2">
+            <p>
+              Ilość węglowodanów:{" "}
+              <span className="font-semibold text-emerald-300">3.5 g</span>
+            </p>
+            <p>
+              Ilość białka:{" "}
+              <span className="font-semibold text-sky-300">2.0 g</span>
+            </p>
+            <p>
+              Ilość tłuszczów:{" "}
+              <span className="font-semibold text-rose-300">0.9 g</span>
+            </p>
+          </div>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function DietPlanSection() {
+  return (
+    <section className="mx-auto flex max-w-6xl flex-col gap-8">
+      <header className="text-center md:text-left">
+        <h1 className="text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-4xl">
+          PLAN DIETETYCZNY
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm text-slate-300">
+          Poniżej znajdziesz w uproszczony sposób podział węglowodanów, białka i
+          tłuszczu na każdy posiłek w Twoim planie dietetycznym, ustalony przez
+          trenera dla Twojego celu sylwetkowego.
+        </p>
+      </header>
+
+      <section className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
+        <div className="min-w-[640px]">
+          <div className="mb-3 flex items-center gap-3">
+            <div className="h-0.5 w-8 bg-sky-500" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+              MAKROSKŁADNIKI NA POSIŁKI
+            </p>
+          </div>
+
+          <table className="w-full border-collapse text-center">
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-slate-400">
+                <th className="border-b border-slate-800 py-2"></th>
+                <th className="border-b border-slate-800 py-2">Śniadanie</th>
+                <th className="border-b border-slate-800 py-2">II śniadanie</th>
+                <th className="border-b border-slate-800 py-2">Obiad</th>
+                <th className="border-b border-slate-800 py-2">Przekąska</th>
+                <th className="border-b border-slate-800 py-2">Podwieczorek</th>
+                <th className="border-b border-slate-800 py-2">Kolacja</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="text-[11px]">
+                <td className="border-b border-slate-800 py-2 pl-2 text-left text-sky-400">
+                  Węglowodany
+                </td>
+                <td className="border-b border-slate-800 py-2">40</td>
+                <td className="border-b border-slate-800 py-2">40</td>
+                <td className="border-b border-slate-800 py-2">50</td>
+                <td className="border-b border-slate-800 py-2">50</td>
+                <td className="border-b border-slate-800 py-2">60</td>
+                <td className="border-b border-slate-800 py-2">40</td>
+              </tr>
+              <tr className="text-[11px]">
+                <td className="border-b border-slate-800 py-2 pl-2 text-left text-emerald-400">
+                  Białko
+                </td>
+                <td className="border-b border-slate-800 py-2">20</td>
+                <td className="border-b border-slate-800 py-2">20</td>
+                <td className="border-b border-slate-800 py-2">30</td>
+                <td className="border-b border-slate-800 py-2">30</td>
+                <td className="border-b border-slate-800 py-2">20</td>
+                <td className="border-b border-slate-800 py-2">20</td>
+              </tr>
+              <tr className="text-[11px]">
+                <td className="py-2 pl-2 text-left text-amber-400">Tłuszcze</td>
+                <td className="py-2">15</td>
+                <td className="py-2">15</td>
+                <td className="py-2">10</td>
+                <td className="py-2">10</td>
+                <td className="py-2">15</td>
+                <td className="py-2">10</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm leading-relaxed text-slate-200">
+        <p>
+          Twój nowy plan dietetyczny składa się z 4 posiłków stałych i jednego
+          płynnego. Poniższy opis możesz w przyszłości zastąpić realnym tekstem
+          od trenera – struktura jest przygotowana tak, aby wygodnie się go
+          czytało.
+        </p>
+
+        <p>
+          Organizm potrzebuje regularnego dostarczania składników odżywczych,
+          które są niezbędne do produkowania energii na co dzień. Dlatego
+          jedzenie częstszych, mniejszych porcji często jest dobrym rozwiązaniem
+          podczas redukcji tkanki tłuszczowej.
+        </p>
+
+        <div className="space-y-1">
+          <p className="font-semibold text-slate-100">Stosując się do planu:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              białko to głównie budowa i odbudowa tkanek, wspiera regenerację,
+            </li>
+            <li>
+              węglowodany to główne źródło energii dla Twojego organizmu,
+            </li>
+            <li>
+              tłuszcze są niezbędne do pracy układu hormonalnego i nerwowego.
+            </li>
+          </ul>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold text-slate-100">
+            Kilka ważnych zasad stosowania planu:
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              staraj się trzymać podobnych godzin posiłków w ciągu dnia
+              (dopuszczalne są przesunięcia 1–2h),
+            </li>
+            <li>
+              jeśli zmieniasz kolejność posiłków, pilnuj, aby zjeść wszystkie w
+              ciągu dnia,
+            </li>
+            <li>
+              raportuj trenerowi, gdy często pomijasz któryś z posiłków – to
+              sygnał, że plan wymaga korekty.
+            </li>
+          </ul>
+        </div>
+
+        <div className="space-y-1">
+          <p className="font-semibold text-slate-100">
+            Podstawy Twojego schematu posiłków:
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              Każdy stały posiłek zawiera źródło białka, węglowodanów złożonych
+              oraz porcję warzyw lub owoców.
+            </li>
+            <li>
+              Posiłek płynny (np. shake) możesz wkomponować po treningu lub w
+              dowolnym momencie dnia, gdy jest Ci wygodniej.
+            </li>
+            <li>
+              Jeżeli masz gorszy dzień i nie zrealizujesz planu w 100%, nie
+              traktuj tego jako porażki – ważne, abyś wracał do schematu przy
+              kolejnych dniach.
+            </li>
+          </ul>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function NutritionTipsSection() {
+  const tips = [
+    {
+      title: "Woda",
+      desc: "Pamiętaj o podstawowej ilości wody, wypijanej przy nawodnieniu organizmu.",
+    },
+    {
+      title: "Ważenie posiłków",
+      desc: "Produkty waż przed obróbką termiczną, zawsze w tej samej formie, aby łatwiej było kontrolować ilości.",
+    },
+    {
+      title: "Przyrządzanie posiłków",
+      desc: "Do smażenia używaj tłuszczy, które masz wpisane w planie. Unikaj przypadkowego dodawania dodatkowych kalorii.",
+    },
+    {
+      title: "Czego unikać",
+      desc: "Słodycze, alkohol i podjadanie między posiłkami potrafią bardzo szybko zepsuć deficyt kaloryczny.",
+    },
+    {
+      title: "Ostatni posiłek",
+      desc: "Nie musisz jeść bardzo wcześnie – ważniejsze jest to, aby nie robić wielogodzinnych przerw od ostatniego posiłku do snu.",
+    },
+    {
+      title: "Shake",
+      desc: "Do każdego shake’a dodawaj mleko lub napój roślinny zgodnie z planem – traktuj go jako pełnoprawny posiłek.",
+    },
+    {
+      title: "Przyprawy",
+      desc: "Używaj dowolnych przypraw, unikając tylko nadmiaru cukru i tłuszczu. Ostre przyprawy mogą wspierać termogenezę.",
+    },
+  ];
+
+  return (
+    <section className="mx-auto flex max-w-5xl flex-col gap-8">
+      <header className="text-center md:text-left">
+        <h1 className="text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-4xl">
+          PORADY ŻYWIENIOWE
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm text-slate-300">
+          Ogólne porady pomocne w realizacji planu żywieniowego. Tutaj dowiesz
+          się na czym smażyć, jakich przypraw używać i na co w trakcie biegu po
+          wymarzoną sylwetkę zwrócić szczególną uwagę.
+        </p>
+      </header>
+
+      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-sm text-slate-200">
+        {tips.map((item) => (
+          <div
+            key={item.title}
+            className="flex flex-col gap-1 rounded-xl border border-slate-800 bg-slate-950/80 p-3"
+          >
+            <p className="text-sm font-semibold text-sky-300">
+              {item.title.toUpperCase()}
+            </p>
+            <p className="text-xs text-slate-300">{item.desc}</p>
+          </div>
+        ))}
+      </section>
+    </section>
+  );
+}
+
+function MealsVariantsSection() {
+  const mealTabs = [
+    "Śniadanie",
+    "II śniadanie",
+    "Obiad",
+    "Przekąska",
+    "Podwieczorek",
+    "Kolacja",
+  ];
+
+  const variants = [
+    "Jajka sadzone",
+    "Placki białkowe",
+    "Łosoś pieczony",
+    "Jajecznica",
+  ];
+
+  const [activeMeal, setActiveMeal] = useState(0);
+  const [activeVariant, setActiveVariant] = useState(0);
+
+  return (
+    <section className="mx-auto flex max-w-6xl flex-col gap-8">
+      <header className="text-center md:text-left">
+        <h1 className="text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-4xl">
+          POSIŁKI I WARIANTY
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm text-slate-300">
+          Wybierz dla siebie posiłki wraz z wariantem przygotowania, które chcesz
+          jeść. W przyszłości trener wypełni ten ekran konkretnymi propozycjami
+          dań dla każdego posiłku.
+        </p>
+      </header>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-200">
+        <div className="flex flex-wrap gap-2">
+          {mealTabs.map((label, idx) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setActiveMeal(idx)}
+              className={`flex-1 min-w-[90px] rounded-lg px-4 py-2 text-center uppercase tracking-wide ${
+                activeMeal === idx
+                  ? "bg-sky-500 text-slate-950 font-semibold shadow-[0_0_18px_rgba(56,189,248,0.6)]"
+                  : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
+        <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+          {variants.map((v, idx) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setActiveVariant(idx)}
+              className={`rounded-full px-4 py-1.5 text-[11px] ${
+                activeVariant === idx
+                  ? "bg-sky-500 text-slate-950 font-semibold"
+                  : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-[1.7fr_1.3fr]">
+          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80">
+            <div className="h-56 w-full bg-[url('https://images.pexels.com/photos/1437267/pexels-photo-1437267.jpeg?auto=compress&cs=tinysrgb&w=1200')] bg-cover bg-center" />
+          </div>
+
+          <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+            <p className="self-start text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+              WARTOŚCI ODŻYWCZE (DEMO)
+            </p>
+            <div className="relative h-40 w-40">
+              <div className="absolute inset-0 rounded-full border-[10px] border-slate-800" />
+              <div className="absolute inset-1 rounded-full border-[10px] border-emerald-500/80 border-r-transparent border-b-transparent rotate-[30deg]" />
+              <div className="absolute inset-3 rounded-full border-[10px] border-sky-500/80 border-l-transparent border-b-transparent -rotate-[20deg]" />
+              <div className="absolute inset-5 rounded-full border-[10px] border-amber-400/80 border-t-transparent border-r-transparent rotate-[15deg]" />
+              <div className="absolute inset-10 flex flex-col items-center justify-center rounded-full bg-slate-950">
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">
+                  375 kcal
+                </p>
+                <p className="mt-1 text-[11px] text-slate-300">
+                  Węglowodany / Białko / Tłuszcze
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 space-y-2 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-sm text-slate-200">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-400">
+            OPIS
+          </p>
+          <p>
+            Tutaj trener opisze szczegóły przygotowania dania – ilości składników,
+            sposób przygotowania, ewentualne zamienniki produktów oraz dodatkowe
+            wskazówki (np. kiedy najlepiej zjeść ten posiłek w ciągu dnia).
+          </p>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+type Supplement = {
+  id: string;
+  name: string;
+  type: string;
+  shortDesc: string;
+};
+
+const SUPPLEMENTS: Supplement[] = [
+  {
+    id: "whey",
+    name: "Odżywka białkowa – Balance Wild Protein",
+    type: "Odżywka białkowa",
+    shortDesc: "Koncentrat białka serwatkowego najwyższej jakości.",
+  },
+  {
+    id: "creatine",
+    name: "Creatine Mono",
+    type: "Monohydrat kreatyny",
+    shortDesc: "Wsparcie siły i wydolności mięśniowej.",
+  },
+  {
+    id: "vitamins",
+    name: "Vitamin D3 + K2",
+    type: "Witaminy",
+    shortDesc: "Wsparcie układu odpornościowego i kostnego.",
+  },
+  {
+    id: "omega3",
+    name: "Omega 3",
+    type: "Kwasy tłuszczowe",
+    shortDesc: "Wsparcie pracy serca i układu nerwowego.",
+  },
+];
+
+function SupplementsSection() {
+  const [activeId, setActiveId] = useState<string>("whey");
+  const active = SUPPLEMENTS.find((s) => s.id === activeId) ?? SUPPLEMENTS[0];
+
+  return (
+    <section className="mx-auto flex max-w-5xl flex-col gap-8">
+      <header className="text-center md:text-left">
+        <h1 className="text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-4xl">
+          SUPLEMENTACJA
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm text-slate-300">
+          Dokładna rozpiska uzupełnienia diety – odżywek i suplementów. Dawki,
+          pory stosowania, produkty – wszystko czarno na białym.
+        </p>
+      </header>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-200">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+          PRZEPISANE SUPLEMENTY
+        </p>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-xs text-slate-200">
+        <div className="flex flex-col gap-4 md:flex-row">
+          <div className="flex w-full flex-col items-center gap-3 md:w-56">
+            <div className="flex h-40 w-40 items-center justify-center rounded-2xl border border-slate-800 bg-slate-950/80">
+              <span className="text-[11px] text-slate-500">Zdjęcie suplementu</span>
+            </div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+              {active.type}
+            </p>
+            <button className="w-full rounded-full bg-sky-500 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-950 hover:bg-sky-400">
+              Zamów teraz
+            </button>
+          </div>
+
+          <div className="flex-1 space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-50">
+                {active.name}
+              </h2>
+              <p className="mt-1 text-[11px] text-slate-400">{active.shortDesc}</p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1 rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  DAWKOWANIE
+                </p>
+                <p className="text-[11px] text-slate-200">
+                  Odżywkę stosuj zgodnie z ilościami podanymi w planie
+                  dietetycznym. Zwykle 1–2 porcje dziennie po treningu lub jako
+                  uzupełnienie brakującego białka.
+                </p>
+              </div>
+              <div className="space-y-1 rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  INFORMACJE O SUPLEMENCIE
+                </p>
+                <p className="text-[11px] text-slate-200">
+                  W docelowej wersji tutaj trener opisze, dlaczego wybrał ten
+                  produkt, na co zwracać uwagę przy stosowaniu oraz ewentualne
+                  przeciwwskazania.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1 rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-[11px] text-slate-200">
+              <p className="font-semibold text-slate-100">Opis suplementu:</p>
+              <p>
+                Tekst przykładowy – w przyszłości trener wypełni go konkretnymi
+                informacjami o działaniu, składzie i korzyściach ze stosowania
+                suplementu.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-2 text-xs text-slate-200">
+        {SUPPLEMENTS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setActiveId(s.id)}
+            className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+              active.id === s.id
+                ? "border-sky-500 bg-slate-900/90"
+                : "border-slate-800 bg-slate-950/80 hover:bg-slate-900"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-slate-800" />
+              <div>
+                <p className="text-sm font-semibold text-slate-50">{s.name}</p>
+                <p className="text-[11px] text-slate-400">{s.type}</p>
+              </div>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              {active.id === s.id ? "Wybrany" : "Zmień"}
+            </span>
+          </button>
+        ))}
+      </section>
+    </section>
+  );
+}
+
+function HydrationSection() {
+  return (
+    <section className="mx-auto flex max-w-5xl flex-col gap-8">
+      <header className="text-center md:text-left">
+        <h1 className="text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-4xl">
+          NAWODNIENIE ORGANIZMU
+        </h1>
+        <p className="mt-3 max-w-3xl text-sm text-slate-300">
+          Opis zasad związanych z gospodarką wodno–elektrolitową. Oprócz diety
+          jest to drugi najważniejszy obszar, którego codziennie pilnujesz.
+        </p>
+      </header>
+
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-sm text-slate-200">
+        <div>
+          <div className="mb-2 flex items-center gap-3">
+            <div className="h-0.5 w-8 bg-emerald-500" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300">
+              UWAGI OGÓLNE DO TWOJEGO NAWODNIENIA
+            </p>
+          </div>
+          <p>
+            Pij przede wszystkim wodę mineralną – nawodnia i jest źródłem cennych
+            składników. W dalszej części planu trener może dopisać konkretne
+            zalecenia co do ilości i rodzaju wody.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+            POZOSTAŁE NAPOJE
+          </p>
+          <ul className="list-disc space-y-1 pl-5 text-xs text-slate-200">
+            <li>
+              Kawa: bez cukru; mleko max 100 ml dziennie (do wszystkich kaw
+              łącznie).
+            </li>
+            <li>
+              Herbata: bez cukru; można dodać cytrynę – 1–2 filiżanki dziennie.
+            </li>
+            <li>
+              Napoje zero/cola light – okazjonalnie, nie jako główne źródło
+              płynów.
+            </li>
+            <li>
+              Soki owocowe – traktuj raczej jako dodatek smakowy niż osobny
+              napój.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-xs text-slate-200">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+          LEGENDA (PRZYKŁAD)
+        </p>
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="flex flex-col items-center gap-1">
+            <div className="h-10 w-10 rounded-md bg-sky-500/40 border border-sky-400" />
+            <p className="text-center text-[11px] text-slate-300">
+              1 szklanka wody
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="h-10 w-10 rounded-md bg-sky-400/30 border border-sky-300" />
+            <p className="text-center text-[11px] text-slate-300">
+              250 ml napoju
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="h-12 w-8 rounded-md bg-sky-500/50 border border-sky-400" />
+            <p className="text-center text-[11px] text-slate-300">
+              0.5 l butelka
+            </p>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="h-14 w-10 rounded-md bg-sky-500/60 border border-sky-400" />
+            <p className="text-center text-[11px] text-slate-300">
+              1 l butelka
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-xs text-slate-200">
+        <p className="text-center text-sm font-semibold text-slate-50">
+          PLAN TWOJEGO NAWODNIENIA (PRZYKŁAD)
+        </p>
+        <p className="text-center text-[11px] text-slate-400">
+          1–28 DNI: Docelowo min. 2–2.5 litra płynów dziennie (woda + napoje bez
+          kalorii).
+        </p>
+
+        <div className="mt-4 flex flex-col items-center gap-3">
+          <div className="flex items-end gap-2">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="h-10 w-4 rounded-b-md bg-gradient-to-t from-sky-500/70 to-sky-300/40 border border-sky-400/80"
+              />
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-300">
+            Odpowiada to mniej więcej 8 szklankom wody w ciągu dnia.
+          </p>
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function TrainingSection() {
+  const exercises = [
+    {
+      id: 1,
+      name: "Pompki w wąskim podparciu",
+      series: "4 x 8–12",
+      workTime: "Seria do upadku mięśniowego",
+      rest: "90 sek.",
+    },
+    {
+      id: 2,
+      name: "Przysiad bułgarski ze sztangielkami",
+      series: "3 x 10–12",
+      workTime: "Noga po nodze",
+      rest: "90 sek.",
+    },
+    {
+      id: 3,
+      name: "Martwy ciąg na prostych nogach",
+      series: "3 x 8–10",
+      workTime: "Kontrola zejścia",
+      rest: "120 sek.",
+    },
+    {
+      id: 4,
+      name: "Wiosłowanie hantlą w opadzie",
+      series: "3 x 10–12",
+      workTime: "Na stronę",
+      rest: "90 sek.",
+    },
+    {
+      id: 5,
+      name: "Plank",
+      series: "2 serie",
+      workTime: "max",
+      rest: "90 sek.",
+    },
+    {
+      id: 6,
+      name: "Aeroby / Cardio",
+      series: "1 seria",
+      workTime: "20 min",
+      rest: "-",
+    },
+  ];
+
+  const trainingDays = [
+    { id: 1, label: "Dzień 1", status: "Treningowy" },
+    { id: 2, label: "Dzień 2", status: "Treningowy" },
+    { id: 3, label: "Dzień 3", status: "Aktywny" },
+    { id: 4, label: "Dzień 4", status: "Treningowy" },
+    { id: 5, label: "Dzień 5", status: "Treningowy" },
+    { id: 6, label: "Dzień 6", status: "Aktywny" },
+    { id: 7, label: "Dzień 7", status: "Odpoczynek" },
+  ];
+
+  const [activeDay, setActiveDay] = useState(1);
+
+  return (
+    <section className="mx-auto flex max-w-6xl flex-col gap-8">
+      <header className="space-y-4">
+        <h1 className="text-center text-3xl font-extrabold tracking-[0.18em] text-slate-50 md:text-left md:text-4xl">
+          PLAN TRENINGOWY
+        </h1>
+        <p className="max-w-3xl text-sm text-slate-300">
+          Poniżej widzisz przykładowy dzień treningowy – kolejność ćwiczeń, ilość
+          serii, czas pracy i przerwy. W przyszłości dane będą pochodziły z
+          rzeczywistego planu od trenera.
+        </p>
+
+        <div className="mt-2 flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-2 text-xs text-slate-200">
+          {trainingDays.map((day) => (
+            <button
+              key={day.id}
+              type="button"
+              onClick={() => setActiveDay(day.id)}
+              className={`flex-1 min-w-[110px] rounded-lg px-4 py-2 text-left uppercase tracking-wide ${
+                activeDay === day.id
+                  ? "bg-emerald-500 text-slate-950 font-semibold shadow-[0_0_18px_rgba(16,185,129,0.6)]"
+                  : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
+              }`}
+            >
+              <div className="flex flex-col leading-tight">
+                <span>{day.label}</span>
+                <span className="text-[10px] normal-case opacity-80">
+                  {day.status}
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+            DZIEŃ TRENINGOWY – PRZYKŁAD
+          </p>
+          <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-300">
+            Status:{" "}
+            <span className="font-semibold text-emerald-400">Aktywny</span>
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {exercises.map((ex) => (
+            <article
+              key={ex.id}
+              className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 md:flex-row md:items-center md:justify-between"
+            >
+              <div className="flex-1 space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  Ćwiczenie {ex.id}
+                </p>
+                <h2 className="text-sm font-semibold text-slate-50">
+                  {ex.name}
+                </h2>
+              </div>
+
+              <div className="grid flex-1 gap-2 text-[11px] text-slate-200 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
+                  <p className="text-slate-400">Serie</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-50">
+                    {ex.series}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
+                  <p className="text-slate-400">Czas pracy</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-50">
+                    {ex.workTime}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
+                  <p className="text-slate-400">Przerwa</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-50">
+                    {ex.rest}
+                  </p>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+          KOMENTARZ DO TRENINGU (DEMO)
+        </p>
+        <div className="space-y-2">
+          {[
+            "Serie rozgrzewkowe – co to jest?",
+            "Superseria – co to jest?",
+            "Seria łączona – co to jest?",
+            "Gigantseria – co to jest?",
+            "RPE – co to jest?",
+            "MAX – co to jest?",
+            "Tempo – co to jest?",
+          ].map((label) => (
+            <details
+              key={label}
+              className="group rounded-2xl border border-slate-800 bg-slate-950/80"
+            >
+              <summary className="flex cursor-pointer items-center justify-between px-4 py-2 text-[11px] font-semibold text-slate-200">
+                {label}
+                <span className="transition text-slate-500 group-open:rotate-180">
+                  ˅
+                </span>
+              </summary>
+              <div className="border-t border-slate-800 px-4 py-3 text-[11px] text-slate-300">
+                Tu możesz dodać opis pojęcia – w wersji produkcyjnej trener
+                wyjaśni dokładnie, jak wykonywać dane elementy planu.
+              </div>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <div className="flex justify-between">
+        <button
+          type="button"
+          className="rounded-full border border-slate-700 bg-slate-900/70 px-4 py-2 text-xs font-medium text-slate-200 hover:bg-slate-800 hover:text-white"
+        >
+          Wstecz
+        </button>
+        <button
+          type="button"
+          className="rounded-full bg-sky-500 px-6 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 hover:bg-sky-400"
+        >
+          Przejdź dalej
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function CateringSection() {
+  return (
+    <section className="mx-auto flex max-w-5xl flex-col gap-6">
+      <header>
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">
+          Plan żywieniowy
+        </p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-50">
+          Catering dietetyczny
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-300">
+          Miejsce na integrację z cateringiem dietetycznym: informacje o wybranej
+          firmie, wariancie diety oraz wskazówki od trenera, jak z niego
+          korzystać.
+        </p>
+      </header>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-200">
+        <p>
+          Na ten moment to widok poglądowy. Możemy go później rozbudować o
+          szczegóły współpracy z cateringiem, linki do zamówień czy informację,
+          jak dopasować gotowe posiłki do planu.
+        </p>
+      </section>
     </section>
   );
 }

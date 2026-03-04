@@ -345,16 +345,21 @@ export default function ClientDashboardPage() {
                         router.push(item.href);
                       }
                     }}
-                    className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                    className={`group w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-[13px] font-medium transition ${
                       disabled
-                        ? "text-slate-600 cursor-not-allowed border border-slate-900"
+                        ? "text-slate-600 cursor-not-allowed"
                         : active
-                        ? "bg-slate-800 text-white shadow-inner"
-                        : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                        ? "bg-slate-800/90 text-slate-50 shadow-[0_0_0_1px_rgba(148,163,184,0.4)]"
+                        : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-50"
                     }`}
                   >
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                    <span
+                      className={`h-7 w-1 rounded-full transition group-hover:bg-slate-500/60 ${
+                        active ? "bg-emerald-400" : "bg-transparent"
+                      }`}
+                    />
+                    <Icon className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{item.label}</span>
                   </button>
                 );
               })}
@@ -372,16 +377,23 @@ export default function ClientDashboardPage() {
                   setShowIntro(false);
                   setActiveSection("settings");
                 }}
-                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                className={`group w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-[13px] font-medium transition ${
                   activeSection === "settings"
-                    ? "bg-slate-800 text-white shadow-inner"
-                    : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
+                    ? "bg-slate-800/90 text-slate-50 shadow-[0_0_0_1px_rgba(148,163,184,0.4)]"
+                    : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-50"
                 }`}
               >
+                <span
+                  className={`h-7 w-1 rounded-full transition group-hover:bg-slate-500/60 ${
+                    activeSection === "settings"
+                      ? "bg-emerald-400"
+                      : "bg-transparent"
+                  }`}
+                />
                 <span className="flex h-5 w-5 items-center justify-center rounded-full border border-slate-500 text-[11px]">
                   ⚙
                 </span>
-                <span>Ustawienia</span>
+                <span className="truncate">Ustawienia</span>
               </button>
               <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 bg-slate-900/70 border border-slate-800">
                 <User className="h-4 w-4" />

@@ -2007,20 +2007,66 @@ function DietSection({
 }
 
 function ProgressSection() {
+  const [dateLabels, setDateLabels] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = "fitcoach_client_start_date";
+    const today = new Date();
+    let stored = window.localStorage.getItem(key);
+    let start = stored ? new Date(stored) : today;
+    if (Number.isNaN(start.getTime())) {
+      start = today;
+    }
+    if (!stored) {
+      window.localStorage.setItem(key, today.toISOString().slice(0, 10));
+    }
+
+    const totalMs = Math.max(0, today.getTime() - start.getTime());
+    const diffDays = Math.max(
+      1,
+      Math.round(totalMs / (1000 * 60 * 60 * 24)),
+    );
+    const steps = Math.min(7, Math.max(2, Math.round(diffDays / 30) + 1));
+
+    const labels: string[] = [];
+    for (let i = 0; i < steps; i++) {
+      const t =
+        steps === 1
+          ? today.getTime()
+          : start.getTime() + (totalMs * i) / (steps - 1);
+      const d = new Date(t);
+      labels.push(
+        d.toLocaleDateString("pl-PL", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+        }),
+      );
+    }
+    setDateLabels(labels);
+  }, []);
+
   return (
     <section className="space-y-6 rounded-2xl border border-slate-800 bg-slate-950/90 p-4 text-xs text-slate-200">
       {/* Legenda / przełączniki jak na screenie */}
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 px-3 py-2">
         {[
-          { label: "WAGA", color: "border-sky-400 bg-sky-500/20 text-sky-300" },
-          { label: "PAS", color: "border-rose-400 bg-rose-500/20 text-rose-300" },
+          {
+            label: "WAGA",
+            color: "border-sky-400 bg-sky-500/20 text-sky-300",
+          },
+          {
+            label: "PAS",
+            color: "border-rose-400 bg-rose-500/20 text-rose-300",
+          },
           {
             label: "BRZUCH",
-            color: "border-red-400 bg-red-500/20 text-red-300",
+            color: "border-orange-400 bg-orange-500/25 text-orange-300",
           },
           {
             label: "BICEPS",
-            color: "border-blue-400 bg-blue-500/20 text-blue-300",
+            color: "border-indigo-400 bg-indigo-500/25 text-indigo-300",
           },
           {
             label: "KLATKA",
@@ -2028,11 +2074,11 @@ function ProgressSection() {
           },
           {
             label: "UDA",
-            color: "border-amber-400 bg-amber-500/20 text-amber-300",
+            color: "border-amber-400 bg-amber-500/25 text-amber-300",
           },
           {
             label: "ŁYDKI",
-            color: "border-yellow-400 bg-yellow-500/20 text-yellow-300",
+            color: "border-violet-400 bg-violet-500/25 text-violet-300",
           },
         ].map((item) => (
           <button
@@ -2076,34 +2122,34 @@ function ProgressSection() {
               <polyline
                 points="5,55 20,50 35,60 50,52 65,54 80,50 95,48"
                 fill="none"
-                stroke="rgba(74,222,128,1)"
+                stroke="rgba(74,222,128,1)"  /* klatka */
                 strokeWidth="2"
               />
             </svg>
-            {/* Pas – czerwony */}
+            {/* Pas – różowy */}
             <svg className="absolute inset-0 h-full w-full">
               <polyline
                 points="5,70 20,68 35,66 50,65 65,67 80,69 95,72"
                 fill="none"
-                stroke="rgba(248,113,113,1)"
+                stroke="rgba(244,114,182,1)" /* pas */
                 strokeWidth="2"
               />
             </svg>
-            {/* Brzuch – biały */}
+            {/* Brzuch – pomarańczowy */}
             <svg className="absolute inset-0 h-full w-full">
               <polyline
                 points="5,65 20,64 35,63 50,62 65,63 80,64 95,66"
                 fill="none"
-                stroke="rgba(248,250,252,1)"
+                stroke="rgba(251,146,60,1)" /* brzuch */
                 strokeWidth="2"
               />
             </svg>
-            {/* Uda – pomarańczowe */}
+            {/* Uda – żółte */}
             <svg className="absolute inset-0 h-full w-full">
               <polyline
                 points="5,80 20,78 35,76 50,75 65,76 80,78 95,81"
                 fill="none"
-                stroke="rgba(251,191,36,1)"
+                stroke="rgba(250,204,21,1)" /* uda */
                 strokeWidth="2"
               />
             </svg>
@@ -2120,11 +2166,11 @@ function ProgressSection() {
 
           {/* Oś czasu na dole */}
           <div className="absolute bottom-2 left-4 right-4 flex items-center justify-between text-[9px] text-slate-400">
-            <span>13.06.2023</span>
-            <span>11.07.2023</span>
-            <span>06.08.2023</span>
-            <span>03.09.2023</span>
-            <span>26.02.2026</span>
+            {(dateLabels.length ? dateLabels : ["13.06.2023", "11.07.2023"]).map(
+              (label) => (
+                <span key={label}>{label}</span>
+              ),
+            )}
           </div>
         </div>
 
@@ -2143,7 +2189,7 @@ function ProgressSection() {
       {/* Dolne kafelki z obwodami – uproszczona wersja */}
       <div className="grid gap-3 text-xs text-slate-200 md:grid-cols-3">
         <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-400">
             Biceps
           </p>
           <p className="text-lg font-semibold text-slate-50">
@@ -2175,7 +2221,7 @@ function ProgressSection() {
           </p>
         </div>
         <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-400">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-yellow-400">
             Uda
           </p>
           <p className="text-lg font-semibold text-slate-50">
@@ -2183,7 +2229,7 @@ function ProgressSection() {
           </p>
         </div>
         <div className="space-y-1 rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-yellow-300">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-violet-300">
             Łydki
           </p>
           <p className="text-lg font-semibold text-slate-50">

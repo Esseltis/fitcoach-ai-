@@ -274,7 +274,7 @@ function FemaleDashboardSection() {
                 <img
                   src="/body-female.png"
                   alt="Sylwetka podopiecznej"
-                  className="relative h-64 w-auto object-contain"
+                  className="relative h-64 w-auto object-contain dark:brightness-0 dark:invert"
                 />
               </div>
             </div>

@@ -558,13 +558,11 @@ function DashboardSection({
           {/* Środek z sylwetką i BMI */}
           <div className="flex w-full flex-col items-center justify-center gap-4 lg:w-[260px]">
             <div className="relative flex h-72 w-full max-w-xs items-center justify-center">
-              <div className="absolute inset-8 rounded-[999px] bg-emerald-500/10 blur-3xl" />
               <div className="relative flex h-72 w-36 items-center justify-center">
-                <div className="absolute bottom-6 h-40 w-28 rounded-full bg-gradient-to-t from-emerald-500/25 via-emerald-400/5 to-transparent blur-2xl" />
                 <img
-                  src="/body-male.png"
+                  src="/body-male-v2.png"
                   alt="Sylwetka podopiecznego"
-                  className="relative h-64 w-auto object-contain"
+                  className="relative h-64 w-auto object-contain dark:brightness-0 dark:invert"
                 />
               </div>
             </div>

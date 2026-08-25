@@ -157,7 +157,7 @@ export default function TrainerClientPage({
                 <textarea
                   value={plan[f.key]}
                   onChange={(e) =>
-                    setPlan((p) => ({ ...p, [f.key]: e.target.value }))
+                    setPlan((p) => ({ ...p, [f.key]: e.target.value } as TrainerPlan))
                   }
                   rows={4}
                   placeholder={`Wpisz ${f.label.toLowerCase()} dla tego klienta...`}

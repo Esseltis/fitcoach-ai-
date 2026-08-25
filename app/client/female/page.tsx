@@ -270,9 +270,7 @@ function FemaleDashboardSection() {
           {/* Sylwetka + BMI */}
           <div className="flex w-full flex-col items-center justify-center gap-4 lg:w-[260px]">
             <div className="relative flex h-72 w-full max-w-xs items-center justify-center">
-              <div className="absolute inset-8 rounded-[999px] bg-pink-500/20 blur-3xl" />
               <div className="relative flex h-72 w-36 items-center justify-center">
-                <div className="absolute bottom-6 h-40 w-28 rounded-full bg-gradient-to-t from-pink-500/25 via-pink-400/10 to-transparent blur-2xl" />
                 <img
                   src="/body-female.png"
                   alt="Sylwetka podopiecznej"

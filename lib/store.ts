@@ -209,6 +209,189 @@ export function savePlan(trainerId: string, email: string, data: TrainerPlan) {
   safeSet(planKey(trainerId, email), JSON.stringify(data));
 }
 
+// ---- Treść panelu klienta (wypełniana przez trenera) ----
+
+export type Tip = { title: string; desc: string };
+export type DietMeal = { name: string; description: string; calories: string };
+export type SupplementItem = {
+  id: string;
+  name: string;
+  type: string;
+  shortDesc: string;
+  dosing: string;
+  info: string;
+};
+export type TrainingExercise = {
+  name: string;
+  series: string;
+  workTime: string;
+  rest: string;
+};
+export type TrainingComment = { label: string; text: string };
+export type CateringProvider = {
+  name: string;
+  note: string;
+  recommended: boolean;
+};
+
+export type TrainerContent = {
+  intro: {
+    greeting: string;
+    text: string;
+    changesTitle: string;
+    changes: string[];
+    updateLabel: string;
+    updateDate: string;
+  };
+  nutrition: {
+    balanceText: string;
+    balanceType: string;
+    balanceValue: string;
+    calories: string;
+    carbsKcal: string;
+    proteinKcal: string;
+    fatKcal: string;
+    carbsG: string;
+    proteinG: string;
+    fatG: string;
+    carbsPct: string;
+    proteinPct: string;
+    fatPct: string;
+    weight: string;
+    height: string;
+  };
+  tips: Tip[];
+  diet: {
+    targetCalories: string;
+    meals: DietMeal[];
+  };
+  supplements: SupplementItem[];
+  hydration: {
+    general: string;
+    beverages: string[];
+    planText: string;
+  };
+  training: {
+    days: { label: string; status: string }[];
+    dayExercises: Record<number, TrainingExercise[]>;
+    comment: TrainingComment[];
+  };
+  catering: {
+    note: string;
+    providers: CateringProvider[];
+  };
+  updatedAt: string;
+};
+
+export const DEFAULT_CONTENT: TrainerContent = {
+  intro: {
+    greeting: "Siema!",
+    text: "Tutaj trener wprowadzi Cię w aktualną wersję planu – co zostało zmienione i na co zwracać uwagę.",
+    changesTitle: "W aktualizacji planu:",
+    changes: ["kaloryczność na podobnym poziomie", "więcej posiłków", "odświeżone menu"],
+    updateLabel: "Aktualizacja 1",
+    updateDate: new Date().toISOString().slice(0, 10),
+  },
+  nutrition: {
+    balanceText:
+      "Bilans kaloryczny ustalony indywidualnie do Twojego celu i aktualnej masy ciała.",
+    balanceType: "Utrzymanie",
+    balanceValue: "0%",
+    calories: "2800",
+    carbsKcal: "1400",
+    proteinKcal: "800",
+    fatKcal: "600",
+    carbsG: "350",
+    proteinG: "200",
+    fatG: "67",
+    carbsPct: "50",
+    proteinPct: "29",
+    fatPct: "21",
+    weight: "81",
+    height: "173",
+  },
+  tips: [
+    { title: "Woda", desc: "Pij odpowiednią ilość wody przez cały dzień." },
+    { title: "Ważenie posiłków", desc: "Produkty waż przed obróbką termiczną." },
+    { title: "Przyprawy", desc: "Używaj dowolnych przypraw bez cukru i tłuszczu." },
+  ],
+  diet: {
+    targetCalories: "2800",
+    meals: [
+      { name: "Śniadanie", description: "Owsianka z owocami i orzechami.", calories: "550" },
+      { name: "II śniadanie", description: "Jogurt naturalny z garścią borówek.", calories: "300" },
+      { name: "Obiad", description: "Kurczak z ryżem i warzywami.", calories: "750" },
+      { name: "Podwieczorek", description: "Omlet białkowy z pomidorem.", calories: "350" },
+      { name: "Kolacja", description: "Twaróg z rzodkiewką i szczypiorkiem.", calories: "450" },
+    ],
+  },
+  supplements: [
+    {
+      id: "whey",
+      name: "Odżywka białkowa",
+      type: "Odżywka białkowa",
+      shortDesc: "Uzupełnienie białka po treningu.",
+      dosing: "1 porcja po treningu.",
+      info: "Koncentrat białka serwatkowego najwyższej jakości.",
+    },
+  ],
+  hydration: {
+    general: "Pij przede wszystkim wodę mineralną. Docelowo min. 2–2.5 litra płynów dziennie.",
+    beverages: [
+      "Kawa: bez cukru, mleko max 100 ml dziennie.",
+      "Herbata: bez cukru, 1–2 filiżanki dziennie.",
+      "Napoje zero: okazjonalnie.",
+    ],
+    planText: "1–28 DNI: min. 2–2.5 litra płynów dziennie (woda + napoje bez kalorii).",
+  },
+  training: {
+    days: [
+      { label: "Dzień 1", status: "Treningowy" },
+      { label: "Dzień 2", status: "Odpoczynek" },
+      { label: "Dzień 3", status: "Treningowy" },
+      { label: "Dzień 4", status: "Aktywny" },
+      { label: "Dzień 5", status: "Treningowy" },
+      { label: "Dzień 6", status: "Odpoczynek" },
+      { label: "Dzień 7", status: "Aktywny" },
+    ],
+    dayExercises: {
+      1: [
+        { name: "Pompki w wąskim podparciu", series: "4 x 8–12", workTime: "Seria do upadku", rest: "90 sek." },
+        { name: "Przysiad bułgarski", series: "3 x 10–12", workTime: "Noga po nodze", rest: "90 sek." },
+        { name: "Plank", series: "2 serie", workTime: "max", rest: "90 sek." },
+      ],
+    },
+    comment: [
+      { label: "Serie rozgrzewkowe – co to jest?", text: "Lekkie serie przygotowujące mięśnie do pracy." },
+      { label: "RPE – co to jest?", text: "Subiektywne odczucie wysiłku w skali 1–10." },
+    ],
+  },
+  catering: {
+    note: "Lista cateringów, z którymi mamy podpisaną umowę i które poleca trener.",
+    providers: [
+      { name: "MaczuFit", note: "Dieta pudełkowa 5 posiłków dziennie.", recommended: true },
+      { name: "FitBox", note: "Opcja wegetariańska.", recommended: false },
+    ],
+  },
+  updatedAt: "",
+};
+
+const contentKey = (email: string) => `fitcoach_content_${email}`;
+
+export function getClientContent(email: string): TrainerContent {
+  const raw = safeGet(contentKey(email));
+  if (!raw) return structuredClone(DEFAULT_CONTENT);
+  try {
+    return { ...structuredClone(DEFAULT_CONTENT), ...JSON.parse(raw) };
+  } catch {
+    return structuredClone(DEFAULT_CONTENT);
+  }
+}
+
+export function saveClientContent(email: string, data: TrainerContent) {
+  safeSet(contentKey(email), JSON.stringify({ ...data, updatedAt: new Date().toISOString() }));
+}
+
 // ---- Biblioteka przepisów i treningów (szybki wybór dla trenera) ----
 
 export type Recipe = { id: string; name: string; detail: string };

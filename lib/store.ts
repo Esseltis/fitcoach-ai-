@@ -208,3 +208,129 @@ export function getPlan(trainerId: string, email: string): TrainerPlan | null {
 export function savePlan(trainerId: string, email: string, data: TrainerPlan) {
   safeSet(planKey(trainerId, email), JSON.stringify(data));
 }
+
+// ---- Biblioteka przepisów i treningów (szybki wybór dla trenera) ----
+
+export type Recipe = { id: string; name: string; detail: string };
+export type Workout = { id: string; name: string; detail: string };
+
+export const GENERAL_RECIPES: Recipe[] = [
+  {
+    id: "r1",
+    name: "Owsianka z owocami",
+    detail:
+      "50g płatków owsianych, 250ml mleka, garść owoców, łyżka orzechów, cynamon.",
+  },
+  {
+    id: "r2",
+    name: "Kurczak z ryżem i warzywami",
+    detail:
+      "150g piersi z kurczaka, 60g ryżu, warzywa na parze, łyżka oliwy.",
+  },
+  {
+    id: "r3",
+    name: "Omlet białkowy",
+    detail:
+      "3 białka + 1 całe jajko, pomidor, szczypiorek, szczypta soli.",
+  },
+  {
+    id: "r4",
+    name: "Sałatka z tuńczykiem",
+    detail:
+      "Puszka tuńczyka w sosie własnym, mix sałat, ogórek, pomidor, oliwa, cytryna.",
+  },
+  {
+    id: "r5",
+    name: "Twaróg z rzodkiewką",
+    detail:
+      "150g chudego twarogu, rzodkiewka, szczypiorek, jogurt naturalny.",
+  },
+  {
+    id: "r6",
+    name: "Łosoś z kaszą i brokułem",
+    detail:
+      "120g łososia, 60g kaszy jaglanej, brokuł, sok z cytryny.",
+  },
+];
+
+export const GENERAL_WORKOUTS: Workout[] = [
+  {
+    id: "w1",
+    name: "Trening FBW",
+    detail:
+      "Przysiady 3x12, wyciskanie sztangi 3x10, wiosłowanie 3x10, martwy ciąg 3x8, brzuch 3x15.",
+  },
+  {
+    id: "w2",
+    name: "Górne partie (push)",
+    detail:
+      "Wyciskanie 4x8, pompki 3x15, rozpiętki 3x12, wyciskanie barki 3x10, triceps 3x12.",
+  },
+  {
+    id: "w3",
+    name: "Dolne partie (pull)",
+    detail:
+      "Martwy ciąg 4x6, podciąganie 3x8, wiosłowanie 3x10, uginanie bicepsa 3x12.",
+  },
+  {
+    id: "w4",
+    name: "Trening cardio interwałowy",
+    detail:
+      "5 min rozgrzewki, 10x (30s sprint / 60s marsz), 5 min schłodzenia.",
+  },
+  {
+    id: "w5",
+    name: "Trening nóg",
+    detail:
+      "Przysiad ze sztangą 4x10, wykroki 3x12, uginanie nóg 3x12, łydki 4x15.",
+  },
+  {
+    id: "w6",
+    name: "Trening mobilności i brzucha",
+    detail:
+      "Plank 3x45s, deska boczna 2x30s, martwy robak 3x10, rozciąganie 10 min.",
+  },
+];
+
+const trainerRecipesKey = (trainerId: string) =>
+  `fitcoach_trainer_${trainerId}_recipes`;
+const trainerWorkoutsKey = (trainerId: string) =>
+  `fitcoach_trainer_${trainerId}_workouts`;
+
+function getStoredList<T>(key: string): T[] {
+  const raw = safeGet(key);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as T[];
+  } catch {
+    return [];
+  }
+}
+
+export function getTrainerRecipes(trainerId: string): Recipe[] {
+  return getStoredList<Recipe>(trainerRecipesKey(trainerId));
+}
+
+export function saveTrainerRecipe(
+  trainerId: string,
+  data: { name: string; detail: string }
+): Recipe[] {
+  const list = getTrainerRecipes(trainerId);
+  list.push({ id: crypto.randomUUID(), name: data.name, detail: data.detail });
+  safeSet(trainerRecipesKey(trainerId), JSON.stringify(list));
+  return list;
+}
+
+export function getTrainerWorkouts(trainerId: string): Workout[] {
+  return getStoredList<Workout>(trainerWorkoutsKey(trainerId));
+}
+
+export function saveTrainerWorkout(
+  trainerId: string,
+  data: { name: string; detail: string }
+): Workout[] {
+  const list = getTrainerWorkouts(trainerId);
+  list.push({ id: crypto.randomUUID(), name: data.name, detail: data.detail });
+  safeSet(trainerWorkoutsKey(trainerId), JSON.stringify(list));
+  return list;
+}

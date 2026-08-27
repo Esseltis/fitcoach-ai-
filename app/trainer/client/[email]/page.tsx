@@ -10,9 +10,18 @@ import {
   getPlan,
   savePlan,
   trainerLogout,
+  getTrainerRecipes,
+  saveTrainerRecipe,
+  getTrainerWorkouts,
+  saveTrainerWorkout,
+  GENERAL_RECIPES,
+  GENERAL_WORKOUTS,
   type ClientReport,
   type TrainerPlan,
+  type Recipe,
+  type Workout,
 } from "@/lib/store";
+import TrainerQuickLibrary from "@/components/TrainerQuickLibrary";
 
 const FIELDS: { key: keyof TrainerPlan; label: string; icon: string }[] = [
   { key: "diet", label: "Dieta", icon: "🥗" },
@@ -43,6 +52,8 @@ export default function TrainerClientPage({
     updatedAt: "",
   });
   const [saved, setSaved] = useState(false);
+  const [ownRecipes, setOwnRecipes] = useState<Recipe[]>([]);
+  const [ownWorkouts, setOwnWorkouts] = useState<Workout[]>([]);
 
   useEffect(() => {
     const id = getTrainerIdentity();
@@ -51,6 +62,8 @@ export default function TrainerClientPage({
       return;
     }
     setTrainerId(id.id);
+    setOwnRecipes(getTrainerRecipes(id.id));
+    setOwnWorkouts(getTrainerWorkouts(id.id));
     const client = getClientByEmail(email);
     if (client) setClientName(client.name);
     setReport(getReport(email));
@@ -58,6 +71,25 @@ export default function TrainerClientPage({
     if (existing) setPlan(existing);
     setReady(true);
   }, [email, router]);
+
+  const handleQuickPick = (key: keyof TrainerPlan, item: { name: string; detail: string }) => {
+    setPlan((p) => {
+      const current = (p[key] as string) ?? "";
+      const block = `${item.name}\n${item.detail}`;
+      const sep = current.trim() ? "\n" : "";
+      return { ...p, [key]: current + sep + block } as TrainerPlan;
+    });
+  };
+
+  const handleSaveRecipe = (name: string, detail: string) => {
+    if (!trainerId) return;
+    setOwnRecipes(saveTrainerRecipe(trainerId, { name, detail }));
+  };
+
+  const handleSaveWorkout = (name: string, detail: string) => {
+    if (!trainerId) return;
+    setOwnWorkouts(saveTrainerWorkout(trainerId, { name, detail }));
+  };
 
   const handleSave = () => {
     if (!trainerId) return;
@@ -163,6 +195,28 @@ export default function TrainerClientPage({
                   placeholder={`Wpisz ${f.label.toLowerCase()} dla tego klienta...`}
                   className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
                 />
+                {f.key === "diet" && (
+                  <TrainerQuickLibrary
+                    title="Przepisy"
+                    icon="🍲"
+                    saveLabel="Zapisz przepis"
+                    general={GENERAL_RECIPES}
+                    own={ownRecipes}
+                    onPick={(it) => handleQuickPick("diet", it)}
+                    onSave={handleSaveRecipe}
+                  />
+                )}
+                {f.key === "training" && (
+                  <TrainerQuickLibrary
+                    title="Treningi"
+                    icon="🏋️"
+                    saveLabel="Zapisz trening"
+                    general={GENERAL_WORKOUTS}
+                    own={ownWorkouts}
+                    onPick={(it) => handleQuickPick("training", it)}
+                    onSave={handleSaveWorkout}
+                  />
+                )}
               </div>
             ))}
           </div>

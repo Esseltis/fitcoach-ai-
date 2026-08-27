@@ -1,6 +1,20 @@
 "use client";
 
-import type { TrainerContent } from "@/lib/store";
+import { useState } from "react";
+import type {
+  TrainerContent,
+  Meal,
+  MealCategory,
+} from "@/lib/store";
+import {
+  MEAL_CATEGORIES,
+  getTrainerMeals,
+  saveTrainerMeal,
+  removeTrainerMeal,
+  getTrainerWorkoutBlocks,
+  saveTrainerWorkoutBlock,
+  removeTrainerWorkoutBlock,
+} from "@/lib/store";
 
 function Input({
   label,
@@ -25,6 +39,33 @@ function Input({
         placeholder={placeholder}
         className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
       />
+    </label>
+  );
+}
+
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label?: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <label className="block space-y-1">
+      {label && <span className="text-[11px] font-medium text-slate-300">{label}</span>}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -191,33 +232,155 @@ export function TipsEditor({
 export function DietEditor({
   c,
   set,
+  trainerId,
 }: {
   c: TrainerContent;
   set: (c: TrainerContent) => void;
+  trainerId: string;
 }) {
   const diet = c.diet;
   const upd = (patch: Partial<TrainerContent["diet"]>) => set({ ...c, diet: { ...diet, ...patch } });
+
+  const [library, setLibrary] = useState<Meal[]>(() => getTrainerMeals(trainerId));
+  const [category, setCategory] = useState<MealCategory>("sniadanie");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [calories, setCalories] = useState("");
+
+  const addToLibrary = () => {
+    if (!name.trim()) return;
+    setLibrary(
+      saveTrainerMeal(trainerId, {
+        category,
+        name: name.trim(),
+        description: description.trim(),
+        calories: calories.trim(),
+      })
+    );
+    setName("");
+    setDescription("");
+    setCalories("");
+  };
+
+  const assignToClient = (meal: Meal) => {
+    const already = diet.meals.some(
+      (m) => m.name === meal.name && m.calories === meal.calories
+    );
+    if (already) return;
+    upd({
+      meals: [
+        ...diet.meals,
+        { name: meal.name, description: meal.description, calories: meal.calories },
+      ],
+    });
+  };
+
+  const removeFromClient = (i: number) =>
+    upd({ meals: diet.meals.filter((_, j) => j !== i) });
+
   return (
-    <Card>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Input label="Docelowa kaloryczność (kcal)" value={diet.targetCalories} onChange={(v) => upd({ targetCalories: v })} />
-      </div>
-      <p className="text-[11px] font-medium text-slate-300">Posiłki / warianty</p>
-      {diet.meals.map((m, i) => (
-        <div key={i} className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-          <div className="grid gap-2 sm:grid-cols-[1fr_120px]">
-            <Input label="Nazwa posiłku" value={m.name} onChange={(v) => upd({ meals: diet.meals.map((x, j) => (j === i ? { ...x, name: v } : x)) })} />
-            <Input label="kcal" value={m.calories} onChange={(v) => upd({ meals: diet.meals.map((x, j) => (j === i ? { ...x, calories: v } : x)) })} />
-          </div>
-          <TA label="Opis / skład" rows={2} value={m.description} onChange={(v) => upd({ meals: diet.meals.map((x, j) => (j === i ? { ...x, description: v } : x)) })} />
-          <RemoveBtn onClick={() => upd({ meals: diet.meals.filter((_, j) => j !== i) })} />
+    <div className="space-y-4">
+      {/* Nowy posiłek do biblioteki */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">Nowy posiłek</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Select
+            label="Typ posiłku"
+            value={category}
+            onChange={(v) => setCategory(v as MealCategory)}
+            options={MEAL_CATEGORIES.map((m) => ({ value: m.key, label: m.label }))}
+          />
+          <Input label="Kalorie (kcal)" value={calories} onChange={setCalories} placeholder="np. 550" />
         </div>
-      ))}
-      <AddBtn
-        onClick={() => upd({ meals: [...diet.meals, { name: "", description: "", calories: "" }] })}
-        label="Dodaj posiłek"
-      />
-    </Card>
+        <Input label="Nazwa dania" value={name} onChange={setName} placeholder="np. Owsianka z owocami" />
+        <TA label="Skład / opis" rows={2} value={description} onChange={setDescription} />
+        <AddBtn onClick={addToLibrary} label="Dodaj do biblioteki" />
+      </Card>
+
+      {/* Biblioteka posiłków */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">Twoja biblioteka posiłków</p>
+        {MEAL_CATEGORIES.map((cat) => {
+          const items = library.filter((m) => m.category === cat.key);
+          if (items.length === 0) return null;
+          return (
+            <div key={cat.key} className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+                {cat.label}
+              </p>
+              {items.map((meal) => (
+                <div
+                  key={meal.id}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-50">
+                        {meal.name}
+                      </p>
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                        {meal.calories || "—"} kcal
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-400">{meal.description}</p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => assignToClient(meal)}
+                      className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/25"
+                    >
+                      Do diety
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLibrary(removeTrainerMeal(trainerId, meal.id))}
+                      className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-400 hover:border-red-500/60 hover:text-red-300"
+                    >
+                      Usuń
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </Card>
+
+      {/* Dieta klienta */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">Dieta klienta</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            label="Docelowa kaloryczność (kcal)"
+            value={diet.targetCalories}
+            onChange={(v) => upd({ targetCalories: v })}
+          />
+        </div>
+        {diet.meals.map((m, i) => (
+          <div
+            key={i}
+            className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-semibold text-slate-50">{m.name}</p>
+                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                  {m.calories || "—"} kcal
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">{m.description}</p>
+            </div>
+            <RemoveBtn onClick={() => removeFromClient(i)} />
+          </div>
+        ))}
+        {diet.meals.length === 0 && (
+          <p className="text-[11px] text-slate-500">
+            Dodaj posiłki z biblioteki powyżej, aby złożyć dietę klienta.
+          </p>
+        )}
+      </Card>
+    </div>
   );
 }
 
@@ -289,59 +452,169 @@ export function HydrationEditor({
 export function TrainingEditor({
   c,
   set,
+  trainerId,
 }: {
   c: TrainerContent;
   set: (c: TrainerContent) => void;
+  trainerId: string;
 }) {
   const t = c.training;
   const upd = (patch: Partial<TrainerContent["training"]>) => set({ ...c, training: { ...t, ...patch } });
+
+  const [blocks, setBlocks] = useState(() => getTrainerWorkoutBlocks(trainerId));
+  const [selectedDay, setSelectedDay] = useState<number>(1);
+  const [blockName, setBlockName] = useState("");
+
+  const applyBlock = (blockId: string) => {
+    const block = blocks.find((b) => b.id === blockId);
+    if (!block) return;
+    upd({ dayExercises: { ...t.dayExercises, [selectedDay]: [...block.exercises] } });
+  };
+
+  const saveCurrentDayAsBlock = () => {
+    const name = blockName.trim() || `Trening dzień ${selectedDay}`;
+    const exercises = t.dayExercises[selectedDay] ?? [];
+    setBlocks(saveTrainerWorkoutBlock(trainerId, { name, exercises }));
+    setBlockName("");
+  };
+
   return (
-    <Card>
-      <p className="text-[11px] font-medium text-slate-300">Dni tygodnia (status)</p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {t.days.map((d, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              value={d.label}
-              onChange={(e) => upd({ days: t.days.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })}
-              className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
-            />
-            <input
-              value={d.status}
-              onChange={(e) => upd({ days: t.days.map((x, j) => (j === i ? { ...x, status: e.target.value } : x)) })}
-              className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
-            />
-          </div>
-        ))}
-      </div>
-      <p className="text-[11px] font-medium text-slate-300">Ćwiczenia na poszczególne dni</p>
-      {Object.keys(t.dayExercises).map((dayNum) => (
-        <div key={dayNum} className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-          <p className="text-[11px] font-semibold text-emerald-300">Dzień {dayNum}</p>
-          {t.dayExercises[Number(dayNum)].map((ex, i) => (
-            <div key={i} className="space-y-2 border-t border-slate-800 pt-2">
-              <Input label="Nazwa ćwiczenia" value={ex.name} onChange={(v) => upd({ dayExercises: updateEx(t, Number(dayNum), i, { name: v }) })} />
-              <div className="grid gap-2 sm:grid-cols-3">
-                <Input label="Serie" value={ex.series} onChange={(v) => upd({ dayExercises: updateEx(t, Number(dayNum), i, { series: v }) })} />
-                <Input label="Czas pracy" value={ex.workTime} onChange={(v) => upd({ dayExercises: updateEx(t, Number(dayNum), i, { workTime: v }) })} />
-                <Input label="Przerwa" value={ex.rest} onChange={(v) => upd({ dayExercises: updateEx(t, Number(dayNum), i, { rest: v }) })} />
-              </div>
-              <RemoveBtn onClick={() => upd({ dayExercises: removeEx(t, Number(dayNum), i) })} />
+    <div className="space-y-4">
+      {/* Dni tygodnia + statusy */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">Dni tygodnia (status)</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {t.days.map((d, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={d.label}
+                onChange={(e) => upd({ days: t.days.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })}
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+              />
+              <input
+                value={d.status}
+                onChange={(e) => upd({ days: t.days.map((x, j) => (j === i ? { ...x, status: e.target.value } : x)) })}
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+              />
             </div>
           ))}
-          <AddBtn onClick={() => upd({ dayExercises: addEx(t, Number(dayNum)) })} label="Dodaj ćwiczenie" />
         </div>
-      ))}
-      <p className="text-[11px] font-medium text-slate-300">Komentarz do treningu</p>
-      {t.comment.map((cm, i) => (
-        <div key={i} className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-          <Input label="Pojęcie" value={cm.label} onChange={(v) => upd({ comment: t.comment.map((x, j) => (j === i ? { ...x, label: v } : x)) })} />
-          <TA label="Wyjaśnienie" rows={2} value={cm.text} onChange={(v) => upd({ comment: t.comment.map((x, j) => (j === i ? { ...x, text: v } : x)) })} />
-          <RemoveBtn onClick={() => upd({ comment: t.comment.filter((_, j) => j !== i) })} />
+      </Card>
+
+      {/* Biblioteka treningów */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">Twoja biblioteka treningów</p>
+        <div className="flex flex-wrap gap-1.5">
+          {t.days.map((d, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setSelectedDay(i + 1)}
+              className={`rounded-full px-3 py-1 text-[11px] font-medium ${
+                selectedDay === i + 1
+                  ? "bg-emerald-500 text-slate-950"
+                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+              }`}
+            >
+              Dzień {i + 1}
+            </button>
+          ))}
         </div>
-      ))}
-      <AddBtn onClick={() => upd({ comment: [...t.comment, { label: "", text: "" }] })} label="Dodaj komentarz" />
-    </Card>
+
+        {blocks.length === 0 ? (
+          <p className="text-[11px] text-slate-500">Brak zapisanych treningów.</p>
+        ) : (
+          <div className="space-y-2">
+            {blocks.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-50">{b.name}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-400">
+                    {b.exercises.length} ćwiczeń
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => applyBlock(b.id)}
+                    className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/25"
+                  >
+                    Dzień {selectedDay}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBlocks(removeTrainerWorkoutBlock(trainerId, b.id))}
+                    className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-400 hover:border-red-500/60 hover:text-red-300"
+                  >
+                    Usuń
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <Input label="Nazwa nowego treningu" value={blockName} onChange={setBlockName} placeholder={`np. Trening dzień ${selectedDay}`} />
+          </div>
+          <button
+            type="button"
+            onClick={saveCurrentDayAsBlock}
+            className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
+          >
+            Zapisz dzień {selectedDay} jako trening
+          </button>
+        </div>
+      </Card>
+
+      {/* Ćwiczenia na wybrany dzień */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">
+          Ćwiczenia — Dzień {selectedDay}
+        </p>
+        {(() => {
+          const list = t.dayExercises[selectedDay] ?? [];
+          return (
+            <>
+              {list.map((ex, i) => (
+                <div key={i} className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                  <Input label="Nazwa ćwiczenia" value={ex.name} onChange={(v) => upd({ dayExercises: updateEx(t, selectedDay, i, { name: v }) })} />
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <Input label="Serie" value={ex.series} onChange={(v) => upd({ dayExercises: updateEx(t, selectedDay, i, { series: v }) })} />
+                    <Input label="Czas pracy" value={ex.workTime} onChange={(v) => upd({ dayExercises: updateEx(t, selectedDay, i, { workTime: v }) })} />
+                    <Input label="Przerwa" value={ex.rest} onChange={(v) => upd({ dayExercises: updateEx(t, selectedDay, i, { rest: v }) })} />
+                  </div>
+                  <RemoveBtn onClick={() => upd({ dayExercises: removeEx(t, selectedDay, i) })} />
+                </div>
+              ))}
+              {list.length === 0 && (
+                <p className="text-[11px] text-slate-500">
+                  Brak ćwiczeń — dodaj poniżej lub zastosuj trening z biblioteki.
+                </p>
+              )}
+              <AddBtn onClick={() => upd({ dayExercises: addEx(t, selectedDay) })} label="Dodaj ćwiczenie" />
+            </>
+          );
+        })()}
+      </Card>
+
+      {/* Komentarz do treningu */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">Komentarz do treningu</p>
+        {t.comment.map((cm, i) => (
+          <div key={i} className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <Input label="Pojęcie" value={cm.label} onChange={(v) => upd({ comment: t.comment.map((x, j) => (j === i ? { ...x, label: v } : x)) })} />
+            <TA label="Wyjaśnienie" rows={2} value={cm.text} onChange={(v) => upd({ comment: t.comment.map((x, j) => (j === i ? { ...x, text: v } : x)) })} />
+            <RemoveBtn onClick={() => upd({ comment: t.comment.filter((_, j) => j !== i) })} />
+          </div>
+        ))}
+        <AddBtn onClick={() => upd({ comment: [...t.comment, { label: "", text: "" }] })} label="Dodaj komentarz" />
+      </Card>
+    </div>
   );
 }
 

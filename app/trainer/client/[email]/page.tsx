@@ -261,10 +261,14 @@ export default function TrainerClientPage({
         {tab === "intro" && <IntroEditor c={content} set={setContent} />}
         {tab === "nutrition" && <NutritionEditor c={content} set={setContent} />}
         {tab === "tips" && <TipsEditor c={content} set={setContent} />}
-        {tab === "diet" && <DietEditor c={content} set={setContent} />}
+        {tab === "diet" && trainerId && (
+          <DietEditor c={content} set={setContent} trainerId={trainerId} />
+        )}
         {tab === "supplements" && <SupplementsEditor c={content} set={setContent} />}
         {tab === "hydration" && <HydrationEditor c={content} set={setContent} />}
-        {tab === "training" && <TrainingEditor c={content} set={setContent} />}
+        {tab === "training" && trainerId && (
+          <TrainingEditor c={content} set={setContent} trainerId={trainerId} />
+        )}
         {tab === "catering" && <CateringEditor c={content} set={setContent} />}
 
         {tab === "plan" && (

@@ -508,6 +508,88 @@ export function getTrainerWorkouts(trainerId: string): Workout[] {
   return getStoredList<Workout>(trainerWorkoutsKey(trainerId));
 }
 
+// ---- Biblioteka posiłków trenera (z kategoriami) ----
+
+export type MealCategory =
+  | "sniadanie"
+  | "ii_sniadanie"
+  | "obiad"
+  | "podwieczorek"
+  | "kolacja";
+
+export const MEAL_CATEGORIES: { key: MealCategory; label: string }[] = [
+  { key: "sniadanie", label: "Śniadanie" },
+  { key: "ii_sniadanie", label: "II śniadanie" },
+  { key: "obiad", label: "Obiad" },
+  { key: "podwieczorek", label: "Podwieczorek" },
+  { key: "kolacja", label: "Kolacja" },
+];
+
+export type Meal = {
+  id: string;
+  category: MealCategory;
+  name: string;
+  description: string;
+  calories: string;
+};
+
+const trainerMealsKey = (trainerId: string) =>
+  `fitcoach_trainer_${trainerId}_meals`;
+
+export function getTrainerMeals(trainerId: string): Meal[] {
+  return getStoredList<Meal>(trainerMealsKey(trainerId));
+}
+
+export function saveTrainerMeal(
+  trainerId: string,
+  data: Omit<Meal, "id">
+): Meal[] {
+  const list = getTrainerMeals(trainerId);
+  list.push({ ...data, id: crypto.randomUUID() });
+  safeSet(trainerMealsKey(trainerId), JSON.stringify(list));
+  return list;
+}
+
+export function removeTrainerMeal(trainerId: string, mealId: string): Meal[] {
+  const list = getTrainerMeals(trainerId).filter((m) => m.id !== mealId);
+  safeSet(trainerMealsKey(trainerId), JSON.stringify(list));
+  return list;
+}
+
+// ---- Biblioteka treningów trenera (bloki ćwiczeń) ----
+
+export type WorkoutBlock = {
+  id: string;
+  name: string;
+  exercises: TrainingExercise[];
+};
+
+const trainerBlocksKey = (trainerId: string) =>
+  `fitcoach_trainer_${trainerId}_blocks`;
+
+export function getTrainerWorkoutBlocks(trainerId: string): WorkoutBlock[] {
+  return getStoredList<WorkoutBlock>(trainerBlocksKey(trainerId));
+}
+
+export function saveTrainerWorkoutBlock(
+  trainerId: string,
+  data: Omit<WorkoutBlock, "id">
+): WorkoutBlock[] {
+  const list = getTrainerWorkoutBlocks(trainerId);
+  list.push({ ...data, id: crypto.randomUUID() });
+  safeSet(trainerBlocksKey(trainerId), JSON.stringify(list));
+  return list;
+}
+
+export function removeTrainerWorkoutBlock(
+  trainerId: string,
+  blockId: string
+): WorkoutBlock[] {
+  const list = getTrainerWorkoutBlocks(trainerId).filter((b) => b.id !== blockId);
+  safeSet(trainerBlocksKey(trainerId), JSON.stringify(list));
+  return list;
+}
+
 export function saveTrainerWorkout(
   trainerId: string,
   data: { name: string; detail: string }

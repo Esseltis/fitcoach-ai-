@@ -93,7 +93,7 @@ export default function TrainerQuickLibrary({
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
+              className="rounded-full bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 shadow-[0_0_16px_rgba(16,185,129,0.35)] hover:bg-emerald-400"
             >
               {saveLabel}
             </button>

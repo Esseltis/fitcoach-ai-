@@ -117,6 +117,9 @@ export default function TrainerClientPage({
             ← Moi podopieczni
           </Link>
           <div>
+            <p className="text-[10px] uppercase tracking-wide text-emerald-400">
+              Edytor planu
+            </p>
             <h1 className="text-lg font-semibold text-slate-50">{clientName}</h1>
             <p className="text-[11px] text-slate-400">{email}</p>
           </div>
@@ -135,7 +138,7 @@ export default function TrainerClientPage({
 
       <main className="mx-auto max-w-5xl p-6 grid gap-6 lg:grid-cols-[340px_1fr]">
         {/* Raport klienta */}
-        <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
+        <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
           <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
             Raport klienta
           </h2>
@@ -170,7 +173,7 @@ export default function TrainerClientPage({
         </section>
 
         {/* Edytor planu */}
-        <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
+        <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
           <div className="flex items-center justify-between">
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
               Plan od trenera
@@ -237,7 +240,7 @@ export default function TrainerClientPage({
           <button
             type="button"
             onClick={handleSave}
-            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+            className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:bg-emerald-400 transition"
           >
             Zapisz plan
           </button>

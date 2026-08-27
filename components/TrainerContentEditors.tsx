@@ -247,6 +247,11 @@ export function DietEditor({
   const [description, setDescription] = useState("");
   const [calories, setCalories] = useState("");
 
+  const [query, setQuery] = useState("");
+  const [grams, setGrams] = useState("100");
+  const [results, setResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+
   const addToLibrary = () => {
     if (!name.trim()) return;
     setLibrary(
@@ -260,6 +265,40 @@ export function DietEditor({
     setName("");
     setDescription("");
     setCalories("");
+  };
+
+  const searchProducts = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    try {
+      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(
+        query.trim()
+      )}&search_simple=1&action=process&json=1&page_size=8&fields=product_name,nutriments`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setResults(data.products ?? []);
+    } catch {
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const applyProduct = (p: any) => {
+    const n = p.nutriments ?? {};
+    const kcal100 =
+      n["energy-kcal_100g"] ?? n["energy-kcal_value"] ?? 0;
+    const g = Number(grams) || 100;
+    const kcal = Math.round((Number(kcal100) * g) / 100);
+    const carbs = n.carbohydrates_100g ?? 0;
+    const protein = n.proteins_100g ?? 0;
+    const fat = n.fat_100g ?? 0;
+    const pname = p.product_name ?? "Produkt";
+    setName(pname);
+    setCalories(String(kcal));
+    setDescription(
+      `${pname} — ${g} g (w 100g: ${kcal100} kcal, W:${carbs} B:${protein} T:${fat})`
+    );
   };
 
   const assignToClient = (meal: Meal) => {
@@ -295,6 +334,71 @@ export function DietEditor({
         <Input label="Nazwa dania" value={name} onChange={setName} placeholder="np. Owsianka z owocami" />
         <TA label="Skład / opis" rows={2} value={description} onChange={setDescription} />
         <AddBtn onClick={addToLibrary} label="Dodaj do biblioteki" />
+      </Card>
+
+      {/* Pobierz produkt z bazy */}
+      <Card>
+        <p className="text-sm font-semibold text-slate-100">
+          Pobierz produkt z bazy (kcal i makro)
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && searchProducts()}
+            placeholder="np. makaron pszenny"
+            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+          />
+          <button
+            type="button"
+            onClick={searchProducts}
+            disabled={searching}
+            className="rounded-full bg-sky-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-sky-400 disabled:opacity-50"
+          >
+            {searching ? "Szukam..." : "Szukaj"}
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Input label="Ilość (g)" value={grams} onChange={setGrams} type="number" />
+          <p className="pt-5 text-[11px] text-slate-400">
+            kcal przeliczone na podaną ilość
+          </p>
+        </div>
+
+        {results.length > 0 && (
+          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+            {results.map((p, i) => {
+              const n = p.nutriments ?? {};
+              const kcal100 =
+                n["energy-kcal_100g"] ?? n["energy-kcal_value"] ?? "?";
+              const carbs = n.carbohydrates_100g ?? "?";
+              const protein = n.proteins_100g ?? "?";
+              const fat = n.fat_100g ?? "?";
+              return (
+                <div
+                  key={i}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-50">
+                      {p.product_name ?? "Produkt"}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      {kcal100} kcal / 100g · W {carbs} · B {protein} · T {fat}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyProduct(p)}
+                    className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/25"
+                  >
+                    Użyj
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
 
       {/* Biblioteka posiłków */}

@@ -531,6 +531,9 @@ export type Meal = {
   name: string;
   description: string;
   calories: string;
+  carbs?: string;
+  protein?: string;
+  fat?: string;
 };
 
 const trainerMealsKey = (trainerId: string) =>

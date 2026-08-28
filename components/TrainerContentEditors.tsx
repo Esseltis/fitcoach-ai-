@@ -129,6 +129,33 @@ function RemoveBtn({ onClick }: { onClick: () => void }) {
   );
 }
 
+function CollapsibleCard({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between text-sm font-semibold text-slate-100"
+      >
+        <span>{title}</span>
+        <span className={`text-slate-400 transition ${open ? "rotate-180" : ""}`}>
+          ▼
+        </span>
+      </button>
+      {open && <div className="space-y-3">{children}</div>}
+    </div>
+  );
+}
+
 export function IntroEditor({
   c,
   set,
@@ -246,6 +273,9 @@ export function DietEditor({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [calories, setCalories] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [protein, setProtein] = useState("");
+  const [fat, setFat] = useState("");
 
   const [query, setQuery] = useState("");
   const [grams, setGrams] = useState("100");
@@ -260,11 +290,17 @@ export function DietEditor({
         name: name.trim(),
         description: description.trim(),
         calories: calories.trim(),
+        carbs: carbs.trim(),
+        protein: protein.trim(),
+        fat: fat.trim(),
       })
     );
     setName("");
     setDescription("");
     setCalories("");
+    setCarbs("");
+    setProtein("");
+    setFat("");
   };
 
   const searchProducts = async () => {
@@ -290,14 +326,17 @@ export function DietEditor({
       n["energy-kcal_100g"] ?? n["energy-kcal_value"] ?? 0;
     const g = Number(grams) || 100;
     const kcal = Math.round((Number(kcal100) * g) / 100);
-    const carbs = n.carbohydrates_100g ?? 0;
-    const protein = n.proteins_100g ?? 0;
-    const fat = n.fat_100g ?? 0;
+    const c = n.carbohydrates_100g ?? 0;
+    const pr = n.proteins_100g ?? 0;
+    const f = n.fat_100g ?? 0;
     const pname = p.product_name ?? "Produkt";
     setName(pname);
     setCalories(String(kcal));
+    setCarbs(String(c));
+    setProtein(String(pr));
+    setFat(String(f));
     setDescription(
-      `${pname} — ${g} g (w 100g: ${kcal100} kcal, W:${carbs} B:${protein} T:${fat})`
+      `${pname} — ${g} g (w 100g: ${kcal100} kcal, W:${c} B:${pr} T:${f})`
     );
   };
 
@@ -320,8 +359,7 @@ export function DietEditor({
   return (
     <div className="space-y-4">
       {/* Nowy posiłek do biblioteki */}
-      <Card>
-        <p className="text-sm font-semibold text-slate-100">Nowy posiłek</p>
+      <CollapsibleCard title="Nowy posiłek (własny)">
         <div className="grid gap-3 sm:grid-cols-2">
           <Select
             label="Typ posiłku"
@@ -329,18 +367,20 @@ export function DietEditor({
             onChange={(v) => setCategory(v as MealCategory)}
             options={MEAL_CATEGORIES.map((m) => ({ value: m.key, label: m.label }))}
           />
-          <Input label="Kalorie (kcal)" value={calories} onChange={setCalories} placeholder="np. 550" />
+          <Input label="Nazwa dania" value={name} onChange={setName} placeholder="np. Owsianka z owocami" />
         </div>
-        <Input label="Nazwa dania" value={name} onChange={setName} placeholder="np. Owsianka z owocami" />
         <TA label="Skład / opis" rows={2} value={description} onChange={setDescription} />
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Input label="Kalorie (kcal)" value={calories} onChange={setCalories} placeholder="np. 550" />
+          <Input label="Węglowodany (g)" value={carbs} onChange={setCarbs} placeholder="np. 60" />
+          <Input label="Białko (g)" value={protein} onChange={setProtein} placeholder="np. 30" />
+          <Input label="Tłuszcze (g)" value={fat} onChange={setFat} placeholder="np. 20" />
+        </div>
         <AddBtn onClick={addToLibrary} label="Dodaj do biblioteki" />
-      </Card>
+      </CollapsibleCard>
 
       {/* Pobierz produkt z bazy */}
-      <Card>
-        <p className="text-sm font-semibold text-slate-100">
-          Pobierz produkt z bazy (kcal i makro)
-        </p>
+      <CollapsibleCard title="Pobierz produkt z bazy (kcal i makro)" defaultOpen={false}>
         <div className="flex flex-col gap-2 sm:flex-row">
           <input
             value={query}
@@ -399,11 +439,10 @@ export function DietEditor({
             })}
           </div>
         )}
-      </Card>
+      </CollapsibleCard>
 
       {/* Biblioteka posiłków */}
-      <Card>
-        <p className="text-sm font-semibold text-slate-100">Twoja biblioteka posiłków</p>
+      <CollapsibleCard title="Twoja biblioteka posiłków">
         {MEAL_CATEGORIES.map((cat) => {
           const items = library.filter((m) => m.category === cat.key);
           if (items.length === 0) return null;
@@ -426,6 +465,12 @@ export function DietEditor({
                         {meal.calories || "—"} kcal
                       </span>
                     </div>
+                    {meal.carbs || meal.protein || meal.fat ? (
+                      <p className="mt-0.5 text-[10px] text-slate-400">
+                        W {meal.carbs || "—"} · B {meal.protein || "—"} · T{" "}
+                        {meal.fat || "—"} g
+                      </p>
+                    ) : null}
                     <p className="mt-1 text-[11px] text-slate-400">{meal.description}</p>
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -449,11 +494,10 @@ export function DietEditor({
             </div>
           );
         })}
-      </Card>
+      </CollapsibleCard>
 
       {/* Dieta klienta */}
-      <Card>
-        <p className="text-sm font-semibold text-slate-100">Dieta klienta</p>
+      <CollapsibleCard title="Dieta klienta">
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             label="Docelowa kaloryczność (kcal)"
@@ -483,7 +527,7 @@ export function DietEditor({
             Dodaj posiłki z biblioteki powyżej, aby złożyć dietę klienta.
           </p>
         )}
-      </Card>
+      </CollapsibleCard>
     </div>
   );
 }

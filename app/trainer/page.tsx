@@ -9,6 +9,7 @@ import {
   getClientsForTrainer,
   getReport,
   getPlan,
+  getClientProfile,
   trainerLogout,
   type ClientRecord,
 } from "@/lib/store";
@@ -106,6 +107,7 @@ export default function TrainerDashboard() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {clients.map((c) => {
                 const report = getReport(c.email);
+                const profile = getClientProfile(c.email);
                 const plan = identity ? getPlan(identity.id, c.email) : null;
                 return (
                   <Link
@@ -129,15 +131,27 @@ export default function TrainerDashboard() {
                     </div>
                     <p className="mt-3 text-sm font-semibold text-slate-50">{c.name}</p>
                     <p className="text-[11px] text-slate-400">{c.email}</p>
-                    <div className="mt-2 flex items-center gap-1.5">
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          report ? "bg-emerald-400" : "bg-slate-600"
-                        }`}
-                      />
-                      <p className="text-[11px] text-slate-500">
-                        {report ? "Raport: wysłany" : "Raport: brak"}
-                      </p>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            profile ? "bg-emerald-400" : "bg-slate-600"
+                          }`}
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Profil: {profile ? "wypełniony" : "brak"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            report ? "bg-emerald-400" : "bg-slate-600"
+                          }`}
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Raport dzienny: {report ? "wysłany" : "brak"}
+                        </p>
+                      </div>
                     </div>
                   </Link>
                 );

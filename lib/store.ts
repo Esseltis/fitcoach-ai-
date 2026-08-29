@@ -11,14 +11,60 @@ export type Trainer = {
 };
 
 export type ClientReport = {
-  wellbeing: number; // 1-5
-  trainingDone: boolean;
-  mealsDone: boolean;
-  sleepHours: number;
-  weight: number;
-  notes: string;
+  values: Record<string, string | number | boolean>;
   submittedAt: string; // ISO
 };
+
+// ---- Konfiguracja raportu dziennego (ustalana przez trenera) ----
+
+export type ReportFieldDef = {
+  key: string;
+  label: string;
+  type: "range" | "boolean" | "number" | "select" | "text";
+  min?: number;
+  max?: number;
+  step?: number;
+  defaultValue: string | number | boolean;
+  options?: string[];
+  placeholder?: string;
+};
+
+export const REPORT_FIELDS: ReportFieldDef[] = [
+  { key: "wellbeing", label: "Samopoczucie (1–5)", type: "range", min: 1, max: 5, defaultValue: 3 },
+  { key: "trainingDone", label: "Zrealizowałem trening", type: "boolean", defaultValue: false },
+  { key: "mealsDone", label: "Zrealizowałem posiłki", type: "boolean", defaultValue: false },
+  { key: "sleepHours", label: "Sen (h)", type: "number", step: 0.5, defaultValue: 7 },
+  { key: "weight", label: "Waga (kg)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 78" },
+  { key: "energy", label: "Poziom energii (1–5)", type: "range", min: 1, max: 5, defaultValue: 3 },
+  { key: "stress", label: "Poziom stresu (1–5)", type: "range", min: 1, max: 5, defaultValue: 3 },
+  { key: "appetite", label: "Apetyt", type: "select", options: ["Mały", "Normalny", "Duży"], defaultValue: "Normalny" },
+  { key: "waterIntake", label: "Woda (litry)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 2.0" },
+  { key: "pain", label: "Ból / dyskomfort", type: "text", defaultValue: "", placeholder: "np. kolano, plecy..." },
+  { key: "notes", label: "Notatka dla trenera", type: "text", defaultValue: "", placeholder: "Jak się czułeś, co było trudne..." },
+];
+
+const trainerReportFieldsKey = (trainerId: string) =>
+  `fitcoach_trainer_${trainerId}_report_fields`;
+
+export function getTrainerReportFields(trainerId: string): string[] {
+  const raw = safeGet(trainerReportFieldsKey(trainerId));
+  if (!raw) return REPORT_FIELDS.map((f) => f.key);
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return arr.filter((k) => REPORT_FIELDS.some((f) => f.key === k));
+  } catch {
+    /* ignore */
+  }
+  return REPORT_FIELDS.map((f) => f.key);
+}
+
+export function saveTrainerReportFields(trainerId: string, keys: string[]) {
+  safeSet(trainerReportFieldsKey(trainerId), JSON.stringify(keys));
+}
+
+export function getClientTrainerId(): string | null {
+  return safeGet("fitcoach_client_trainer_id");
+}
 
 export type TrainerPlan = {
   diet: string;

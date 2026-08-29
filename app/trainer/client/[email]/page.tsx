@@ -9,10 +9,12 @@ import {
   getReport,
   getPlan,
   getClientProfile,
+  getTrainerReportFields,
   savePlan,
   getClientContent,
   saveClientContent,
   trainerLogout,
+  REPORT_FIELDS,
   getTrainerRecipes,
   saveTrainerRecipe,
   getTrainerWorkouts,
@@ -291,23 +293,13 @@ export default function TrainerClientPage({
               </p>
             ) : (
               <div className="space-y-3 text-sm">
-                <Row label="Samopoczucie" value={`${report.wellbeing} / 5`} />
-                <Row
-                  label="Zrealizowany trening"
-                  value={report.trainingDone ? "Tak" : "Nie"}
-                />
-                <Row
-                  label="Zrealizowane posiłki"
-                  value={report.mealsDone ? "Tak" : "Nie"}
-                />
-                <Row label="Sen" value={`${report.sleepHours} h`} />
-                <Row label="Waga" value={`${report.weight} kg`} />
-                <div>
-                  <p className="text-xs text-slate-400">Notatka:</p>
-                  <p className="mt-1 rounded-lg bg-slate-900 p-2 text-slate-200">
-                    {report.notes || "—"}
-                  </p>
-                </div>
+                {REPORT_FIELDS.filter((f) => f.key in report.values).map((f) => (
+                  <Row
+                    key={f.key}
+                    label={f.label}
+                    value={formatReportValue(f.key, report.values[f.key])}
+                  />
+                ))}
                 <p className="text-[11px] text-slate-500">
                   Wysłano: {new Date(report.submittedAt).toLocaleString("pl-PL")}
                 </p>
@@ -460,4 +452,13 @@ function Row({ label, value }: { label: string; value: string }) {
       <span className="font-medium text-slate-100">{value}</span>
     </div>
   );
+}
+
+function formatReportValue(key: string, v: string | number | boolean): string {
+  if (key === "trainingDone" || key === "mealsDone") return v ? "Tak" : "Nie";
+  if (v === "" || v === null || v === undefined) return "—";
+  if (key === "sleepHours") return `${v} h`;
+  if (key === "weight") return `${v} kg`;
+  if (key === "waterIntake") return `${v} l`;
+  return String(v);
 }

@@ -3,20 +3,22 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getReport, saveReport } from "@/lib/store";
+import {
+  getReport,
+  saveReport,
+  REPORT_FIELDS,
+  getTrainerReportFields,
+  getClientTrainerId,
+  type ReportFieldDef,
+} from "@/lib/store";
 
 export default function ClientReportPage() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  const [wellbeing, setWellbeing] = useState(3);
-  const [trainingDone, setTrainingDone] = useState(false);
-  const [mealsDone, setMealsDone] = useState(false);
-  const [sleepHours, setSleepHours] = useState(7);
-  const [weight, setWeight] = useState("");
-  const [notes, setNotes] = useState("");
+  const [fields, setFields] = useState<ReportFieldDef[]>([]);
+  const [values, setValues] = useState<Record<string, string | number | boolean>>({});
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -27,15 +29,21 @@ export default function ClientReportPage() {
       return;
     }
     setEmail(storedEmail);
+    const trainerId = getClientTrainerId();
+    const keys = trainerId
+      ? getTrainerReportFields(trainerId)
+      : REPORT_FIELDS.map((f) => f.key);
+    const defs = REPORT_FIELDS.filter((f) => keys.includes(f.key));
+    setFields(defs);
+    const init: Record<string, string | number | boolean> = {};
+    for (const f of defs) init[f.key] = f.defaultValue;
     const existing = getReport(storedEmail);
     if (existing) {
-      setWellbeing(existing.wellbeing);
-      setTrainingDone(existing.trainingDone);
-      setMealsDone(existing.mealsDone);
-      setSleepHours(existing.sleepHours);
-      setWeight(String(existing.weight));
-      setNotes(existing.notes);
+      for (const k of Object.keys(existing.values)) {
+        if (k in init) init[k] = existing.values[k];
+      }
     }
+    setValues(init);
     setReady(true);
   }, [router]);
 
@@ -43,12 +51,7 @@ export default function ClientReportPage() {
     e.preventDefault();
     if (!email) return;
     saveReport(email, {
-      wellbeing,
-      trainingDone,
-      mealsDone,
-      sleepHours,
-      weight: Number(weight) || 0,
-      notes,
+      values,
       submittedAt: new Date().toISOString(),
     });
     setSaved(true);
@@ -64,8 +67,88 @@ export default function ClientReportPage() {
 
   const inputCls =
     "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400";
-  const labelCls = "block space-y-1";
   const labelText = "text-[11px] font-medium text-slate-300";
+
+  const renderField = (f: ReportFieldDef) => {
+    const v = values[f.key] ?? f.defaultValue;
+    const set = (val: string | number | boolean) =>
+      setValues((s) => ({ ...s, [f.key]: val }));
+
+    if (f.type === "range") {
+      return (
+        <div className="space-y-1">
+          <label className={labelText}>{f.label}</label>
+          <input
+            type="range"
+            min={f.min}
+            max={f.max}
+            value={Number(v)}
+            onChange={(e) => set(Number(e.target.value))}
+            className="w-full accent-emerald-500"
+          />
+          <div className="text-center text-sm text-slate-100">{v} / {f.max}</div>
+        </div>
+      );
+    }
+    if (f.type === "boolean") {
+      return (
+        <label className="flex items-center gap-2 text-sm text-slate-200">
+          <input
+            type="checkbox"
+            checked={Boolean(v)}
+            onChange={(e) => set(e.target.checked)}
+            className="accent-emerald-500"
+          />
+          {f.label}
+        </label>
+      );
+    }
+    if (f.type === "select") {
+      return (
+        <label className="block space-y-1">
+          <span className={labelText}>{f.label}</span>
+          <select
+            className={inputCls}
+            value={String(v)}
+            onChange={(e) => set(e.target.value)}
+          >
+            {(f.options ?? []).map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+    if (f.type === "number") {
+      return (
+        <label className="block space-y-1">
+          <span className={labelText}>{f.label}</span>
+          <input
+            className={inputCls}
+            type="number"
+            step={f.step}
+            value={String(v)}
+            onChange={(e) => set(e.target.value)}
+            placeholder={f.placeholder}
+          />
+        </label>
+      );
+    }
+    return (
+      <label className="block space-y-1">
+        <span className={labelText}>{f.label}</span>
+        <textarea
+          className={inputCls}
+          rows={3}
+          value={String(v)}
+          onChange={(e) => set(e.target.value)}
+          placeholder={f.placeholder}
+        />
+      </label>
+    );
+  };
 
   if (saved) {
     return (
@@ -76,8 +159,7 @@ export default function ClientReportPage() {
           </div>
           <h1 className="text-lg font-semibold text-slate-50">Raport wysłany!</h1>
           <p className="text-sm text-slate-400">
-            Twój trener otrzymał raport dzienny. Możesz wysłać kolejny w dowolnym
-            momencie.
+            Twój trener otrzymał raport. Możesz wysłać kolejny w dowolnym momencie.
           </p>
           <div className="flex flex-col gap-2">
             <Link
@@ -104,14 +186,13 @@ export default function ClientReportPage() {
       <main className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-10">
         <header className="space-y-2 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
-            Krok 2 · Raport dzienny
+            Krok 2 · Raport
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-slate-50 md:text-3xl">
             Wyślij raport do trenera
           </h1>
           <p className="mx-auto max-w-md text-sm text-slate-400">
-            Podsumuj swój dzień: samopoczucie, wykonane treningi i posiłki.
-            Trener zobaczy raport na swoim panelu.
+            Uzupełnij pola wymagane przez Twojego trenera.
           </p>
         </header>
 
@@ -119,73 +200,16 @@ export default function ClientReportPage() {
           onSubmit={handleSubmit}
           className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-6"
         >
-          <div className="space-y-1">
-            <label className={labelText}>Samopoczucie (1–5)</label>
-            <input
-              type="range"
-              min={1}
-              max={5}
-              value={wellbeing}
-              onChange={(e) => setWellbeing(Number(e.target.value))}
-              className="w-full accent-emerald-500"
-            />
-            <div className="text-center text-sm text-slate-100">{wellbeing} / 5</div>
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={trainingDone}
-              onChange={(e) => setTrainingDone(e.target.checked)}
-              className="accent-emerald-500"
-            />
-            Zrealizowałem trening
-          </label>
-
-          <label className="flex items-center gap-2 text-sm text-slate-200">
-            <input
-              type="checkbox"
-              checked={mealsDone}
-              onChange={(e) => setMealsDone(e.target.checked)}
-              className="accent-emerald-500"
-            />
-            Zrealizowałem posiłki
-          </label>
-
-          <div className="grid grid-cols-2 gap-3">
-            <label className={labelCls}>
-              <span className={labelText}>Sen (h)</span>
-              <input
-                className={inputCls}
-                type="number"
-                step={0.5}
-                value={sleepHours}
-                onChange={(e) => setSleepHours(Number(e.target.value))}
-              />
-            </label>
-            <label className={labelCls}>
-              <span className={labelText}>Waga (kg)</span>
-              <input
-                className={inputCls}
-                type="number"
-                step={0.1}
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="np. 78"
-              />
-            </label>
-          </div>
-
-          <label className={labelCls}>
-            <span className={labelText}>Notatka dla trenera</span>
-            <textarea
-              className={inputCls}
-              rows={3}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Jak się czułeś, co było trudne, co wymaga zmiany..."
-            />
-          </label>
+          {fields.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Trener nie skonfigurował jeszcze pól raportu. Zostaw notatkę lub
+              wróć do panelu.
+            </p>
+          ) : (
+            fields.map((f) => (
+              <div key={f.key}>{renderField(f)}</div>
+            ))
+          )}
 
           <div className="flex flex-wrap gap-3 pt-1">
             <button

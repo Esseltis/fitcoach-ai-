@@ -10,6 +10,9 @@ import {
   getReport,
   getPlan,
   getClientProfile,
+  getTrainerReportFields,
+  saveTrainerReportFields,
+  REPORT_FIELDS,
   trainerLogout,
   type ClientRecord,
 } from "@/lib/store";
@@ -21,6 +24,8 @@ export default function TrainerDashboard() {
     null
   );
   const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [reportFields, setReportFields] = useState<string[]>([]);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const id = getTrainerIdentity();
@@ -30,8 +35,20 @@ export default function TrainerDashboard() {
     }
     setIdentity(id);
     setClients(getClientsForTrainer(id.id));
+    setReportFields(getTrainerReportFields(id.id));
     setReady(true);
   }, [router]);
+
+  const toggleReportField = (key: string) => {
+    if (!identity) return;
+    const next = reportFields.includes(key)
+      ? reportFields.filter((k) => k !== key)
+      : [...reportFields, key];
+    setReportFields(next);
+    saveTrainerReportFields(identity.id, next);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
 
   const handleLogout = () => {
     trainerLogout();
@@ -158,6 +175,37 @@ export default function TrainerDashboard() {
               })}
             </div>
           )}
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+                Konfiguracja raportu podopiecznych
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400">
+                Zaznacz, które pola podopieczny ma wypełniać w raporcie dziennym.
+                Działa dla wszystkich Twoich klientów.
+              </p>
+            </div>
+            {saved && <span className="text-xs text-emerald-300">Zapisano ✓</span>}
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {REPORT_FIELDS.map((f) => (
+              <label
+                key={f.key}
+                className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2.5 text-sm text-slate-200 hover:border-emerald-500/50"
+              >
+                <input
+                  type="checkbox"
+                  checked={reportFields.includes(f.key)}
+                  onChange={() => toggleReportField(f.key)}
+                  className="accent-emerald-500"
+                />
+                {f.label}
+              </label>
+            ))}
+          </div>
         </div>
       </main>
     </div>

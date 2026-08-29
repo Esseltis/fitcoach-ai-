@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -20,11 +20,8 @@ import {
   FileText,
 } from "lucide-react";
 import {
-  getReport,
-  saveReport,
   getClientContent,
   DEFAULT_CONTENT,
-  type ClientReport,
   type TrainerContent,
 } from "@/lib/store";
 
@@ -525,142 +522,6 @@ export default function ClientDashboardPage() {
   );
 }
 
-function ReportModal({
-  email,
-  onClose,
-}: {
-  email: string;
-  onClose: () => void;
-}) {
-  const [wellbeing, setWellbeing] = useState(3);
-  const [trainingDone, setTrainingDone] = useState(false);
-  const [mealsDone, setMealsDone] = useState(false);
-  const [sleepHours, setSleepHours] = useState(7);
-  const [weight, setWeight] = useState(87);
-  const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    const existing = getReport(email);
-    if (existing) {
-      setWellbeing(existing.wellbeing);
-      setTrainingDone(existing.trainingDone);
-      setMealsDone(existing.mealsDone);
-      setSleepHours(existing.sleepHours);
-      setWeight(existing.weight);
-      setNotes(existing.notes);
-    }
-  }, [email]);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const data: ClientReport = {
-      wellbeing,
-      trainingDone,
-      mealsDone,
-      sleepHours,
-      weight,
-      notes,
-      submittedAt: new Date().toISOString(),
-    };
-    saveReport(email, data);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-md space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-5"
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-50">Raport dzienny</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-xs text-slate-400 hover:text-slate-200"
-          >
-            Zamknij
-          </button>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-slate-300">Samopoczucie (1–5)</label>
-          <input
-            type="range"
-            min={1}
-            max={5}
-            value={wellbeing}
-            onChange={(e) => setWellbeing(Number(e.target.value))}
-            className="w-full accent-emerald-500"
-          />
-          <div className="text-center text-sm text-slate-100">{wellbeing} / 5</div>
-        </div>
-
-        <label className="flex items-center gap-2 text-sm text-slate-200">
-          <input
-            type="checkbox"
-            checked={trainingDone}
-            onChange={(e) => setTrainingDone(e.target.checked)}
-            className="accent-emerald-500"
-          />
-          Zrealizowałem trening
-        </label>
-
-        <label className="flex items-center gap-2 text-sm text-slate-200">
-          <input
-            type="checkbox"
-            checked={mealsDone}
-            onChange={(e) => setMealsDone(e.target.checked)}
-            className="accent-emerald-500"
-          />
-          Zrealizowałem posiłki
-        </label>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label className="text-xs text-slate-300">Sen (h)</label>
-            <input
-              type="number"
-              step={0.5}
-              value={sleepHours}
-              onChange={(e) => setSleepHours(Number(e.target.value))}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-slate-300">Waga (kg)</label>
-            <input
-              type="number"
-              step={0.1}
-              value={weight}
-              onChange={(e) => setWeight(Number(e.target.value))}
-              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-slate-300">Notatka dla trenera</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            placeholder="Jak się czułeś, co było trudne, co wymaga zmiany..."
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
-        >
-          Wyślij do trenera
-        </button>
-      </form>
-    </div>
-  );
-}
-
 function DashboardSection({
   activeSection,
   setActiveSection,
@@ -670,7 +531,6 @@ function DashboardSection({
   setActiveSection: (id: SectionId) => void;
   email: string;
 }) {
-  const [showReport, setShowReport] = useState(false);
   return (
     <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
       {/* Karta z BMI i wymiarami */}
@@ -831,16 +691,12 @@ function DashboardSection({
               Zrealizuj plan, wypełnij raport i wyślij do trenera.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowReport(true)}
+          <Link
+            href="/client/raport"
             className="rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400"
           >
             Wyślij raport
-          </button>
-          {showReport && (
-            <ReportModal email={email} onClose={() => setShowReport(false)} />
-          )}
+          </Link>
         </div>
 
         <ol className="space-y-2 text-xs text-slate-200">

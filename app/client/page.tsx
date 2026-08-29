@@ -111,15 +111,6 @@ const trainers = [
     rating: 5.0,
     reviews: 52,
   },
-  {
-    id: "t3",
-    name: "Piotr Zieliński",
-    title: "Trener siły i sportów walki",
-    specialization: "Siła, kondycja, przygotowanie motoryczne",
-    price: "od 269 zł / mies.",
-    rating: 4.8,
-    reviews: 24,
-  },
 ];
 
 export default function ClientDashboardPage() {

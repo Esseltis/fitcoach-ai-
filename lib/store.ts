@@ -154,15 +154,20 @@ export function ensureClientRegistry() {
   const exists = (email: string) => registry.some((c) => c.email === email);
   for (const c of SEED_CLIENTS) if (!exists(c.email)) registry.push(c);
 
-  // dodaj bieżącego klienta, jeśli wybrał trenera
+  // dodaj / zaktualizuj bieżącego klienta, jeśli wybrał trenera
   const clientEmail = safeGet("fitcoach_client_email");
   const clientTrainer = safeGet("fitcoach_client_trainer_id");
-  if (clientEmail && clientTrainer && !exists(clientEmail)) {
-    registry.push({
-      email: clientEmail,
-      name: clientEmail.split("@")[0].replace(/\./g, " "),
-      trainerId: clientTrainer,
-    });
+  if (clientEmail && clientTrainer) {
+    const idx = registry.findIndex((c) => c.email === clientEmail);
+    if (idx === -1) {
+      registry.push({
+        email: clientEmail,
+        name: clientEmail.split("@")[0].replace(/\./g, " "),
+        trainerId: clientTrainer,
+      });
+    } else if (registry[idx].trainerId !== clientTrainer) {
+      registry[idx].trainerId = clientTrainer;
+    }
   }
   safeSet(K_CLIENT_REGISTRY, JSON.stringify(registry));
 }

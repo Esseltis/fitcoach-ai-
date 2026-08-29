@@ -24,6 +24,7 @@ export default function TrainerDashboard() {
   const [identity, setIdentity] = useState<{ id: string; email: string } | null>(
     null
   );
+  const [view, setView] = useState<"clients" | "report">("clients");
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [reportFields, setReportFields] = useState<ReportConfigField[]>([]);
   const [saved, setSaved] = useState(false);
@@ -122,10 +123,38 @@ export default function TrainerDashboard() {
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-3 rounded-xl bg-slate-800/90 px-2.5 py-2 text-[13px] font-medium text-slate-50">
-              <span className="h-7 w-1 rounded-full bg-emerald-400" />
+            <button
+              type="button"
+              onClick={() => setView("clients")}
+              className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-[13px] font-medium transition ${
+                view === "clients"
+                  ? "bg-slate-800/90 text-slate-50"
+                  : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-50"
+              }`}
+            >
+              <span
+                className={`h-7 w-1 rounded-full ${
+                  view === "clients" ? "bg-emerald-400" : "bg-transparent"
+                }`}
+              />
               <span className="truncate">Moi podopieczni</span>
-            </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("report")}
+              className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-[13px] font-medium transition ${
+                view === "report"
+                  ? "bg-slate-800/90 text-slate-50"
+                  : "text-slate-300 hover:bg-slate-800/60 hover:text-slate-50"
+              }`}
+            >
+              <span
+                className={`h-7 w-1 rounded-full ${
+                  view === "report" ? "bg-emerald-400" : "bg-transparent"
+                }`}
+              />
+              <span className="truncate">Raport</span>
+            </button>
           </div>
         </div>
         <div className="border-t border-slate-800 p-3">
@@ -154,6 +183,8 @@ export default function TrainerDashboard() {
         </header>
 
         <div className="p-6">
+          {view === "clients" && (
+            <>
           <p className="mb-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Podopieczni ({clients.length})
           </p>
@@ -216,8 +247,11 @@ export default function TrainerDashboard() {
               })}
             </div>
           )}
+            </>
+          )}
         </div>
 
+        {view === "report" && (
         <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-950/80 p-5">
           <div className="flex items-center justify-between">
             <div>
@@ -310,6 +344,7 @@ export default function TrainerDashboard() {
             </div>
           </div>
         </div>
+        )}
       </main>
     </div>
   );

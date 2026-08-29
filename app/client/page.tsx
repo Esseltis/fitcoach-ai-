@@ -163,7 +163,7 @@ export default function ClientDashboardPage() {
       window.localStorage.setItem("fitcoach_client_trainer_id", trainerId);
     }
     setHasTrainer(true);
-    setActiveSection("dashboard");
+    router.push("/client/profil");
   };
 
   const handleChangeTrainer = () => {
@@ -194,6 +194,12 @@ export default function ClientDashboardPage() {
       label: "Wprowadzenie",
       icon: Activity,
       href: "/client/wprowadzenie",
+    },
+    {
+      id: "profil",
+      label: "Mój profil",
+      icon: User,
+      href: "/client/profil",
     },
     {
       id: "analiza",
@@ -445,13 +451,31 @@ export default function ClientDashboardPage() {
             </h1>
           </div>
           {hasTrainer && (
-            <button
-              type="button"
-              onClick={handleChangeTrainer}
-              className="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800/80 transition"
-            >
-              Zmień trenera
-            </button>
+            <div className="flex items-center gap-3">
+              <span
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                  content.updatedAt
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-amber-500/10 text-amber-300"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    content.updatedAt ? "bg-emerald-400" : "bg-amber-400"
+                  }`}
+                />
+                {content.updatedAt
+                  ? "Plan od trenera: gotowy"
+                  : "Plan w przygotowaniu"}
+              </span>
+              <button
+                type="button"
+                onClick={handleChangeTrainer}
+                className="rounded-full border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-800/80 transition"
+              >
+                Zmień trenera
+              </button>
+            </div>
           )}
         </header>
 

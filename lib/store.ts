@@ -35,6 +35,20 @@ export type ClientRecord = {
   trainerId: string;
 };
 
+export type ClientProfile = {
+  goal: string;
+  gender: string;
+  age: string;
+  weight: string;
+  height: string;
+  activity: string;
+  trainingFrequency: string;
+  mealsPerDay: string;
+  preferences: string;
+  healthNotes: string;
+  submittedAt: string;
+};
+
 export const DEMO_TRAINERS: Trainer[] = [
   {
     id: "t1",
@@ -191,6 +205,24 @@ export function getReport(email: string): ClientReport | null {
 
 export function saveReport(email: string, data: ClientReport) {
   safeSet(reportKey(email), JSON.stringify(data));
+}
+
+// ---- Profil klienta (raport wstępny) ----
+
+const clientProfileKey = (email: string) => `fitcoach_client_profile_${email}`;
+
+export function getClientProfile(email: string): ClientProfile | null {
+  const raw = safeGet(clientProfileKey(email));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ClientProfile;
+  } catch {
+    return null;
+  }
+}
+
+export function saveClientProfile(email: string, data: ClientProfile) {
+  safeSet(clientProfileKey(email), JSON.stringify(data));
 }
 
 // ---- Plan trenera dla klienta ----

@@ -8,6 +8,7 @@ import {
   getClientByEmail,
   getReport,
   getPlan,
+  getClientProfile,
   savePlan,
   getClientContent,
   saveClientContent,
@@ -19,6 +20,7 @@ import {
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
+  type ClientProfile,
   type TrainerPlan,
   type TrainerContent,
   type Recipe,
@@ -38,6 +40,7 @@ import {
 
 type TabKey =
   | "report"
+  | "profile"
   | "intro"
   | "nutrition"
   | "tips"
@@ -50,6 +53,7 @@ type TabKey =
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "report", label: "Raport" },
+  { key: "profile", label: "Profil" },
   { key: "intro", label: "Wstęp" },
   { key: "nutrition", label: "Analiza" },
   { key: "tips", label: "Porady" },
@@ -81,6 +85,7 @@ export default function TrainerClientPage({
   const [trainerId, setTrainerId] = useState<string | null>(null);
   const [clientName, setClientName] = useState(email);
   const [report, setReport] = useState<ClientReport | null>(null);
+  const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [tab, setTab] = useState<TabKey>("report");
   const [content, setContent] = useState<TrainerContent>(() =>
     getClientContent(email)
@@ -109,6 +114,7 @@ export default function TrainerClientPage({
     const client = getClientByEmail(email);
     if (client) setClientName(client.name);
     setReport(getReport(email));
+    setProfile(getClientProfile(email));
     setContent(getClientContent(email));
     const existing = getPlan(id.id, email);
     if (existing) setPlan(existing);
@@ -135,6 +141,58 @@ export default function TrainerClientPage({
   const handleSaveWorkout = (name: string, detail: string) => {
     if (!trainerId) return;
     setOwnWorkouts(saveTrainerWorkout(trainerId, { name, detail }));
+  };
+
+  const prefillFromProfile = () => {
+    if (!profile) return;
+    const w = Number(profile.weight) || 0;
+    const h = Number(profile.height) || 0;
+    const age = Number(profile.age) || 0;
+    const bmr =
+      10 * w +
+      6.25 * h -
+      5 * age +
+      (profile.gender === "kobieta" ? -161 : 5);
+    const act =
+      profile.activity.startsWith("Brak")
+        ? 1.2
+        : profile.activity.startsWith("Niska")
+        ? 1.375
+        : profile.activity.startsWith("Umiarkowana")
+        ? 1.55
+        : profile.activity.startsWith("Wysoka")
+        ? 1.725
+        : 1.9;
+    const adjust =
+      profile.goal.startsWith("Redukcja")
+        ? 0.85
+        : profile.goal.startsWith("Masa")
+        ? 1.1
+        : 1;
+    const target = Math.round(bmr * act * adjust);
+    const balanceType = profile.goal.startsWith("Redukcja")
+      ? "Redukcja"
+      : profile.goal.startsWith("Masa")
+      ? "Masa"
+      : "Utrzymanie";
+    const balanceValue = profile.goal.startsWith("Redukcja")
+      ? "-15%"
+      : profile.goal.startsWith("Masa")
+      ? "+10%"
+      : "0%";
+    setContent((c) => ({
+      ...c,
+      nutrition: {
+        ...c.nutrition,
+        weight: profile.weight,
+        height: profile.height,
+        balanceType,
+        balanceValue,
+        calories: String(target),
+      },
+      diet: { ...c.diet, targetCalories: String(target) },
+    }));
+    flash();
   };
 
   const flash = () => {
@@ -252,6 +310,56 @@ export default function TrainerClientPage({
                 </div>
                 <p className="text-[11px] text-slate-500">
                   Wysłano: {new Date(report.submittedAt).toLocaleString("pl-PL")}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === "profile" && (
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+                Profil klienta (raport wstępny)
+              </h2>
+              {profile && (
+                <button
+                  type="button"
+                  onClick={prefillFromProfile}
+                  className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
+                >
+                  Uzupełnij plan na podstawie profilu
+                </button>
+              )}
+            </div>
+            {!profile ? (
+              <p className="text-sm text-slate-400">
+                Klient nie wypełnił jeszcze profilu wstępnego.
+              </p>
+            ) : (
+              <div className="grid gap-3 text-sm sm:grid-cols-2">
+                <Row label="Cel" value={profile.goal} />
+                <Row label="Płeć" value={profile.gender} />
+                <Row label="Wiek" value={`${profile.age} lat`} />
+                <Row label="Waga" value={`${profile.weight} kg`} />
+                <Row label="Wzrost" value={`${profile.height} cm`} />
+                <Row label="Aktywność" value={profile.activity} />
+                <Row label="Treningi / tydz." value={profile.trainingFrequency} />
+                <Row label="Posiłki dziennie" value={profile.mealsPerDay} />
+                <div className="col-span-1 sm:col-span-2">
+                  <p className="text-xs text-slate-400">Preferencje / uwagi:</p>
+                  <p className="mt-1 rounded-lg bg-slate-900 p-2 text-slate-200">
+                    {profile.preferences || "—"}
+                  </p>
+                </div>
+                <div className="col-span-1 sm:col-span-2">
+                  <p className="text-xs text-slate-400">Zdrowie / przeciwwskazania:</p>
+                  <p className="mt-1 rounded-lg bg-slate-900 p-2 text-slate-200">
+                    {profile.healthNotes || "—"}
+                  </p>
+                </div>
+                <p className="col-span-1 text-[11px] text-slate-500 sm:col-span-2">
+                  Wysłano: {new Date(profile.submittedAt).toLocaleString("pl-PL")}
                 </p>
               </div>
             )}

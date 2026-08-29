@@ -14,7 +14,6 @@ import {
   getClientContent,
   saveClientContent,
   trainerLogout,
-  REPORT_FIELDS,
   getTrainerRecipes,
   saveTrainerRecipe,
   getTrainerWorkouts,
@@ -214,6 +213,10 @@ export default function TrainerClientPage({
     flash();
   };
 
+  const reportFieldDefs = trainerId
+    ? getTrainerReportFields(trainerId)
+    : [];
+
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -293,13 +296,15 @@ export default function TrainerClientPage({
               </p>
             ) : (
               <div className="space-y-3 text-sm">
-                {REPORT_FIELDS.filter((f) => f.key in report.values).map((f) => (
-                  <Row
-                    key={f.key}
-                    label={f.label}
-                    value={formatReportValue(f.key, report.values[f.key])}
-                  />
-                ))}
+                {reportFieldDefs
+                  .filter((f) => f.key in report.values)
+                  .map((f) => (
+                    <Row
+                      key={f.key}
+                      label={f.label}
+                      value={formatReportValue(f.key, report.values[f.key])}
+                    />
+                  ))}
                 <p className="text-[11px] text-slate-500">
                   Wysłano: {new Date(report.submittedAt).toLocaleString("pl-PL")}
                 </p>

@@ -15,6 +15,7 @@ import {
   REPORT_FIELDS,
   trainerLogout,
   type ClientRecord,
+  type ReportConfigField,
 } from "@/lib/store";
 
 export default function TrainerDashboard() {
@@ -24,8 +25,11 @@ export default function TrainerDashboard() {
     null
   );
   const [clients, setClients] = useState<ClientRecord[]>([]);
-  const [reportFields, setReportFields] = useState<string[]>([]);
+  const [reportFields, setReportFields] = useState<ReportConfigField[]>([]);
   const [saved, setSaved] = useState(false);
+  const [customLabel, setCustomLabel] = useState("");
+  const [customType, setCustomType] =
+    useState<ReportConfigField["type"]>("text");
 
   useEffect(() => {
     const id = getTrainerIdentity();
@@ -39,15 +43,52 @@ export default function TrainerDashboard() {
     setReady(true);
   }, [router]);
 
-  const toggleReportField = (key: string) => {
+  const persist = (next: ReportConfigField[]) => {
     if (!identity) return;
-    const next = reportFields.includes(key)
-      ? reportFields.filter((k) => k !== key)
-      : [...reportFields, key];
     setReportFields(next);
     saveTrainerReportFields(identity.id, next);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  };
+
+  const toggleReportField = (key: string) => {
+    const existing = reportFields.find((f) => f.key === key);
+    if (existing) {
+      persist(reportFields.filter((f) => f.key !== key));
+    } else {
+      const def = REPORT_FIELDS.find((f) => f.key === key);
+      if (def) persist([...reportFields, { ...def, custom: false }]);
+    }
+  };
+
+  const removeCustomField = (key: string) => {
+    persist(reportFields.filter((f) => f.key !== key));
+  };
+
+  const addCustomField = () => {
+    if (!customLabel.trim()) return;
+    const key = `custom_${Date.now()}`;
+    const type = customType;
+    const base: ReportConfigField = {
+      key,
+      label: customLabel.trim(),
+      type,
+      defaultValue:
+        type === "boolean" ? false : type === "number" ? "" : "",
+      custom: true,
+    };
+    if (type === "range") {
+      base.min = 1;
+      base.max = 5;
+      base.defaultValue = 3;
+    }
+    if (type === "select") {
+      base.options = ["Opcja 1", "Opcja 2", "Opcja 3"];
+      base.defaultValue = "Opcja 1";
+    }
+    persist([...reportFields, base]);
+    setCustomLabel("");
+    setCustomType("text");
   };
 
   const handleLogout = () => {
@@ -198,13 +239,75 @@ export default function TrainerDashboard() {
               >
                 <input
                   type="checkbox"
-                  checked={reportFields.includes(f.key)}
+                  checked={reportFields.some((r) => r.key === f.key)}
                   onChange={() => toggleReportField(f.key)}
                   className="accent-emerald-500"
                 />
                 {f.label}
               </label>
             ))}
+          </div>
+
+          {reportFields.filter((f) => f.custom).length > 0 && (
+            <div className="mt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Własne pola
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {reportFields
+                  .filter((f) => f.custom)
+                  .map((f) => (
+                    <span
+                      key={f.key}
+                      className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-200"
+                    >
+                      {f.label}
+                      <button
+                        type="button"
+                        onClick={() => removeCustomField(f.key)}
+                        className="text-slate-400 hover:text-red-300"
+                        title="Usuń pole"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Dodaj własne pole
+            </p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={customLabel}
+                onChange={(e) => setCustomLabel(e.target.value)}
+                placeholder="np. Ile kroków zrobiłeś?"
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+              />
+              <select
+                value={customType}
+                onChange={(e) =>
+                  setCustomType(e.target.value as ReportConfigField["type"])
+                }
+                className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+              >
+                <option value="text">Tekst</option>
+                <option value="number">Liczba</option>
+                <option value="range">Suwak 1–5</option>
+                <option value="boolean">Tak/Nie</option>
+                <option value="select">Wybór</option>
+              </select>
+              <button
+                type="button"
+                onClick={addCustomField}
+                className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+              >
+                Dodaj
+              </button>
+            </div>
           </div>
         </div>
       </main>

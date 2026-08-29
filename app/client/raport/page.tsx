@@ -6,10 +6,9 @@ import Link from "next/link";
 import {
   getReport,
   saveReport,
-  REPORT_FIELDS,
   getTrainerReportFields,
   getClientTrainerId,
-  type ReportFieldDef,
+  type ReportConfigField,
 } from "@/lib/store";
 
 export default function ClientReportPage() {
@@ -17,7 +16,7 @@ export default function ClientReportPage() {
   const [email, setEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [fields, setFields] = useState<ReportFieldDef[]>([]);
+  const [fields, setFields] = useState<ReportConfigField[]>([]);
   const [values, setValues] = useState<Record<string, string | number | boolean>>({});
 
   useEffect(() => {
@@ -30,10 +29,9 @@ export default function ClientReportPage() {
     }
     setEmail(storedEmail);
     const trainerId = getClientTrainerId();
-    const keys = trainerId
+    const defs = trainerId
       ? getTrainerReportFields(trainerId)
-      : REPORT_FIELDS.map((f) => f.key);
-    const defs = REPORT_FIELDS.filter((f) => keys.includes(f.key));
+      : [];
     setFields(defs);
     const init: Record<string, string | number | boolean> = {};
     for (const f of defs) init[f.key] = f.defaultValue;
@@ -69,7 +67,7 @@ export default function ClientReportPage() {
     "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400";
   const labelText = "text-[11px] font-medium text-slate-300";
 
-  const renderField = (f: ReportFieldDef) => {
+  const renderField = (f: ReportConfigField) => {
     const v = values[f.key] ?? f.defaultValue;
     const set = (val: string | number | boolean) =>
       setValues((s) => ({ ...s, [f.key]: val }));

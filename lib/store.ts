@@ -43,23 +43,39 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
   { key: "notes", label: "Notatka dla trenera", type: "text", defaultValue: "", placeholder: "Jak się czułeś, co było trudne..." },
 ];
 
+export type ReportConfigField = {
+  key: string;
+  label: string;
+  type: ReportFieldDef["type"];
+  min?: number;
+  max?: number;
+  step?: number;
+  defaultValue: string | number | boolean;
+  options?: string[];
+  placeholder?: string;
+  custom?: boolean;
+};
+
 const trainerReportFieldsKey = (trainerId: string) =>
   `fitcoach_trainer_${trainerId}_report_fields`;
 
-export function getTrainerReportFields(trainerId: string): string[] {
+export function getTrainerReportFields(trainerId: string): ReportConfigField[] {
   const raw = safeGet(trainerReportFieldsKey(trainerId));
-  if (!raw) return REPORT_FIELDS.map((f) => f.key);
+  if (!raw) return REPORT_FIELDS.map((f) => ({ ...f, custom: false }));
   try {
     const arr = JSON.parse(raw);
-    if (Array.isArray(arr)) return arr.filter((k) => REPORT_FIELDS.some((f) => f.key === k));
+    if (Array.isArray(arr)) return arr as ReportConfigField[];
   } catch {
     /* ignore */
   }
-  return REPORT_FIELDS.map((f) => f.key);
+  return REPORT_FIELDS.map((f) => ({ ...f, custom: false }));
 }
 
-export function saveTrainerReportFields(trainerId: string, keys: string[]) {
-  safeSet(trainerReportFieldsKey(trainerId), JSON.stringify(keys));
+export function saveTrainerReportFields(
+  trainerId: string,
+  fields: ReportConfigField[]
+) {
+  safeSet(trainerReportFieldsKey(trainerId), JSON.stringify(fields));
 }
 
 export function getClientTrainerId(): string | null {

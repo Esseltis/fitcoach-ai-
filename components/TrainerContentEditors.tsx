@@ -277,6 +277,8 @@ export function DietEditor({
   const [protein, setProtein] = useState("");
   const [fat, setFat] = useState("");
 
+  const [quickCat, setQuickCat] = useState<MealCategory>("sniadanie");
+
   const [query, setQuery] = useState("");
   const [grams, setGrams] = useState("100");
   const [results, setResults] = useState<any[]>([]);
@@ -461,6 +463,30 @@ export function DietEditor({
 
       {/* Biblioteka posiłków */}
       <CollapsibleCard title="Twoja biblioteka posiłków">
+        <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2">
+          <p className="mb-1 text-[11px] font-medium text-slate-300">
+            Dodaj nowy produkt od razu do diety klienta:
+          </p>
+          <div className="mb-2">
+            <Select
+              label="Kategoria"
+              value={quickCat}
+              onChange={(v) => setQuickCat(v as MealCategory)}
+              options={MEAL_CATEGORIES.map((m) => ({ value: m.key, label: m.label }))}
+            />
+          </div>
+          <QuickProductForm
+            categoryLabel={quickCat}
+            trainerId={trainerId}
+            onAdd={(p) => addCustomProduct(quickCat, p)}
+          />
+        </div>
+        {library.length === 0 && (
+          <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] text-slate-400">
+            Biblioteka jest pusta. Dodaj posiłki w sekcji „Nowy posiłek (własny)" powyżej, aby
+            móc je potem szybko przypisywać do diety klienta.
+          </p>
+        )}
         {MEAL_CATEGORIES.map((cat) => {
           const items = library.filter((m) => m.category === cat.key);
           if (items.length === 0) return null;

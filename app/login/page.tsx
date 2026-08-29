@@ -29,6 +29,9 @@ export default function LoginPage() {
       if (typeof window !== "undefined") {
         window.localStorage.setItem("fitcoach_client_logged_in", "true");
         window.localStorage.setItem("fitcoach_client_email", email);
+        // Każde nowe logowanie zaczyna od wyboru trenera i czystej kartoteki
+        window.localStorage.removeItem("fitcoach_client_trainer_id");
+        window.localStorage.removeItem("fitcoach_client_has_trainer");
       }
       router.push("/client");
     } else {

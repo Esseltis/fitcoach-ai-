@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type {
   TrainerContent,
   Meal,
+  Product,
   MealCategory,
 } from "@/lib/store";
 import {
@@ -11,6 +12,9 @@ import {
   getTrainerMeals,
   saveTrainerMeal,
   removeTrainerMeal,
+  getTrainerProducts,
+  saveTrainerProduct,
+  removeTrainerProduct,
   getTrainerWorkoutBlocks,
   saveTrainerWorkoutBlock,
   removeTrainerWorkoutBlock,
@@ -284,6 +288,77 @@ export function DietEditor({
   const [results, setResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
 
+  // Produkty (biblioteka surowców, np. chleb żytni)
+  const [products, setProducts] = useState<Product[]>(() =>
+    getTrainerProducts(trainerId)
+  );
+  const [pName, setPName] = useState("");
+  const [pDesc, setPDesc] = useState("");
+  const [pKcal100, setPKcal100] = useState("");
+  const [pCarbs100, setPCarbs100] = useState("");
+  const [pProtein100, setPProtein100] = useState("");
+  const [pFat100, setPFat100] = useState("");
+  const [gramsById, setGramsById] = useState<Record<string, string>>({});
+
+  const addToProducts = () => {
+    if (!pName.trim()) return;
+    setProducts(
+      saveTrainerProduct(trainerId, {
+        name: pName.trim(),
+        description: pDesc.trim(),
+        kcal100: pKcal100.trim(),
+        carbs100: pCarbs100.trim(),
+        protein100: pProtein100.trim(),
+        fat100: pFat100.trim(),
+      })
+    );
+    setPName("");
+    setPDesc("");
+    setPKcal100("");
+    setPCarbs100("");
+    setPProtein100("");
+    setPFat100("");
+  };
+
+  const productFromBase = (p: any) => {
+    const n = p.nutriments ?? {};
+    const kcal100 = n["energy-kcal_100g"] ?? n["energy-kcal_value"] ?? "";
+    setPName(p.product_name ?? "");
+    setPKcal100(kcal100 ? String(Math.round(Number(kcal100))) : "");
+    setPCarbs100(
+      n.carbohydrates_100g != null ? String(Math.round(n.carbohydrates_100g)) : ""
+    );
+    setPProtein100(
+      n.proteins_100g != null ? String(Math.round(n.proteins_100g)) : ""
+    );
+    setPFat100(
+      n.fat_100g != null ? String(Math.round(n.fat_100g)) : ""
+    );
+  };
+
+  const assignProductToClient = (p: Product) => {
+    const g = Number(gramsById[p.id]) || 100;
+    const kcal = p.kcal100
+      ? Math.round((Number(p.kcal100) * g) / 100)
+      : "";
+    const sc = (v?: string) =>
+      v ? String(Math.round((Number(v) * g) / 100)) : "";
+    upd({
+      meals: [
+        ...diet.meals,
+        {
+          category: quickCat,
+          name: p.name,
+          description: `${p.description || ""} · ${g} g`.trim(),
+          calories: String(kcal),
+          carbs: sc(p.carbs100),
+          protein: sc(p.protein100),
+          fat: sc(p.fat100),
+        },
+      ],
+    });
+  };
+
   const addToLibrary = () => {
     if (!name.trim()) return;
     setLibrary(
@@ -377,221 +452,257 @@ export function DietEditor({
     upd({ meals: removeFromClientHelper(diet.meals, cat, i) });
 
   return (
-    <div className="space-y-4">
-      {/* Nowy posiłek do biblioteki */}
-      <CollapsibleCard title="Nowy posiłek (własny)">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Select
-            label="Typ posiłku"
-            value={category}
-            onChange={(v) => setCategory(v as MealCategory)}
-            options={MEAL_CATEGORIES.map((m) => ({ value: m.key, label: m.label }))}
-          />
-          <Input label="Nazwa dania" value={name} onChange={setName} placeholder="np. Owsianka z owocami" />
-        </div>
-        <TA label="Skład / opis" rows={2} value={description} onChange={setDescription} />
-        <div className="grid gap-3 sm:grid-cols-4">
-          <Input label="Kalorie (kcal)" value={calories} onChange={setCalories} placeholder="np. 550" />
-          <Input label="Węglowodany (g)" value={carbs} onChange={setCarbs} placeholder="np. 60" />
-          <Input label="Białko (g)" value={protein} onChange={setProtein} placeholder="np. 30" />
-          <Input label="Tłuszcze (g)" value={fat} onChange={setFat} placeholder="np. 20" />
-        </div>
-        <AddBtn onClick={addToLibrary} label="Dodaj do biblioteki" />
-      </CollapsibleCard>
-
-      {/* Pobierz produkt z bazy */}
-      <CollapsibleCard title="Pobierz produkt z bazy (kcal i makro)" defaultOpen={false}>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && searchProducts()}
-            placeholder="np. makaron pszenny"
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
-          />
-          <button
-            type="button"
-            onClick={searchProducts}
-            disabled={searching}
-            className="rounded-full bg-sky-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-sky-400 disabled:opacity-50"
-          >
-            {searching ? "Szukam..." : "Szukaj"}
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Input label="Ilość (g)" value={grams} onChange={setGrams} type="number" />
-          <p className="pt-5 text-[11px] text-slate-400">
-            kcal przeliczone na podaną ilość
-          </p>
-        </div>
-
-        {results.length > 0 && (
-          <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-            {results.map((p, i) => {
-              const n = p.nutriments ?? {};
-              const kcal100 =
-                n["energy-kcal_100g"] ?? n["energy-kcal_value"] ?? "?";
-              const carbs = n.carbohydrates_100g ?? "?";
-              const protein = n.proteins_100g ?? "?";
-              const fat = n.fat_100g ?? "?";
-              return (
-                <div
-                  key={i}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-50">
-                      {p.product_name ?? "Produkt"}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-slate-400">
-                      {kcal100} kcal / 100g · W {carbs} · B {protein} · T {fat}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => applyProduct(p)}
-                    className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/25"
-                  >
-                    Użyj
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CollapsibleCard>
-
-      {/* Biblioteka posiłków */}
-      <CollapsibleCard title="Twoja biblioteka posiłków">
-        <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2">
-          <p className="mb-1 text-[11px] font-medium text-slate-300">
-            Dodaj nowy produkt od razu do diety klienta:
-          </p>
-          <div className="mb-2">
-            <Select
-              label="Kategoria"
-              value={quickCat}
-              onChange={(v) => setQuickCat(v as MealCategory)}
-              options={MEAL_CATEGORIES.map((m) => ({ value: m.key, label: m.label }))}
-            />
-          </div>
-          <QuickProductForm
-            categoryLabel={quickCat}
-            trainerId={trainerId}
-            onAdd={(p) => addCustomProduct(quickCat, p)}
-          />
-        </div>
-        {library.length === 0 && (
-          <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] text-slate-400">
-            Biblioteka jest pusta. Dodaj posiłki w sekcji „Nowy posiłek (własny)" powyżej, aby
-            móc je potem szybko przypisywać do diety klienta.
-          </p>
-        )}
-        {MEAL_CATEGORIES.map((cat) => {
-          const items = library.filter((m) => m.category === cat.key);
-          if (items.length === 0) return null;
-          return (
-            <div key={cat.key} className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
-                {cat.label}
-              </p>
-              {items.map((meal) => (
-                <div
-                  key={meal.id}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-slate-50">
-                        {meal.name}
-                      </p>
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
-                        {meal.calories || "—"} kcal
-                      </span>
-                    </div>
-                    {meal.carbs || meal.protein || meal.fat ? (
-                      <p className="mt-0.5 text-[10px] text-slate-400">
-                        W {meal.carbs || "—"} · B {meal.protein || "—"} · T{" "}
-                        {meal.fat || "—"} g
-                      </p>
-                    ) : null}
-                    <p className="mt-1 text-[11px] text-slate-400">{meal.description}</p>
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => assignToClient(meal)}
-                      className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/25"
-                    >
-                      Do diety
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLibrary(removeTrainerMeal(trainerId, meal.id))}
-                      className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-400 hover:border-red-500/60 hover:text-red-300"
-                    >
-                      Usuń
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </CollapsibleCard>
-
-      {/* Dieta klienta */}
-      <CollapsibleCard title="Dieta klienta (warianty na kategorię)">
-        <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-3">
+      {/* Kolumna 1: Dieta klienta */}
+      <div className="space-y-3">
+        <CollapsibleCard title="1. Dieta klienta (na dzień)">
           <Input
             label="Docelowa kaloryczność (kcal)"
             value={diet.targetCalories}
             onChange={(v) => upd({ targetCalories: v })}
           />
-        </div>
-
-        {MEAL_CATEGORIES.map((cat) => {
-          const items = diet.meals.filter((m) => (m.category ?? "") === cat.key);
-          return (
-            <div key={cat.key} className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
-                {cat.label} {items.length > 0 ? `(${items.length})` : ""}
-              </p>
-              {items.map((m, i) => (
-                <div
-                  key={`${m.name}-${i}`}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-slate-50">
-                        {m.name}
-                      </p>
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
-                        {m.calories || "—"} kcal
-                      </span>
-                    </div>
-                    {m.carbs || m.protein || m.fat ? (
-                      <p className="mt-0.5 text-[10px] text-slate-400">
-                        W {m.carbs || "—"} · B {m.protein || "—"} · T {m.fat || "—"} g
-                      </p>
-                    ) : null}
-                    {m.description && (
-                      <p className="mt-1 text-[11px] text-slate-400">{m.description}</p>
-                    )}
-                  </div>
-                  <RemoveBtn onClick={() => removeFromClientByIndex(cat.key, i)} />
+          {MEAL_CATEGORIES.map((cat) => {
+            const items = diet.meals.filter((m) => (m.category ?? "") === cat.key);
+            const kcalSum = items.reduce(
+              (s, m) => s + (Number(m.calories) || 0),
+              0
+            );
+            return (
+              <div key={cat.key} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+                    {cat.label}
+                  </p>
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                    {kcalSum} kcal
+                  </span>
                 </div>
-              ))}
-              <QuickProductForm
-                categoryLabel={cat.label}
-                trainerId={trainerId}
-                onAdd={(p) => addCustomProduct(cat.key, p)}
-              />
+                {items.map((m, i) => (
+                  <div
+                    key={`${m.name}-${i}`}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-50">
+                          {m.name}
+                        </p>
+                        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                          {m.calories || "—"} kcal
+                        </span>
+                      </div>
+                      {m.carbs || m.protein || m.fat ? (
+                        <p className="mt-0.5 text-[10px] text-slate-400">
+                          W {m.carbs || "—"} · B {m.protein || "—"} · T {m.fat || "—"} g
+                        </p>
+                      ) : null}
+                      {m.description && (
+                        <p className="mt-1 text-[11px] text-slate-400">{m.description}</p>
+                      )}
+                    </div>
+                    <RemoveBtn onClick={() => removeFromClientByIndex(cat.key, i)} />
+                  </div>
+                ))}
+                <QuickProductForm
+                  categoryLabel={cat.label}
+                  trainerId={trainerId}
+                  onAdd={(p) => addCustomProduct(cat.key, p)}
+                />
+              </div>
+            );
+          })}
+        </CollapsibleCard>
+      </div>
+
+      {/* Kolumna 2: Nasze dania */}
+      <div className="space-y-3">
+        <CollapsibleCard title="2. Nasze dania">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Select
+              label="Typ posiłku"
+              value={category}
+              onChange={(v) => setCategory(v as MealCategory)}
+              options={MEAL_CATEGORIES.map((m) => ({ value: m.key, label: m.label }))}
+            />
+            <Input label="Nazwa dania" value={name} onChange={setName} placeholder="np. Owsianka" />
+          </div>
+          <TA label="Skład / opis" rows={2} value={description} onChange={setDescription} />
+          <div className="grid gap-2 grid-cols-4">
+            <Input label="kcal" value={calories} onChange={setCalories} placeholder="550" />
+            <Input label="W" value={carbs} onChange={setCarbs} placeholder="60" />
+            <Input label="B" value={protein} onChange={setProtein} placeholder="30" />
+            <Input label="T" value={fat} onChange={setFat} placeholder="20" />
+          </div>
+          <AddBtn onClick={addToLibrary} label="Dodaj danie do listy" />
+
+          <div className="mt-3 space-y-2 border-t border-slate-800 pt-3">
+            {library.length === 0 && (
+              <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] text-slate-400">
+                Lista dań jest pusta.
+              </p>
+            )}
+            {MEAL_CATEGORIES.map((cat) => {
+              const items = library.filter((m) => m.category === cat.key);
+              if (items.length === 0) return null;
+              return (
+                <div key={cat.key} className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+                    {cat.label}
+                  </p>
+                  {items.map((meal) => (
+                    <div
+                      key={meal.id}
+                      className="flex items-start justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-slate-50">
+                            {meal.name}
+                          </p>
+                          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                            {meal.calories || "—"} kcal
+                          </span>
+                        </div>
+                        {meal.carbs || meal.protein || meal.fat ? (
+                          <p className="mt-0.5 text-[10px] text-slate-400">
+                            W {meal.carbs || "—"} · B {meal.protein || "—"} · T{" "}
+                            {meal.fat || "—"} g
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => assignToClient(meal)}
+                          className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/25"
+                        >
+                          Do diety
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLibrary(removeTrainerMeal(trainerId, meal.id))}
+                          className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-400 hover:border-red-500/60 hover:text-red-300"
+                        >
+                          Usuń
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleCard>
+      </div>
+
+      {/* Kolumna 3: Produkty */}
+      <div className="space-y-3">
+        <CollapsibleCard title="3. Produkty (np. chleb żytni)">
+          <Select
+            label="Przypisz do kategorii w diecie"
+            value={quickCat}
+            onChange={(v) => setQuickCat(v as MealCategory)}
+            options={MEAL_CATEGORIES.map((m) => ({ value: m.key, label: m.label }))}
+          />
+
+          <div className="grid gap-2 grid-cols-2">
+            <div className="col-span-2">
+              <Input label="Nazwa produktu" value={pName} onChange={setPName} placeholder="np. Chleb żytni" />
             </div>
-          );
-        })}
-      </CollapsibleCard>
+            <Input label="kcal / 100g" value={pKcal100} onChange={setPKcal100} placeholder="250" />
+            <Input label="W (g)" value={pCarbs100} onChange={setPCarbs100} placeholder="20" />
+            <Input label="B (g)" value={pProtein100} onChange={setPProtein100} placeholder="4" />
+            <Input label="T (g)" value={pFat100} onChange={setPFat100} placeholder="1" />
+          </div>
+          <AddBtn onClick={addToProducts} label="Zapisz produkt" />
+
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && searchProducts()}
+                placeholder="Szukaj w bazie (OpenFoodFacts)..."
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+              />
+              <button
+                type="button"
+                onClick={searchProducts}
+                disabled={searching}
+                className="rounded-full bg-sky-500 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-sky-400 disabled:opacity-50"
+              >
+                {searching ? "..." : "Szukaj"}
+              </button>
+            </div>
+            {results.length > 0 && (
+              <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                {results.map((p, i) => {
+                  const n = p.nutriments ?? {};
+                  const kcal100 = n["energy-kcal_100g"] ?? n["energy-kcal_value"] ?? "?";
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => productFromBase(p)}
+                      className="block w-full rounded-md px-2 py-1 text-left text-xs text-slate-200 hover:bg-slate-800"
+                    >
+                      {p.product_name ?? "Produkt"} · {kcal100} kcal/100g
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-1 space-y-2">
+            {products.length === 0 && (
+              <p className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-[11px] text-slate-400">
+                Brak zapisanych produktów.
+              </p>
+            )}
+            {products.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-start justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-semibold text-slate-50">{p.name}</p>
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                      {p.kcal100 || "—"} kcal/100g
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      value={gramsById[p.id] ?? "100"}
+                      onChange={(e) => setProductGrams(p.id, e.target.value)}
+                      className="w-20 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-400"
+                    />
+                    <span className="text-[10px] text-slate-400">g</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => assignProductToClient(p)}
+                    className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/25"
+                  >
+                    Do diety
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProducts(removeTrainerProduct(trainerId, p.id))}
+                    className="rounded-full border border-slate-700 px-3 py-1 text-[11px] text-slate-400 hover:border-red-500/60 hover:text-red-300"
+                  >
+                    Usuń
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CollapsibleCard>
+      </div>
     </div>
   );
 }

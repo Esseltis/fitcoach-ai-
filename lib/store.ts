@@ -567,6 +567,41 @@ export function removeTrainerMeal(trainerId: string, mealId: string): Meal[] {
   return list;
 }
 
+// ---- Biblioteka produktów trenera (surowce, np. chleb żytni) ----
+
+export type Product = {
+  id: string;
+  name: string;
+  description?: string;
+  kcal100: string;
+  carbs100?: string;
+  protein100?: string;
+  fat100?: string;
+};
+
+const trainerProductsKey = (trainerId: string) =>
+  `fitcoach_trainer_${trainerId}_products`;
+
+export function getTrainerProducts(trainerId: string): Product[] {
+  return getStoredList<Product>(trainerProductsKey(trainerId));
+}
+
+export function saveTrainerProduct(
+  trainerId: string,
+  data: Omit<Product, "id">
+): Product[] {
+  const list = getTrainerProducts(trainerId);
+  list.push({ ...data, id: crypto.randomUUID() });
+  safeSet(trainerProductsKey(trainerId), JSON.stringify(list));
+  return list;
+}
+
+export function removeTrainerProduct(trainerId: string, productId: string): Product[] {
+  const list = getTrainerProducts(trainerId).filter((p) => p.id !== productId);
+  safeSet(trainerProductsKey(trainerId), JSON.stringify(list));
+  return list;
+}
+
 // ---- Biblioteka treningów trenera (bloki ćwiczeń) ----
 
 export type WorkoutBlock = {

@@ -246,6 +246,12 @@ export default function ClientDashboardPage() {
       icon: FileText,
       href: "/client/plan-od-trenera",
     },
+    {
+      id: "raport",
+      label: "Wyślij raport",
+      icon: FileText,
+      href: "/client/raport",
+    },
   ];
 
   return (

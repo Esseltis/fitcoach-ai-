@@ -108,15 +108,22 @@ export default function ClientProfilePage() {
             Profil zapisany!
           </h1>
           <p className="text-sm text-slate-400">
-            Twój trener zobaczy profil i przygotuje dla Ciebie plan. Możesz go
-            w każdej chwili edytować.
+            Twój trener zobaczy profil i przygotuje dla Ciebie plan.
           </p>
-          <Link
-            href="/client"
-            className="inline-block rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
-          >
-            Przejdź do panelu
-          </Link>
+          <div className="flex flex-col gap-2 pt-1">
+            <Link
+              href="/client/raport"
+              className="inline-block rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+            >
+              Wyślij raport dzienny
+            </Link>
+            <Link
+              href="/client"
+              className="inline-block rounded-full border border-slate-700 px-6 py-2 text-sm text-slate-300 hover:bg-slate-800"
+            >
+              Przejdź do panelu
+            </Link>
+          </div>
         </div>
       </div>
     );

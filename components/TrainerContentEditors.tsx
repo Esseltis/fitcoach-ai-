@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type {
   TrainerContent,
   Meal,
@@ -559,6 +559,7 @@ export function DietEditor({
               ))}
               <QuickProductForm
                 categoryLabel={cat.label}
+                trainerId={trainerId}
                 onAdd={(p) => addCustomProduct(cat.key, p)}
               />
             </div>
@@ -584,9 +585,11 @@ function removeFromClientHelper(
 
 function QuickProductForm({
   categoryLabel,
+  trainerId,
   onAdd,
 }: {
   categoryLabel: string;
+  trainerId: string;
   onAdd: (p: {
     name: string;
     description: string;
@@ -598,27 +601,92 @@ function QuickProductForm({
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [calories, setCalories] = useState("");
-  const [carbs, setCarbs] = useState("");
-  const [protein, setProtein] = useState("");
-  const [fat, setFat] = useState("");
+  const [grams, setGrams] = useState("100");
+  const [kcal100, setKcal100] = useState("");
+  const [carbs100, setCarbs100] = useState("");
+  const [protein100, setProtein100] = useState("");
+  const [fat100, setFat100] = useState("");
+
+  const myRecipes = useMemo(() => getTrainerMeals(trainerId), [trainerId, open]);
+
+  const g = Number(grams) || 100;
+  const scale = (v: string) => {
+    const n = Number(v);
+    if (!v.trim() || Number.isNaN(n)) return "";
+    return String(Math.round((n * g) / 100));
+  };
+  const previewKcal = scale(kcal100);
+
+  const reset = () => {
+    setName("");
+    setGrams("100");
+    setKcal100("");
+    setCarbs100("");
+    setProtein100("");
+    setFat100("");
+  };
 
   const submit = () => {
     if (!name.trim()) return;
     onAdd({
       name: name.trim(),
       description: "",
-      calories: calories.trim(),
-      carbs: carbs.trim(),
-      protein: protein.trim(),
-      fat: fat.trim(),
+      calories: scale(kcal100),
+      carbs: scale(carbs100),
+      protein: scale(protein100),
+      fat: scale(fat100),
     });
-    setName("");
-    setCalories("");
-    setCarbs("");
-    setProtein("");
-    setFat("");
+    reset();
     setOpen(false);
+  };
+
+  const addRecipe = (m: Meal) => {
+    onAdd({
+      name: m.name,
+      description: m.description || "",
+      calories: m.calories || "",
+      carbs: m.carbs ?? "",
+      protein: m.protein ?? "",
+      fat: m.fat ?? "",
+    });
+    setOpen(false);
+  };
+
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<
+    { product_name?: string; nutriments?: Record<string, number> }[]
+  >([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  const searchProducts = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    setSearched(false);
+    try {
+      const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(
+        query.trim()
+      )}&search_simple=1&action=process&json=1&page_size=8&fields=product_name,nutriments`;
+      const r = await fetch(url);
+      const j = await r.json();
+      setResults(j.products || []);
+      setSearched(true);
+    } catch {
+      setResults([]);
+      setSearched(true);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const applyProduct = (p: { product_name?: string; nutriments?: Record<string, number> }) => {
+    const n = p.nutriments ?? {};
+    const kcal = n["energy-kcal_100g"];
+    setName(p.product_name ?? "");
+    setKcal100(kcal != null ? String(Math.round(kcal)) : "");
+    setCarbs100(n.carbohydrates_100g != null ? String(Math.round(n.carbohydrates_100g)) : "");
+    setProtein100(n.proteins_100g != null ? String(Math.round(n.proteins_100g)) : "");
+    setFat100(n.fat_100g != null ? String(Math.round(n.fat_100g)) : "");
   };
 
   return (
@@ -629,17 +697,87 @@ function QuickProductForm({
           onClick={() => setOpen(true)}
           className="text-[11px] font-medium text-emerald-300 hover:text-emerald-200"
         >
-          + Dodaj własny produkt ({categoryLabel})
+          + Dodaj produkt ({categoryLabel})
         </button>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Dodaj do: {categoryLabel}
+          </p>
+
+          {myRecipes.length > 0 && (
+            <div>
+              <p className="mb-1 text-[11px] font-medium text-slate-300">Z Twoich przepisów:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {myRecipes.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => addRecipe(m)}
+                    className="rounded-full border border-emerald-600/50 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-200 hover:bg-emerald-500/20"
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <Input label="Nazwa (np. Chleb żytni)" value={name} onChange={setName} />
-          <div className="grid gap-2 sm:grid-cols-4">
-            <Input label="kcal" value={calories} onChange={setCalories} placeholder="np. 120" />
-            <Input label="W (g)" value={carbs} onChange={setCarbs} placeholder="np. 20" />
-            <Input label="B (g)" value={protein} onChange={setProtein} placeholder="np. 4" />
-            <Input label="T (g)" value={fat} onChange={setFat} placeholder="np. 1" />
+          <div className="grid gap-2 sm:grid-cols-5">
+            <Input label="Ilość (g)" value={grams} onChange={setGrams} type="number" placeholder="100" />
+            <Input label="kcal / 100g" value={kcal100} onChange={setKcal100} placeholder="np. 250" />
+            <Input label="W (g)" value={carbs100} onChange={setCarbs100} placeholder="np. 20" />
+            <Input label="B (g)" value={protein100} onChange={setProtein100} placeholder="np. 4" />
+            <Input label="T (g)" value={fat100} onChange={setFat100} placeholder="np. 1" />
           </div>
+          {previewKcal && (
+            <p className="text-[11px] text-slate-400">
+              Przy {g} g: <span className="font-semibold text-emerald-300">{previewKcal} kcal</span> (wartości kcal/makro liczone na 100 g)
+            </p>
+          )}
+
+          <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2">
+            <div className="flex gap-2">
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && searchProducts()}
+                placeholder="Szukaj produktu w bazie (OpenFoodFacts)..."
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-400"
+              />
+              <button
+                type="button"
+                onClick={searchProducts}
+                className="shrink-0 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-600"
+              >
+                {searching ? "..." : "Szukaj"}
+              </button>
+            </div>
+            {searched && results.length === 0 && (
+              <p className="mt-1 text-[11px] text-slate-500">Brak wyników.</p>
+            )}
+            {results.length > 0 && (
+              <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+                {results.map((p, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => applyProduct(p)}
+                    className="block w-full rounded-md px-2 py-1 text-left text-xs text-slate-200 hover:bg-slate-800"
+                  >
+                    {p.product_name || "(bez nazwy)"}
+                    <span className="ml-1 text-[10px] text-slate-500">
+                      {p.nutriments?.["energy-kcal_100g"] != null
+                        ? `${Math.round(p.nutriments["energy-kcal_100g"])} kcal/100g`
+                        : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <button
               type="button"
@@ -650,7 +788,10 @@ function QuickProductForm({
             </button>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                reset();
+                setOpen(false);
+              }}
               className="rounded-full border border-slate-700 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
             >
               Anuluj

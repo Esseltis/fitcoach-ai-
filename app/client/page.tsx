@@ -1321,9 +1321,39 @@ function NutritionTipsSection({ content }: { content: TrainerContent }) {
 
 function MealsVariantsSection({ content }: { content: TrainerContent }) {
   const meals = content.diet.meals;
-  const mealTabs = meals.map((m) => m.name || "Posiłek");
-  const [activeMeal, setActiveMeal] = useState(0);
-  const activeMealData = meals[activeMeal] ?? meals[0];
+  const catOrder: string[] = [
+    "sniadanie",
+    "ii_sniadanie",
+    "obiad",
+    "podwieczorek",
+    "kolacja",
+  ];
+  const catLabels: Record<string, string> = {
+    sniadanie: "Śniadanie",
+    ii_sniadanie: "II śniadanie",
+    obiad: "Obiad",
+    podwieczorek: "Podwieczorek",
+    kolacja: "Kolacja",
+  };
+  const groups = catOrder
+    .map((cat) => ({
+      cat,
+      label: catLabels[cat],
+      items: meals.filter((m) => (m.category ?? "") === cat),
+    }))
+    .filter((g) => g.items.length > 0);
+  const [activeTab, setActiveTab] = useState(0);
+  const [activeVariant, setActiveVariant] = useState(0);
+  const group = groups[activeTab] ?? groups[0];
+  const variant = group?.items[activeVariant] ?? group?.items[0];
+
+  if (groups.length === 0) {
+    return (
+      <section className="mx-auto max-w-5xl rounded-2xl border border-slate-800 bg-slate-950/80 p-6 text-sm text-slate-300">
+        Trener nie ułożył jeszcze diety.
+      </section>
+    );
+  }
 
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -1332,34 +1362,51 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
           POSIŁKI I WARIANTY
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-300">
-          Wybierz posiłki ułożone dla Ciebie przez trenera wraz z ich
-          kalorycznością.
+          Posiłki ułożone przez trenera — w każdej kategorii możesz wybrać
+          spośród kilku wariantów.
         </p>
       </header>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-200">
         <div className="flex flex-wrap gap-2">
-          {mealTabs.map((label, idx) => (
+          {groups.map((g, idx) => (
             <button
-              key={label}
+              key={g.cat}
               type="button"
-              onClick={() => setActiveMeal(idx)}
+              onClick={() => setActiveTab(idx)}
               className={`flex-1 min-w-[90px] rounded-lg px-4 py-2 text-center uppercase tracking-wide ${
-                activeMeal === idx
+                activeTab === idx
                   ? "bg-sky-500 text-slate-950 font-semibold shadow-[0_0_18px_rgba(56,189,248,0.6)]"
                   : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
               }`}
             >
-              {label}
+              {g.label}
             </button>
           ))}
         </div>
       </section>
 
       <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
+        <div className="flex flex-wrap gap-2">
+          {group.items.map((m, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => setActiveVariant(idx)}
+              className={`rounded-full px-4 py-1.5 text-[11px] ${
+                activeVariant === idx
+                  ? "bg-sky-500 text-slate-950 font-semibold"
+                  : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
+              }`}
+            >
+              {m.name}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/70 px-4 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-            Posiłek: {activeMealData?.name ?? "—"}
+            {group?.label ?? "Posiłek"}: {variant?.name ?? "—"}
           </p>
           <p className="text-[11px] text-slate-400">
             Docelowa kaloryczność:{" "}
@@ -1376,7 +1423,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
 
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
             <p className="self-start text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-              WARTOŚCI ODŻYWCZE (DEMO)
+              WARTOŚCI ODŻYWCZE
             </p>
             <div className="relative h-40 w-40">
               <div className="absolute inset-0 rounded-full border-[10px] border-slate-800" />
@@ -1385,10 +1432,12 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
               <div className="absolute inset-5 rounded-full border-[10px] border-amber-400/80 border-t-transparent border-r-transparent rotate-[15deg]" />
               <div className="absolute inset-10 flex flex-col items-center justify-center rounded-full bg-slate-950">
                 <p className="text-[11px] uppercase tracking-wide text-slate-400">
-                  {activeMealData?.calories || "—"} kcal
+                  {variant?.calories || "—"} kcal
                 </p>
-                <p className="mt-1 text-[11px] text-slate-300">
-                  {activeMealData?.name ?? "Posiłek"}
+                <p className="mt-1 text-center text-[10px] text-slate-300">
+                  {variant?.carbs || variant?.protein || variant?.fat
+                    ? `W ${variant.carbs || "—"} · B ${variant.protein || "—"} · T ${variant.fat || "—"} g`
+                    : variant?.name ?? "Posiłek"}
                 </p>
               </div>
             </div>
@@ -1399,7 +1448,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-400">
             OPIS
           </p>
-          <p>{activeMealData?.description || "Brak opisu tego posiłku."}</p>
+          <p>{variant?.description || "Brak opisu tego posiłku."}</p>
         </div>
       </section>
     </section>

@@ -348,13 +348,31 @@ export function DietEditor({
     upd({
       meals: [
         ...diet.meals,
-        { name: meal.name, description: meal.description, calories: meal.calories },
+        {
+          category: meal.category,
+          name: meal.name,
+          description: meal.description,
+          calories: meal.calories,
+          carbs: meal.carbs,
+          protein: meal.protein,
+          fat: meal.fat,
+        },
       ],
     });
   };
 
-  const removeFromClient = (i: number) =>
-    upd({ meals: diet.meals.filter((_, j) => j !== i) });
+  const addCustomProduct = (cat: MealCategory, p: { name: string; description: string; calories: string; carbs?: string; protein?: string; fat?: string }) => {
+    if (!p.name.trim()) return;
+    upd({
+      meals: [
+        ...diet.meals,
+        { category: cat, ...p },
+      ],
+    });
+  };
+
+  const removeFromClientByIndex = (cat: MealCategory, i: number) =>
+    upd({ meals: removeFromClientHelper(diet.meals, cat, i) });
 
   return (
     <div className="space-y-4">
@@ -497,7 +515,7 @@ export function DietEditor({
       </CollapsibleCard>
 
       {/* Dieta klienta */}
-      <CollapsibleCard title="Dieta klienta">
+      <CollapsibleCard title="Dieta klienta (warianty na kategorię)">
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             label="Docelowa kaloryczność (kcal)"
@@ -505,29 +523,141 @@ export function DietEditor({
             onChange={(v) => upd({ targetCalories: v })}
           />
         </div>
-        {diet.meals.map((m, i) => (
-          <div
-            key={i}
-            className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-semibold text-slate-50">{m.name}</p>
-                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
-                  {m.calories || "—"} kcal
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] text-slate-400">{m.description}</p>
+
+        {MEAL_CATEGORIES.map((cat) => {
+          const items = diet.meals.filter((m) => (m.category ?? "") === cat.key);
+          return (
+            <div key={cat.key} className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+                {cat.label} {items.length > 0 ? `(${items.length})` : ""}
+              </p>
+              {items.map((m, i) => (
+                <div
+                  key={`${m.name}-${i}`}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-50">
+                        {m.name}
+                      </p>
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                        {m.calories || "—"} kcal
+                      </span>
+                    </div>
+                    {m.carbs || m.protein || m.fat ? (
+                      <p className="mt-0.5 text-[10px] text-slate-400">
+                        W {m.carbs || "—"} · B {m.protein || "—"} · T {m.fat || "—"} g
+                      </p>
+                    ) : null}
+                    {m.description && (
+                      <p className="mt-1 text-[11px] text-slate-400">{m.description}</p>
+                    )}
+                  </div>
+                  <RemoveBtn onClick={() => removeFromClientByIndex(cat.key, i)} />
+                </div>
+              ))}
+              <QuickProductForm
+                categoryLabel={cat.label}
+                onAdd={(p) => addCustomProduct(cat.key, p)}
+              />
             </div>
-            <RemoveBtn onClick={() => removeFromClient(i)} />
-          </div>
-        ))}
-        {diet.meals.length === 0 && (
-          <p className="text-[11px] text-slate-500">
-            Dodaj posiłki z biblioteki powyżej, aby złożyć dietę klienta.
-          </p>
-        )}
+          );
+        })}
       </CollapsibleCard>
+    </div>
+  );
+}
+
+function removeFromClientHelper(
+  meals: { category?: string }[],
+  cat: string,
+  i: number
+) {
+  let seen = -1;
+  return meals.filter((m) => {
+    if ((m.category ?? "") !== cat) return true;
+    seen++;
+    return seen !== i;
+  });
+}
+
+function QuickProductForm({
+  categoryLabel,
+  onAdd,
+}: {
+  categoryLabel: string;
+  onAdd: (p: {
+    name: string;
+    description: string;
+    calories: string;
+    carbs?: string;
+    protein?: string;
+    fat?: string;
+  }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [calories, setCalories] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [protein, setProtein] = useState("");
+  const [fat, setFat] = useState("");
+
+  const submit = () => {
+    if (!name.trim()) return;
+    onAdd({
+      name: name.trim(),
+      description: "",
+      calories: calories.trim(),
+      carbs: carbs.trim(),
+      protein: protein.trim(),
+      fat: fat.trim(),
+    });
+    setName("");
+    setCalories("");
+    setCarbs("");
+    setProtein("");
+    setFat("");
+    setOpen(false);
+  };
+
+  return (
+    <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/30 p-3">
+      {!open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-[11px] font-medium text-emerald-300 hover:text-emerald-200"
+        >
+          + Dodaj własny produkt ({categoryLabel})
+        </button>
+      ) : (
+        <div className="space-y-2">
+          <Input label="Nazwa (np. Chleb żytni)" value={name} onChange={setName} />
+          <div className="grid gap-2 sm:grid-cols-4">
+            <Input label="kcal" value={calories} onChange={setCalories} placeholder="np. 120" />
+            <Input label="W (g)" value={carbs} onChange={setCarbs} placeholder="np. 20" />
+            <Input label="B (g)" value={protein} onChange={setProtein} placeholder="np. 4" />
+            <Input label="T (g)" value={fat} onChange={setFat} placeholder="np. 1" />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={submit}
+              className="rounded-full bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
+            >
+              Dodaj do diety
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-full border border-slate-700 px-4 py-1.5 text-xs text-slate-300 hover:bg-slate-800"
+            >
+              Anuluj
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

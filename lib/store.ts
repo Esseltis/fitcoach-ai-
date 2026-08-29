@@ -212,7 +212,15 @@ export function savePlan(trainerId: string, email: string, data: TrainerPlan) {
 // ---- Treść panelu klienta (wypełniana przez trenera) ----
 
 export type Tip = { title: string; desc: string };
-export type DietMeal = { name: string; description: string; calories: string };
+export type DietMeal = {
+  category?: MealCategory;
+  name: string;
+  description: string;
+  calories: string;
+  carbs?: string;
+  protein?: string;
+  fat?: string;
+};
 export type SupplementItem = {
   id: string;
   name: string;
@@ -318,11 +326,11 @@ export const DEFAULT_CONTENT: TrainerContent = {
   diet: {
     targetCalories: "2800",
     meals: [
-      { name: "Śniadanie", description: "Owsianka z owocami i orzechami.", calories: "550" },
-      { name: "II śniadanie", description: "Jogurt naturalny z garścią borówek.", calories: "300" },
-      { name: "Obiad", description: "Kurczak z ryżem i warzywami.", calories: "750" },
-      { name: "Podwieczorek", description: "Omlet białkowy z pomidorem.", calories: "350" },
-      { name: "Kolacja", description: "Twaróg z rzodkiewką i szczypiorkiem.", calories: "450" },
+      { category: "sniadanie", name: "Owsianka z owocami", description: "Owsianka z owocami i orzechami.", calories: "550" },
+      { category: "ii_sniadanie", name: "Jogurt z borówkami", description: "Jogurt naturalny z garścią borówek.", calories: "300" },
+      { category: "obiad", name: "Kurczak z ryżem", description: "Kurczak z ryżem i warzywami.", calories: "750" },
+      { category: "podwieczorek", name: "Omlet białkowy", description: "Omlet białkowy z pomidorem.", calories: "350" },
+      { category: "kolacja", name: "Twaróg z rzodkiewką", description: "Twaróg z rzodkiewką i szczypiorkiem.", calories: "450" },
     ],
   },
   supplements: [

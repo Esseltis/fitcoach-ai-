@@ -744,3 +744,150 @@ export function saveTrainerWorkout(
   safeSet(trainerWorkoutsKey(trainerId), JSON.stringify(list));
   return list;
 }
+
+// ---- Pomiary ciała klienta ----
+
+export const MEASUREMENT_METRICS: {
+  key: string;
+  label: string;
+  unit: string;
+}[] = [
+  { key: "weight", label: "Waga", unit: "kg" },
+  { key: "pas", label: "Pas", unit: "cm" },
+  { key: "brzuch", label: "Brzuch", unit: "cm" },
+  { key: "biceps", label: "Biceps", unit: "cm" },
+  { key: "klatka", label: "Klatka", unit: "cm" },
+  { key: "uda", label: "Uda", unit: "cm" },
+  { key: "lydki", label: "Łydki", unit: "cm" },
+];
+
+export type Measurement = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  values: Record<string, string>;
+};
+
+const measurementsKey = (email: string) => `fitcoach_measurements_${email}`;
+
+export function getMeasurements(email: string): Measurement[] {
+  const list = getStoredList<Measurement>(measurementsKey(email));
+  return list.sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
+export function addMeasurement(
+  email: string,
+  data: { date: string; values: Record<string, string> }
+): Measurement[] {
+  const list = getMeasurements(email);
+  list.push({ id: crypto.randomUUID(), date: data.date, values: data.values });
+  safeSet(measurementsKey(email), JSON.stringify(list));
+  return list;
+}
+
+export function removeMeasurement(email: string, id: string): Measurement[] {
+  const list = getMeasurements(email).filter((m) => m.id !== id);
+  safeSet(measurementsKey(email), JSON.stringify(list));
+  return list;
+}
+
+// ---- Nawodnienie klienta (szklanki wody na dzień) ----
+
+const waterKey = (email: string) => `fitcoach_water_${email}`;
+
+function getWaterMap(email: string): Record<string, number> {
+  const raw = safeGet(waterKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return typeof obj === "object" && obj !== null ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getWaterForDate(email: string, date: string): number {
+  return getWaterMap(email)[date] ?? 0;
+}
+
+export function setWaterForDate(
+  email: string,
+  date: string,
+  count: number
+): number {
+  const map = getWaterMap(email);
+  map[date] = Math.max(0, count);
+  safeSet(waterKey(email), JSON.stringify(map));
+  return map[date];
+}
+
+// ---- Odhaczanie wykonanych ćwiczeń (plan treningowy online) ----
+
+const trainingKey = (email: string) => `fitcoach_training_done_${email}`;
+
+function getTrainingDone(email: string): Record<string, string[]> {
+  const raw = safeGet(trainingKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return typeof obj === "object" && obj !== null ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getDoneExerciseIds(
+  email: string,
+  dayId: number
+): string[] {
+  return getTrainingDone(email)[String(dayId)] ?? [];
+}
+
+export function toggleExerciseDone(
+  email: string,
+  dayId: number,
+  exerciseId: string
+): string[] {
+  const map = getTrainingDone(email);
+  const key = String(dayId);
+  const current = map[key] ?? [];
+  const next = current.includes(exerciseId)
+    ? current.filter((id) => id !== exerciseId)
+    : [...current, exerciseId];
+  map[key] = next;
+  safeSet(trainingKey(email), JSON.stringify(map));
+  return next;
+}
+
+// ---- Odhaczanie zjedzonych posiłków ----
+
+const mealsDoneKey = (email: string) => `fitcoach_meals_done_${email}`;
+
+function getMealsDone(email: string): Record<string, string[]> {
+  const raw = safeGet(mealsDoneKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return typeof obj === "object" && obj !== null ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getDoneMeals(email: string, date: string): string[] {
+  return getMealsDone(email)[date] ?? [];
+}
+
+export function toggleMealDone(
+  email: string,
+  date: string,
+  mealId: string
+): string[] {
+  const map = getMealsDone(email);
+  const current = map[date] ?? [];
+  const next = current.includes(mealId)
+    ? current.filter((id) => id !== mealId)
+    : [...current, mealId];
+  map[date] = next;
+  safeSet(mealsDoneKey(email), JSON.stringify(map));
+  return next;
+}

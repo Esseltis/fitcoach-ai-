@@ -1,76 +1,128 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, LineChart, CheckCircle2 } from "lucide-react";
-
-// Dane przykładowe – w docelowej wersji przyjdą z bazy
-const dates = [
-  "13.06.2023",
-  "11.07.2023",
-  "06.08.2023",
-  "03.09.2023",
-  "26.02.2026",
-];
-
-const series = [
-  {
-    key: "waga",
-    label: "Waga",
-    color: "#ffffff",
-    values: [78, 76, 75, 74.5, 74.5],
-  },
-  {
-    key: "pas",
-    label: "Pas",
-    color: "#ff4d4d",
-    values: [88, 86, 85, 83, 83],
-  },
-  {
-    key: "brzuch",
-    label: "Brzuch",
-    color: "#ff9933",
-    values: [86, 85, 84, 82, 81],
-  },
-  {
-    key: "biceps",
-    label: "Biceps",
-    color: "#3366ff",
-    values: [38, 38, 39, 40, 40],
-  },
-  {
-    key: "klatka",
-    label: "Klatka",
-    color: "#33cc33",
-    values: [104, 106, 107, 108, 108],
-  },
-  {
-    key: "uda",
-    label: "Uda",
-    color: "#ffaa00",
-    values: [55, 54, 53, 53, 53],
-  },
-  {
-    key: "lydki",
-    label: "Łydki",
-    color: "#ffdd00",
-    values: [36, 36, 36, 36, 36],
-  },
-];
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, LineChart, Plus, Trash2, Ruler, Scale } from "lucide-react";
+import {
+  MEASUREMENT_METRICS,
+  addMeasurement,
+  getMeasurements,
+  removeMeasurement,
+  type Measurement,
+} from "@/lib/store";
 
 const width = 700;
 const height = 260;
 const paddingX = 40;
 const paddingY = 30;
 
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+function seedIfEmpty(email: string) {
+  if (typeof window === "undefined") return;
+  const existing = getMeasurements(email);
+  if (existing.length > 0) return;
+  const seeds: Measurement[] = [
+    {
+      id: "seed1",
+      date: "2026-03-01",
+      values: { weight: "87.2", pas: "88", brzuch: "86", biceps: "35", klatka: "100", uda: "60", lydki: "35" },
+    },
+    {
+      id: "seed2",
+      date: "2026-04-01",
+      values: { weight: "86.0", pas: "86", brzuch: "84", biceps: "35.5", klatka: "101", uda: "59.5", lydki: "35" },
+    },
+    {
+      id: "seed3",
+      date: "2026-05-01",
+      values: { weight: "85.1", pas: "85", brzuch: "82", biceps: "36", klatka: "102", uda: "59", lydki: "35" },
+    },
+    {
+      id: "seed4",
+      date: "2026-06-01",
+      values: { weight: "84.3", pas: "83", brzuch: "80", biceps: "36.5", klatka: "103", uda: "58.5", lydki: "35.5" },
+    },
+    {
+      id: "seed5",
+      date: "2026-07-01",
+      values: { weight: "83.5", pas: "82", brzuch: "79", biceps: "37", klatka: "104", uda: "58", lydki: "35.5" },
+    },
+  ];
+  window.localStorage.setItem(
+    `fitcoach_measurements_${email}`,
+    JSON.stringify(seeds)
+  );
+}
+
 export default function ClientStatsPage() {
-  const allValues = series.flatMap((s) => s.values);
-  const min = Math.min(...allValues) - 5;
-  const max = Math.max(...allValues) + 5;
+  const [email, setEmail] = useState<string>("demo@fitcoach.ai");
+  const [ready, setReady] = useState(false);
+  const [list, setList] = useState<Measurement[]>([]);
+  const [metricKey, setMetricKey] = useState<string>("weight");
+  const [showForm, setShowForm] = useState(false);
+
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [formDate, setFormDate] = useState(todayISO());
+
+  useEffect(() => {
+    const storedEmail = window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
+    setEmail(storedEmail);
+    seedIfEmpty(storedEmail);
+    setList(getMeasurements(storedEmail));
+    setReady(true);
+  }, []);
+
+  const metric = MEASUREMENT_METRICS.find((m) => m.key === metricKey) ?? MEASUREMENT_METRICS[0];
+
+  const series = useMemo(() => {
+    return list
+      .map((m) => ({
+        date: m.date,
+        value: parseFloat(m.values[metricKey] ?? "0") || 0,
+      }))
+      .filter((p) => !Number.isNaN(p.value) && p.value > 0);
+  }, [list, metricKey]);
+
+  const handleAdd = () => {
+    if (!formDate || !email) return;
+    const values: Record<string, string> = {};
+    let hasValue = false;
+    for (const m of MEASUREMENT_METRICS) {
+      const raw = form[m.key]?.trim();
+      values[m.key] = raw ?? "";
+      if (raw) hasValue = true;
+    }
+    if (!hasValue) return;
+    addMeasurement(email, { date: formDate, values });
+    setList(getMeasurements(email));
+    setForm({});
+    setShowForm(false);
+  };
+
+  const handleDelete = (id: string) => {
+    if (!email) return;
+    removeMeasurement(email, id);
+    setList(getMeasurements(email));
+  };
+
+  const allValues = series.map((s) => s.value);
+  const min = allValues.length ? Math.min(...allValues) - 2 : 0;
+  const max = allValues.length ? Math.max(...allValues) + 2 : 10;
 
   const scaleX = (i: number) =>
-    paddingX + (i * (width - 2 * paddingX)) / (dates.length - 1);
+    allValues.length > 1
+      ? paddingX + (i * (width - 2 * paddingX)) / (allValues.length - 1)
+      : width / 2;
   const scaleY = (v: number) =>
     height - paddingY - ((v - min) * (height - 2 * paddingY)) / (max - min);
+
+  const fmtDate = (iso: string) => {
+    const [y, m, d] = iso.split("-");
+    return `${d}.${m}.${y}`;
+  };
+
+  if (!ready) return null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50">
@@ -85,176 +137,247 @@ export default function ClientStatsPage() {
           </Link>
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
             <LineChart className="h-4 w-4 text-emerald-400" />
-            Statystyki wymiarów
+            Pomiary ciała
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] items-start">
-          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-4 lg:px-6 lg:py-5">
-            <div className="mb-3 flex flex-wrap gap-3 text-[11px] uppercase tracking-wide font-semibold text-slate-300">
-              {series.map((s) => (
-                <div key={s.key} className="flex items-center gap-1">
-                  <span
-                    className="h-2 w-4 rounded-full"
-                    style={{ backgroundColor: s.color }}
+        <p className="text-xs lg:text-sm text-slate-400 mb-6 max-w-2xl">
+          Dodawaj regularne pomiary, a wykres pokaże Ci zmianę w czasie.
+          Wybierz metrykę, aby przełączyć wykres.
+        </p>
+
+        {/* Pasek wyboru metryki + dodawanie */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-2 text-xs">
+            {MEASUREMENT_METRICS.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setMetricKey(m.key)}
+                className={`rounded-lg px-3 py-1.5 ${
+                  metricKey === m.key
+                    ? "bg-emerald-500 text-slate-950 font-semibold"
+                    : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
+                }`}
+              >
+                {m.label} ({m.unit})
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowForm((v) => !v)}
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 hover:bg-emerald-400"
+          >
+            <Plus className="h-3 w-3" />
+            Nowy pomiar
+          </button>
+        </div>
+
+        {/* Formularz dodawania */}
+        {showForm && (
+          <div className="mb-4 rounded-2xl border border-emerald-500/40 bg-slate-900/90 p-4 text-xs text-slate-200">
+            <div className="mb-3 flex items-center gap-2">
+              <Ruler className="h-4 w-4 text-emerald-400" />
+              <span className="font-semibold">Dodaj nowy pomiar</span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <label className="flex flex-col gap-1">
+                <span className="text-slate-400">Data</span>
+                <input
+                  type="date"
+                  value={formDate}
+                  max={todayISO()}
+                  onChange={(e) => setFormDate(e.target.value)}
+                  className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
+                />
+              </label>
+              {MEASUREMENT_METRICS.map((m) => (
+                <label key={m.key} className="flex flex-col gap-1">
+                  <span className="text-slate-400">
+                    {m.label} ({m.unit})
+                  </span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={form[m.key] ?? ""}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, [m.key]: e.target.value }))
+                    }
+                    className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
                   />
-                  <span>{s.label}</span>
-                </div>
+                </label>
               ))}
             </div>
-
-            <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
-              <svg
-                viewBox={`0 0 ${width} ${height}`}
-                className="w-full h-[260px] text-slate-400"
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="rounded-full bg-emerald-500 px-5 py-2 font-semibold uppercase tracking-wide text-slate-950 hover:bg-emerald-400"
               >
-                <defs>
-                  <pattern
-                    id="grid"
+                Zapisz pomiar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="rounded-full border border-slate-700 px-4 py-2 text-slate-300 hover:bg-slate-800"
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,0.6fr)] items-start">
+          <section className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-4 lg:px-6 lg:py-5">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-300">
+                {metric.label} ({metric.unit})
+              </p>
+              <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-300">
+                {series.length} pomiarów
+              </span>
+            </div>
+
+            {series.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 py-16 text-center text-xs text-slate-400">
+                <Scale className="h-8 w-8 text-slate-600" />
+                Brak pomiarów dla tej metryki.
+                <button
+                  type="button"
+                  onClick={() => setShowForm(true)}
+                  className="text-emerald-400 hover:underline"
+                >
+                  Dodaj pierwszy pomiar
+                </button>
+              </div>
+            ) : (
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950/60">
+                <svg
+                  viewBox={`0 0 ${width} ${height}`}
+                  className="w-full h-[260px] text-slate-400"
+                >
+                  <defs>
+                    <pattern
+                      id="grid"
+                      x="0"
+                      y="0"
+                      width="20"
+                      height="20"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <path
+                        d="M 20 0 L 0 0 0 20"
+                        fill="none"
+                        stroke="rgba(148,163,184,0.15)"
+                        strokeWidth="0.5"
+                      />
+                    </pattern>
+                  </defs>
+                  <rect
                     x="0"
                     y="0"
-                    width="20"
-                    height="20"
-                    patternUnits="userSpaceOnUse"
-                  >
-                    <path
-                      d="M 20 0 L 0 0 0 20"
-                      fill="none"
-                      stroke="rgba(148,163,184,0.15)"
-                      strokeWidth="0.5"
-                    />
-                  </pattern>
-                </defs>
-                <rect
-                  x="0"
-                  y="0"
-                  width={width}
-                  height={height}
-                  fill="url(#grid)"
-                />
+                    width={width}
+                    height={height}
+                    fill="url(#grid)"
+                  />
 
-                {series.map((s) => {
-                  const pathD = s.values
-                    .map((v, i) => {
-                      const x = scaleX(i);
-                      const y = scaleY(v);
-                      return `${i === 0 ? "M" : "L"}${x},${y}`;
-                    })
-                    .join(" ");
-
-                  return (
-                    <g key={s.key}>
-                      <path
-                        d={pathD}
-                        fill="none"
-                        stroke={s.color}
-                        strokeWidth={2}
-                      />
-                      {s.values.map((v, i) => {
+                  <path
+                    d={series
+                      .map((p, i) => {
                         const x = scaleX(i);
-                        const y = scaleY(v);
-                        return (
-                          <g key={i}>
-                            <circle
-                              cx={x}
-                              cy={y}
-                              r={4}
-                              fill={s.color}
-                              stroke="#020617"
-                              strokeWidth={1}
-                            />
-                            <text
-                              x={x}
-                              y={y - 8}
-                              textAnchor="middle"
-                              fontSize="9"
-                              fill="#e5e7eb"
-                            >
-                              {v}
-                            </text>
-                          </g>
-                        );
-                      })}
-                    </g>
-                  );
-                })}
+                        const y = scaleY(p.value);
+                        return `${i === 0 ? "M" : "L"}${x},${y}`;
+                      })
+                      .join(" ")}
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                  />
+                  {series.map((p, i) => {
+                    const x = scaleX(i);
+                    const y = scaleY(p.value);
+                    return (
+                      <g key={i}>
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r={4}
+                          fill="#10b981"
+                          stroke="#020617"
+                          strokeWidth={1}
+                        />
+                        <text
+                          x={x}
+                          y={y - 8}
+                          textAnchor="middle"
+                          fontSize="9"
+                          fill="#e5e7eb"
+                        >
+                          {p.value}
+                        </text>
+                      </g>
+                    );
+                  })}
 
-                {dates.map((d, i) => {
-                  const x = scaleX(i);
-                  return (
-                    <text
-                      key={d}
-                      x={x}
-                      y={height - 8}
-                      textAnchor="middle"
-                      fontSize="9"
-                      fill="#94a3b8"
-                    >
-                      {d}
-                    </text>
-                  );
-                })}
-              </svg>
-            </div>
+                  {series.map((p, i) => {
+                    const x = scaleX(i);
+                    return (
+                      <text
+                        key={p.date}
+                        x={x}
+                        y={height - 8}
+                        textAnchor="middle"
+                        fontSize="9"
+                        fill="#94a3b8"
+                      >
+                        {fmtDate(p.date)}
+                      </text>
+                    );
+                  })}
+                </svg>
+              </div>
+            )}
           </section>
 
           <aside className="space-y-4">
             <section className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-slate-200">
-              <p className="text-[11px] uppercase text-slate-400 font-semibold mb-2">
-                Podsumowanie zmian (demo)
+              <p className="text-[11px] uppercase text-slate-400 font-semibold mb-3">
+                Historia pomiarów
               </p>
-              <ul className="space-y-1.5">
-                {series.map((s) => {
-                  const start = s.values[0];
-                  const end = s.values[s.values.length - 1];
-                  const diff = end - start;
-                  const improved = diff < 0;
-                  const diffText = `${improved ? "-" : "+"}${Math.abs(
-                    diff
-                  ).toFixed(1)}`;
-                  const color = improved ? "text-emerald-400" : "text-amber-300";
-
-                  return (
+              {list.length === 0 ? (
+                <p className="text-slate-500">Brak zapisanych pomiarów.</p>
+              ) : (
+                <ul className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                  {[...list].reverse().map((m) => (
                     <li
-                      key={s.key}
-                      className="flex items-center justify-between gap-2"
+                      key={m.id}
+                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2"
                     >
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-2 w-4 rounded-full"
-                          style={{ backgroundColor: s.color }}
-                        />
-                        <span>{s.label}</span>
-                      </span>
-                      <span className="text-slate-400">
-                        <span className="mr-1 text-slate-500">od</span>
-                        {start.toFixed(1)}
-                        <span className="mx-1 text-slate-500">do</span>
-                        {end.toFixed(1)}
-                        <span className={`ml-2 font-semibold ${color}`}>
-                          {diffText}
-                        </span>
-                      </span>
+                      <div>
+                        <p className="font-semibold text-slate-100">
+                          {fmtDate(m.date)}
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          {MEASUREMENT_METRICS.filter(
+                            (mm) => m.values[mm.key] && parseFloat(m.values[mm.key]) > 0
+                          )
+                            .map((mm) => `${mm.label}: ${m.values[mm.key]} ${mm.unit}`)
+                            .join(" · ") || "—"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(m.id)}
+                        className="rounded-full p-1.5 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                        aria-label="Usuń pomiar"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </li>
-                  );
-                })}
-              </ul>
-            </section>
-
-            <section className="bg-slate-900/80 border border-slate-800 rounded-2xl px-4 py-4 text-xs text-slate-300 space-y-2">
-              <div className="flex items-center gap-2 text-slate-100 text-sm font-semibold">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Jak czytać ten wykres
-              </div>
-              <p>
-                Linie pokazują, jak zmieniały się Twoje wymiary w czasie – od
-                pierwszego raportu do dziś. Kolory odpowiadają poszczególnym
-                partiom ciała.
-              </p>
-              <p>
-                To tylko widok poglądowy. W docelowej wersji wartości będą
-                pobierane z pomiarów wprowadzonych przez Ciebie i trenera.
-              </p>
+                  ))}
+                </ul>
+              )}
             </section>
           </aside>
         </div>
@@ -262,4 +385,3 @@ export default function ClientStatsPage() {
     </div>
   );
 }
-

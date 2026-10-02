@@ -49,9 +49,31 @@ import {
   getMoodByDate,
   getTasksDone,
   toggleTaskDone,
+  getPhotoMeals,
+  addPhotoMeal,
+  removePhotoMeal,
+  MAX_PHOTO_MEALS_PER_DAY,
+  type PhotoMeal,
 } from "@/lib/store";
+import { fileToDataUrl } from "@/lib/images";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Wynik /api/analyze-meal — AI po kluczu OPENAI_API_KEY, w przeciwnym razie demo
+type AnalyzeResult =
+  | {
+      ok: true;
+      source: "ai" | "demo";
+      name: string;
+      recipe: string[];
+      kcal: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+    }
+  | { ok: false; error?: string };
+
+type AnalyzeOk = Extract<AnalyzeResult, { ok: true }>;
 
 // Cel nawodnienia: ~31 ml/kg masy ciała, szklanka = 250 ml.
 // Trener może nadpisać cel liczbą szklanek (guidelines.waterGlasses).
@@ -1908,6 +1930,15 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
   const [choices, setChoices] = useState<Record<string, number>>({});
   const [burned, setBurned] = useState(0);
 
+  // Posiłek spoza planu: zdjęcie → analiza AI (kcal + makro)
+  const [photoMeals, setPhotoMeals] = useState<PhotoMeal[]>([]);
+  const [showUpload, setShowUpload] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [dishHint, setDishHint] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalyzeOk | null>(null);
+  const [photoError, setPhotoError] = useState("");
+
   useEffect(() => {
     const storedEmail =
       window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
@@ -1917,6 +1948,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
     setBurned(
       getActivities(storedEmail, todayISO()).reduce((s, a) => s + a.kcal, 0)
     );
+    setPhotoMeals(getPhotoMeals(storedEmail, todayISO()));
   }, []);
 
   const pickVariant = (idx: number) => {
@@ -1930,12 +1962,108 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
     setDoneMeals(toggleMealDone(email, todayISO(), cat));
   };
 
+  const resetUpload = () => {
+    setShowUpload(false);
+    setPhotoPreview(null);
+    setAnalysis(null);
+    setDishHint("");
+    setPhotoError("");
+  };
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // pozwala wybrać ten sam plik ponownie
+    if (!file) return;
+    setPhotoError("");
+    setAnalysis(null);
+    try {
+      setPhotoPreview(await fileToDataUrl(file, 1024, 0.75));
+    } catch (err) {
+      setPhotoError(
+        err instanceof Error ? err.message : "Nie udało się wczytać zdjęcia."
+      );
+    }
+  };
+
+  const analyzePhoto = async () => {
+    if (!photoPreview || analyzing) return;
+    setAnalyzing(true);
+    setPhotoError("");
+    try {
+      const res = await fetch("/api/analyze-meal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: photoPreview,
+          category: group.cat,
+          hint: dishHint.trim() || undefined,
+        }),
+      });
+      const data = (await res.json()) as AnalyzeResult;
+      if (!data.ok) {
+        setPhotoError(data.error || "Analiza nie powiodła się.");
+        return;
+      }
+      setAnalysis(data);
+    } catch {
+      setPhotoError("Brak połączenia z serwerem analizy — spróbuj ponownie.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const saveAnalysis = () => {
+    if (!analysis || !photoPreview) return;
+    if (photoMeals.length >= MAX_PHOTO_MEALS_PER_DAY) {
+      setPhotoError(
+        `Limit ${MAX_PHOTO_MEALS_PER_DAY} zdjęć dziennie — usuń któreś ze swoich dań.`
+      );
+      return;
+    }
+    setPhotoMeals(
+      addPhotoMeal(email, {
+        category: group.cat,
+        date: todayISO(),
+        name: analysis.name,
+        recipe: analysis.recipe,
+        kcal: analysis.kcal,
+        protein: analysis.protein,
+        carbs: analysis.carbs,
+        fat: analysis.fat,
+        image: photoPreview,
+        source: analysis.source,
+      })
+    );
+    // Posiłek ze zdjęcia = zjedzony
+    if (!doneMeals.includes(group.cat)) {
+      setDoneMeals(toggleMealDone(email, todayISO(), group.cat));
+    }
+    resetUpload();
+  };
+
+  const deletePhotoMeal = (id: string) => {
+    setPhotoMeals(removePhotoMeal(email, todayISO(), id));
+  };
+
+  const catPhotos = photoMeals.filter((p) => p.category === group?.cat);
+
   const doneCount = groups.filter((g) => doneMeals.includes(g.cat)).length;
 
-  // Kalorie i makro z odhaczonych posiłków (wg wybranych wariantów)
+  // Kalorie i makro z odhaczonych posiłków (wg wybranych wariantów).
+  // Jedzenie spoza planu (zdjęcie) zastępuje wariant z diety w tej kategorii.
   const eaten = groups.reduce(
     (acc, g) => {
       if (!doneMeals.includes(g.cat)) return acc;
+      const photos = photoMeals.filter((p) => p.category === g.cat);
+      if (photos.length > 0) {
+        photos.forEach((p) => {
+          acc.kcal += p.kcal;
+          acc.carbs += p.carbs;
+          acc.protein += p.protein;
+          acc.fat += p.fat;
+        });
+        return acc;
+      }
       const v = g.items[choices[g.cat] ?? 0] ?? g.items[0];
       acc.kcal += parseInt(v.calories) || 0;
       acc.carbs += parseInt(v.carbs || "0") || 0;
@@ -1966,7 +2094,8 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-300">
           Posiłki ułożone przez trenera — w każdej kategorii możesz wybrać
-          spośród kilku wariantów.
+          spośród kilku wariantów. Zjadłeś coś innego? Wgraj zdjęcie dania, a AI
+          wyceni kalorie, makro i rozpisze skład.
         </p>
       </header>
 
@@ -1998,7 +2127,9 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
             Dzisiejsze kalorie i makro
           </p>
-          <p className="text-slate-400">suma z odhaczonych posiłków</p>
+          <p className="text-slate-400">
+            suma z odhaczonych posiłków (w tym ze zdjęć)
+          </p>
         </div>
 
         <div className="mt-3 flex items-center justify-between text-sm">
@@ -2118,6 +2249,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
               }`}
             >
               {doneMeals.includes(g.cat) && "✓ "}
+              {photoMeals.some((p) => p.category === g.cat) && "📷 "}
               {g.label}
             </button>
           ))}
@@ -2188,6 +2320,204 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
           </p>
           <p>{variant?.description || "Brak opisu tego posiłku."}</p>
         </div>
+
+        {/* Twoje danie spoza planu (zdjęcie → AI) */}
+        {catPhotos.length > 0 && (
+          <div className="space-y-2 rounded-2xl border border-sky-500/40 bg-sky-950/30 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
+              📷 Twoje danie spoza planu — {group.label}
+            </p>
+            {catPhotos.map((p) => (
+              <div
+                key={p.id}
+                className="flex gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-3"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.image}
+                  alt={p.name}
+                  className="h-20 w-20 shrink-0 rounded-lg object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm font-semibold text-slate-100">
+                      {p.name}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => deletePhotoMeal(p.id)}
+                      title="Usuń to danie"
+                      className="shrink-0 rounded-md px-2 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-300">
+                    <span className="text-sm font-semibold text-sky-300">
+                      {p.kcal} kcal
+                    </span>{" "}
+                    · W {p.carbs} · B {p.protein} · T {p.fat} g
+                  </p>
+                  {p.recipe.length > 0 && (
+                    <p className="mt-1 truncate text-[11px] text-slate-500">
+                      {p.recipe[0]}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[10px]">
+                    {p.source === "ai" ? (
+                      <span className="text-emerald-400">🤖 Analiza AI</span>
+                    ) : (
+                      <span className="text-amber-300">⚡ Wycena testowa</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <p className="text-[10px] text-slate-500">
+              Te wartości zastępują planowany wariant w bilansie dnia — są
+              odhaczone jako zjedzone.
+            </p>
+          </div>
+        )}
+
+        {/* Wgrywanie zdjęcia posiłku */}
+        {!showUpload ? (
+          <button
+            type="button"
+            onClick={() => {
+              setPhotoError("");
+              setShowUpload(true);
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/50 bg-sky-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-sky-200 transition hover:bg-sky-500/20"
+          >
+            <Camera className="h-4 w-4" />
+            Zjadłeś coś innego? Wgraj zdjęcie dania
+          </button>
+        ) : (
+          <div className="space-y-3 rounded-2xl border border-sky-500/40 bg-slate-950/90 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
+                📷 Posiłek spoza planu — wycena
+              </p>
+              <button
+                type="button"
+                onClick={resetUpload}
+                className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+              >
+                ✕ Zamknij
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="cursor-pointer rounded-full bg-sky-500 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-950 hover:bg-sky-400">
+                {photoPreview ? "🔄 Zmień zdjęcie" : "Wybierz zdjęcie dania"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFile}
+                />
+              </label>
+              {photoPreview && (
+                <span className="text-[11px] text-slate-400">
+                  Zdjęcie gotowe ✓
+                </span>
+              )}
+            </div>
+
+            {photoPreview && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={photoPreview}
+                alt="Podgląd zdjęcia dania"
+                className="h-44 w-full rounded-xl border border-slate-800 object-cover"
+              />
+            )}
+
+            <input
+              value={dishHint}
+              onChange={(e) => setDishHint(e.target.value)}
+              placeholder="Co to było? (np. Kurczak w pięciu smakach) — opcjonalnie"
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none"
+            />
+
+            {photoError && (
+              <p className="text-[11px] text-red-400">{photoError}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={analyzePhoto}
+              disabled={!photoPreview || analyzing}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {analyzing
+                ? "⏳ AI analizuje zdjęcie…"
+                : "⚡ Wycen kcal, makro i skład"}
+            </button>
+
+            {analysis && (
+              <div className="space-y-2 rounded-xl border border-emerald-500/40 bg-emerald-950/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-sm font-semibold text-slate-50">
+                    {analysis.name}
+                  </p>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      analysis.source === "ai"
+                        ? "bg-emerald-500/15 text-emerald-300"
+                        : "bg-amber-500/15 text-amber-300"
+                    }`}
+                  >
+                    {analysis.source === "ai" ? "🤖 AI" : "⚡ szacunek"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  <span className="text-lg font-bold text-sky-300">
+                    {analysis.kcal} kcal
+                  </span>{" "}
+                  · W {analysis.carbs} g · B {analysis.protein} g · T{" "}
+                  {analysis.fat} g
+                </p>
+                {analysis.recipe.length > 0 && (
+                  <div className="text-[11px] text-slate-400">
+                    <p className="uppercase tracking-wide text-slate-500">
+                      Skład / przepis
+                    </p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                      {analysis.recipe.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {analysis.source === "demo" && (
+                  <p className="text-[10px] leading-relaxed text-amber-300/80">
+                    ⚡ Wycena testowa z bazy produktów — zdjęcia nie analizuje
+                    jeszcze AI. Po dodaniu klucza OPENAI_API_KEY w Vercel AI
+                    będzie czytać samo zdjęcie (bez zmian w kodzie).
+                  </p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={saveAnalysis}
+                    className="flex-1 rounded-xl bg-sky-500 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 hover:bg-sky-400"
+                  >
+                    ✓ Zapisz jako {group.label}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAnalysis(null)}
+                    className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800"
+                  >
+                    Odrzuć
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Odhaczanie posiłku */}
         <button

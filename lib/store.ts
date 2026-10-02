@@ -1382,3 +1382,73 @@ export function clearShoppingChecked(email: string): ShoppingState {
   const state = getShopping(email);
   return saveShopping(email, { ...state, checked: [] });
 }
+
+// ---- Posiłki ze zdjęcia (AI: kcal + makro, jak w Fitatu) ----
+
+export type PhotoMeal = {
+  id: string;
+  category: string; // sniadanie | ii_sniadanie | obiad | podwieczorek | kolacja
+  date: string; // YYYY-MM-DD
+  name: string;
+  recipe: string[];
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  image: string; // dataURL JPEG (skompresowany)
+  source: "ai" | "demo";
+  createdAt: string; // ISO
+};
+
+// Ochrona localStorage (~5 MB limitu) — 12 zdjęć dziennie wystarcza na demo.
+export const MAX_PHOTO_MEALS_PER_DAY = 12;
+
+const photoMealsKey = (email: string) => `fitcoach_photo_meals_${email}`;
+
+export function getPhotoMealsByDate(email: string): Record<
+  string,
+  PhotoMeal[]
+> {
+  const raw = safeGet(photoMealsKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return typeof obj === "object" && obj !== null
+      ? (obj as Record<string, PhotoMeal[]>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getPhotoMeals(email: string, date: string): PhotoMeal[] {
+  return getPhotoMealsByDate(email)[date] ?? [];
+}
+
+export function addPhotoMeal(
+  email: string,
+  meal: Omit<PhotoMeal, "id" | "createdAt">
+): PhotoMeal[] {
+  const map = getPhotoMealsByDate(email);
+  const list = map[meal.date] ?? [];
+  if (list.length >= MAX_PHOTO_MEALS_PER_DAY) return list;
+  const next = [
+    { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...meal },
+    ...list,
+  ];
+  map[meal.date] = next;
+  safeSet(photoMealsKey(email), JSON.stringify(map));
+  return next;
+}
+
+export function removePhotoMeal(
+  email: string,
+  date: string,
+  id: string
+): PhotoMeal[] {
+  const map = getPhotoMealsByDate(email);
+  const list = (map[date] ?? []).filter((m) => m.id !== id);
+  map[date] = list;
+  safeSet(photoMealsKey(email), JSON.stringify(map));
+  return list;
+}

@@ -28,6 +28,7 @@ import {
   getWaterAll,
   getBodyWeightKg,
   getTasksDone,
+  getPhotoMeals,
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
@@ -724,6 +725,17 @@ function WykonanieSection({
   const acts = getActivities(email, today);
   const actKcal = acts.reduce((s, a) => s + (a.kcal || 0), 0);
 
+  // Posiłki ze zdjęcia (wycena AI / testowa) — co podopieczny jadł spoza planu
+  const photoMeals = getPhotoMeals(email, today);
+  const photoKcal = photoMeals.reduce((s, p) => s + (p.kcal || 0), 0);
+  const photoCatLabels: Record<string, string> = {
+    sniadanie: "Śniadanie",
+    ii_sniadanie: "II śniadanie",
+    obiad: "Obiad",
+    podwieczorek: "Podwieczorek",
+    kolacja: "Kolacja",
+  };
+
   // Seria dni (ta sama logika co na dashbordzie podopiecznego)
   const mealsAll = getMealsDoneByDate(email);
   const waterAll = getWaterAll(email);
@@ -938,6 +950,49 @@ function WykonanieSection({
           </div>
         )}
       </section>
+
+      {photoMeals.length > 0 && (
+        <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+              Posiłki ze zdjęcia (poza planem)
+            </h2>
+            <span className="text-[11px] text-slate-500">
+              {photoMeals.length} szt. · {photoKcal} kcal
+            </span>
+          </div>
+          <div className="space-y-2 text-sm">
+            {photoMeals.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2"
+              >
+                <span className="min-w-0">
+                  <span className="mr-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
+                    {photoCatLabels[p.category] ?? p.category}
+                  </span>
+                  <span className="text-slate-300">{p.name}</span>
+                  {p.source === "demo" && (
+                    <span className="ml-2 text-[10px] text-amber-300">
+                      wycena testowa
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 text-right text-[11px] text-slate-100">
+                  <span className="font-semibold text-sky-300">{p.kcal} kcal</span>
+                  <span className="ml-2 text-slate-400">
+                    W {p.carbs} · B {p.protein} · T {p.fat}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Wartości wyceniane przez AI ze zdjęcia — w bilansie dnia zastępują
+            planowany wariant tego posiłku.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

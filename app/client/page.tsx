@@ -18,12 +18,22 @@ import {
   AlertTriangle,
   Star,
   FileText,
+  CheckCircle2,
+  Droplets,
 } from "lucide-react";
 import {
   getClientContent,
   DEFAULT_CONTENT,
   type TrainerContent,
+  getDoneMeals,
+  toggleMealDone,
+  getWaterForDate,
+  setWaterForDate,
+  getDoneExerciseIds,
+  toggleExerciseDone,
 } from "@/lib/store";
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
 
 type SectionId =
   | "dashboard"
@@ -244,6 +254,12 @@ export default function ClientDashboardPage() {
       href: "/client/plan-od-trenera",
     },
     {
+      id: "pomiary",
+      label: "Pomiary ciała",
+      icon: Ruler,
+      href: "/client/stats",
+    },
+    {
       id: "raport",
       label: "Wyślij raport",
       icon: FileText,
@@ -300,7 +316,10 @@ export default function ClientDashboardPage() {
                   (isHydration && activeSection === "nawodnienie") ||
                   (isTraining && activeSection === "trening") ||
                   (isCatering && activeSection === "catering");
-                const disabled = !hasTrainer && item.id !== "dashboard";
+                const disabled =
+                  !hasTrainer &&
+                  item.id !== "dashboard" &&
+                  item.id !== "pomiary";
                 return (
                   <button
                     key={item.id}
@@ -1223,6 +1242,21 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
   const [activeVariant, setActiveVariant] = useState(0);
   const group = groups[activeTab] ?? groups[0];
   const variant = group?.items[activeVariant] ?? group?.items[0];
+  const [email, setEmail] = useState("demo@fitcoach.ai");
+  const [doneMeals, setDoneMeals] = useState<string[]>([]);
+
+  useEffect(() => {
+    const storedEmail =
+      window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
+    setEmail(storedEmail);
+    setDoneMeals(getDoneMeals(storedEmail, todayISO()));
+  }, []);
+
+  const toggleMeal = (cat: string) => {
+    setDoneMeals(toggleMealDone(email, todayISO(), cat));
+  };
+
+  const doneCount = groups.filter((g) => doneMeals.includes(g.cat)).length;
 
   if (groups.length === 0) {
     return (
@@ -1244,6 +1278,26 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
         </p>
       </header>
 
+      {/* Postęp dnia */}
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3">
+        <div className="flex items-center justify-between text-xs text-slate-200">
+          <span className="text-slate-300">Zrealizowane posiłki dziś</span>
+          <span className="font-semibold text-emerald-400">
+            {doneCount} / {groups.length}
+          </span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full bg-emerald-500 transition-all"
+            style={{
+              width: `${
+                groups.length ? (doneCount / groups.length) * 100 : 0
+              }%`,
+            }}
+          />
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-200">
         <div className="flex flex-wrap gap-2">
           {groups.map((g, idx) => (
@@ -1257,6 +1311,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
                   : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
               }`}
             >
+              {doneMeals.includes(g.cat) && "✓ "}
               {g.label}
             </button>
           ))}
@@ -1327,6 +1382,22 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
           </p>
           <p>{variant?.description || "Brak opisu tego posiłku."}</p>
         </div>
+
+        {/* Odhaczanie posiłku */}
+        <button
+          type="button"
+          onClick={() => toggleMeal(group.cat)}
+          className={`flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-semibold uppercase tracking-wide transition ${
+            doneMeals.includes(group.cat)
+              ? "border border-emerald-500/50 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+              : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+          }`}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          {doneMeals.includes(group.cat)
+            ? `Zjedzone — kliknij, aby odhacz (${group.label})`
+            : `Oznacz jako zjedzony (${group.label})`}
+        </button>
       </section>
     </section>
   );
@@ -1443,6 +1514,21 @@ function SupplementsSection({ content }: { content: TrainerContent }) {
 
 function HydrationSection({ content }: { content: TrainerContent }) {
   const h = content.hydration;
+  const [email, setEmail] = useState("demo@fitcoach.ai");
+  const [glasses, setGlasses] = useState(0);
+  const goal = 8;
+
+  useEffect(() => {
+    const storedEmail =
+      window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
+    setEmail(storedEmail);
+    setGlasses(getWaterForDate(storedEmail, todayISO()));
+  }, []);
+
+  const setGlassesFor = (count: number) => {
+    setGlasses(setWaterForDate(email, todayISO(), count));
+  };
+
   return (
     <section className="mx-auto flex max-w-5xl flex-col gap-8">
       <header className="text-center md:text-left">
@@ -1454,6 +1540,80 @@ function HydrationSection({ content }: { content: TrainerContent }) {
           jest to drugi najważniejszy obszar, którego codziennie pilnujesz.
         </p>
       </header>
+
+      {/* Interaktywny licznik wody */}
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-xs text-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
+              TWOJE NAWODNIENIE DZIŚ
+            </p>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Klikaj szklanki lub przyciski +/−, aby odnotować wypitą wodę.
+              Postęp zapisuje się automatycznie.
+            </p>
+          </div>
+          <p className="text-sm font-semibold text-slate-50">
+            {glasses} / {goal} szklanek · {(glasses * 0.25).toFixed(2)} L
+          </p>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-2">
+          <button
+            type="button"
+            onClick={() => setGlassesFor(glasses - 1)}
+            disabled={glasses <= 0}
+            aria-label="Zmniejsz liczbę szklanek"
+            className="h-9 w-9 rounded-lg border border-slate-700 bg-slate-950/70 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+          >
+            −
+          </button>
+          {Array.from({ length: goal }).map((_, idx) => {
+            const filled = idx < glasses;
+            return (
+              <button
+                key={idx}
+                type="button"
+                aria-label={`Szklanka ${idx + 1}`}
+                onClick={() =>
+                  setGlassesFor(idx + 1 === glasses ? idx : idx + 1)
+                }
+                className={`flex h-12 w-8 items-end justify-center rounded-md border transition ${
+                  filled
+                    ? "border-sky-400 bg-gradient-to-t from-sky-500 to-sky-300/70"
+                    : "border-slate-700 bg-slate-950/60 hover:border-sky-500/60"
+                }`}
+              >
+                <Droplets
+                  className={`mb-1 h-3.5 w-3.5 ${
+                    filled ? "text-slate-950" : "text-slate-600"
+                  }`}
+                />
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setGlassesFor(glasses + 1)}
+            disabled={glasses >= goal}
+            aria-label="Zwiększ liczbę szklanek"
+            className="h-9 w-9 rounded-lg border border-slate-700 bg-slate-950/70 text-sm font-semibold text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full bg-sky-400 transition-all"
+            style={{ width: `${Math.min(100, (glasses / goal) * 100)}%` }}
+          />
+        </div>
+        <p className="mt-2 text-[11px] text-slate-400">
+          Cel: {goal} szklanek (ok. {(goal * 0.25).toFixed(2)} L) —{" "}
+          {glasses >= goal ? "osiągnięty ✓" : `brakuje ${goal - glasses}`}
+        </p>
+      </section>
 
       <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-sm text-slate-200">
         <div>
@@ -1541,6 +1701,23 @@ function TrainingSection({ content }: { content: TrainerContent }) {
   const activeDayNum = activeIdx + 1;
   const exercises = t.dayExercises[activeDayNum] ?? [];
   const activeDay = days[activeIdx] ?? days[0];
+  const [email, setEmail] = useState("demo@fitcoach.ai");
+  const [doneIds, setDoneIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const storedEmail =
+      window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
+    setEmail(storedEmail);
+    setDoneIds(getDoneExerciseIds(storedEmail, activeDayNum));
+  }, [activeDayNum]);
+
+  const toggleExercise = (exerciseId: string) => {
+    setDoneIds(toggleExerciseDone(email, activeDayNum, exerciseId));
+  };
+
+  const doneCount = exercises.filter((_, i) =>
+    doneIds.includes(String(i + 1))
+  ).length;
 
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -1581,12 +1758,17 @@ function TrainingSection({ content }: { content: TrainerContent }) {
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
             DZIEŃ TRENINGOWY
           </p>
-          <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-300">
-            Status:{" "}
-            <span className="font-semibold text-emerald-400">
-              {activeDay?.status ?? "—"}
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] text-emerald-300 ring-1 ring-emerald-500/40">
+              Wykonane: {doneCount} / {exercises.length}
             </span>
-          </span>
+            <span className="rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-300">
+              Status:{" "}
+              <span className="font-semibold text-emerald-400">
+                {activeDay?.status ?? "—"}
+              </span>
+            </span>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -1595,42 +1777,68 @@ function TrainingSection({ content }: { content: TrainerContent }) {
               Brak ćwiczeń dla tego dnia.
             </p>
           )}
-          {exercises.map((ex, i) => (
-            <article
-              key={i}
-              className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 md:flex-row md:items-center md:justify-between"
-            >
-              <div className="flex-1 space-y-1">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                  Ćwiczenie {i + 1}
-                </p>
-                <h2 className="text-sm font-semibold text-slate-50">
-                  {ex.name}
-                </h2>
-              </div>
+          {exercises.map((ex, i) => {
+            const isDone = doneIds.includes(String(i + 1));
+            return (
+              <article
+                key={i}
+                onClick={() => toggleExercise(String(i + 1))}
+                className={`flex cursor-pointer flex-col gap-3 rounded-2xl border p-4 transition md:flex-row md:items-center md:justify-between ${
+                  isDone
+                    ? "border-emerald-500/50 bg-emerald-500/10"
+                    : "border-slate-800 bg-slate-950/80 hover:border-slate-600"
+                }`}
+              >
+                <div className="flex flex-1 items-center gap-3">
+                  <span
+                    className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border transition ${
+                      isDone
+                        ? "border-emerald-400 bg-emerald-500 text-slate-950"
+                        : "border-slate-600 text-slate-700"
+                    }`}
+                    aria-hidden
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                  </span>
+                  <div className="flex-1 space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      Ćwiczenie {i + 1}
+                    </p>
+                    <h2
+                      className={`text-sm font-semibold ${
+                        isDone
+                          ? "text-slate-400 line-through"
+                          : "text-slate-50"
+                      }`}
+                    >
+                      {ex.name}
+                    </h2>
+                  </div>
+                </div>
 
-              <div className="grid flex-1 gap-2 text-[11px] text-slate-200 md:grid-cols-3">
-                <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
-                  <p className="text-slate-400">Serie</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-50">
-                    {ex.series}
-                  </p>
+                <div className="grid flex-1 gap-2 text-[11px] text-slate-200 md:grid-cols-3">
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
+                    <p className="text-slate-400">Serie</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-50">
+                      {ex.series}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
+                    <p className="text-slate-400">Czas pracy</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-50">
+                      {ex.workTime}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
+                    <p className="text-slate-400">Przerwa</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-50">
+                      {ex.rest}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
-                  <p className="text-slate-400">Czas pracy</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-50">
-                    {ex.workTime}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
-                  <p className="text-slate-400">Przerwa</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-50">
-                    {ex.rest}
-                  </p>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       </section>
 

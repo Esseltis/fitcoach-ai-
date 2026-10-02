@@ -243,6 +243,11 @@ export default function TrainerClientPage({
     ? getTrainerReportFields(trainerId)
     : [];
 
+  // Raport nowszy niż ostatnia odpowiedź trenera → wymaga reakcji
+  const reportIsNew =
+    !!report &&
+    (!content.feedback?.at || report.submittedAt > content.feedback.at);
+
   if (!ready) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950">
@@ -292,6 +297,12 @@ export default function TrainerClientPage({
               }`}
             >
               {t.label}
+              {t.key === "report" && reportIsNew && (
+                <span
+                  title="Nowy raport — jeszcze nie odpowiedziałeś"
+                  className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-400 align-middle shadow-[0_0_6px_rgba(248,113,113,0.9)]"
+                />
+              )}
             </button>
           ))}
         </div>
@@ -314,9 +325,20 @@ export default function TrainerClientPage({
         {tab === "report" && (
           <>
           <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-              Raport klienta
-            </h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+                Raport klienta
+              </h2>
+              {reportIsNew ? (
+                <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-semibold text-red-300">
+                  NOWY — brak Twojej odpowiedzi
+                </span>
+              ) : report ? (
+                <span className="text-[10px] text-slate-500">
+                  Odpowiedź wysłana ✓
+                </span>
+              ) : null}
+            </div>
             {!report?.values ? (
               <p className="text-sm text-slate-400">
                 Klient jeszcze nie wysłał raportu.
@@ -593,19 +615,24 @@ export default function TrainerClientPage({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
-      <span className="text-slate-400">{label}</span>
-      <span className="font-medium text-slate-100">{value}</span>
+    <div className="flex items-start justify-between gap-3 border-b border-slate-800/60 pb-2">
+      <span className="shrink-0 text-slate-400">{label}</span>
+      <span className="max-w-[65%] whitespace-pre-line text-right font-medium text-slate-100">
+        {value}
+      </span>
     </div>
   );
 }
 
 function formatReportValue(key: string, v: string | number | boolean): string {
-  if (key === "trainingDone" || key === "mealsDone") return v ? "Tak" : "Nie";
+  if (typeof v === "boolean") return v ? "Tak" : "Nie";
   if (v === "" || v === null || v === undefined) return "—";
   if (key === "sleepHours") return `${v} h`;
   if (key === "weight") return `${v} kg`;
   if (key === "waterIntake") return `${v} l`;
+  if (key === "steps") return `${Number(v).toLocaleString("pl-PL")} kroków`;
+  if (key === "activeMinutes") return `${v} min`;
+  if (key === "adherence") return `${v}%`;
   return String(v);
 }
 

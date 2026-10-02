@@ -30,16 +30,27 @@ export type ReportFieldDef = {
 };
 
 export const REPORT_FIELDS: ReportFieldDef[] = [
+  // Samopoczucie
   { key: "wellbeing", label: "Samopoczucie (1–5)", type: "range", min: 1, max: 5, defaultValue: 3 },
-  { key: "trainingDone", label: "Zrealizowałem trening", type: "boolean", defaultValue: false },
-  { key: "mealsDone", label: "Zrealizowałem posiłki", type: "boolean", defaultValue: false },
-  { key: "sleepHours", label: "Sen (h)", type: "number", step: 0.5, defaultValue: 7 },
-  { key: "weight", label: "Waga (kg)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 78" },
   { key: "energy", label: "Poziom energii (1–5)", type: "range", min: 1, max: 5, defaultValue: 3 },
+  { key: "sleepHours", label: "Sen (h)", type: "number", step: 0.5, defaultValue: 7 },
   { key: "stress", label: "Poziom stresu (1–5)", type: "range", min: 1, max: 5, defaultValue: 3 },
   { key: "appetite", label: "Apetyt", type: "select", options: ["Mały", "Normalny", "Duży"], defaultValue: "Normalny" },
+  { key: "hunger", label: "Głód między posiłkami (1–5, 5 = silny)", type: "range", min: 1, max: 5, defaultValue: 3 },
+  { key: "alcoholSweets", label: "Alkohol / słodycze w ciągu dnia", type: "boolean", defaultValue: false },
+  // Realizacja planu
+  { key: "trainingDone", label: "Zrealizowałem trening", type: "boolean", defaultValue: false },
+  { key: "mealsDone", label: "Zrealizowałem wszystkie posiłki", type: "boolean", defaultValue: false },
+  { key: "adherence", label: "Przestrzeganie planu (%)", type: "range", min: 0, max: 100, step: 5, defaultValue: 100 },
+  { key: "steps", label: "Kroki", type: "number", step: 500, defaultValue: "", placeholder: "np. 10000" },
+  { key: "activeMinutes", label: "Aktywność dodatkowa (min)", type: "number", step: 5, defaultValue: "", placeholder: "np. 30" },
   { key: "waterIntake", label: "Woda (litry)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 2.0" },
+  { key: "weight", label: "Waga (kg)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 78" },
+  // Uwagi i pytania
   { key: "pain", label: "Ból / dyskomfort", type: "text", defaultValue: "", placeholder: "np. kolano, plecy..." },
+  { key: "problem", label: "Największy problem dnia", type: "text", defaultValue: "", placeholder: "np. wieczorny głód, brak czasu na trening..." },
+  { key: "questions", label: "Pytania do trenera", type: "text", defaultValue: "", placeholder: "np. czy mogę zamienić ćwiczenie X na Y?" },
+  { key: "tomorrow", label: "Mój plan na jutro", type: "text", defaultValue: "", placeholder: "np. trening rano, posiłki jak w planie" },
   { key: "notes", label: "Notatka dla trenera", type: "text", defaultValue: "", placeholder: "Jak się czułeś, co było trudne..." },
 ];
 
@@ -58,6 +69,31 @@ export type ReportConfigField = {
 
 const trainerReportFieldsKey = (trainerId: string) =>
   `fitcoach_trainer_${trainerId}_report_fields`;
+
+const reportFieldsSeenV2Key = (trainerId: string) =>
+  `fitcoach_trainer_${trainerId}_report_fields_seen_v2`;
+
+// Jednorazowo dopisz nowe rubryki do już zapisanych konfiguracji raportu,
+// żeby trenerzy z zapisanymi ustawieniami też je dostali.
+function mergeNewReportDefaults(
+  trainerId: string,
+  fields: ReportConfigField[]
+): ReportConfigField[] {
+  if (safeGet(reportFieldsSeenV2Key(trainerId))) return fields;
+  const seen = new Set(fields.map((f) => f.key));
+  const missing = REPORT_FIELDS.filter((f) => !seen.has(f.key)).map((f) => ({
+    ...f,
+    custom: false,
+  }));
+  if (missing.length > 0) {
+    const merged = [...fields, ...missing];
+    safeSet(trainerReportFieldsKey(trainerId), JSON.stringify(merged));
+    safeSet(reportFieldsSeenV2Key(trainerId), "1");
+    return merged;
+  }
+  safeSet(reportFieldsSeenV2Key(trainerId), "1");
+  return fields;
+}
 
 export function getTrainerReportFields(trainerId: string): ReportConfigField[] {
   const raw = safeGet(trainerReportFieldsKey(trainerId));
@@ -79,13 +115,14 @@ export function getTrainerReportFields(trainerId: string): ReportConfigField[] {
           .filter(Boolean) as ReportConfigField[];
         // usuń duplikaty po kluczu (stary tablica mogła mieć klucz + obiekt)
         const seen = new Set<string>();
-        return migrated.filter((f) => {
+        const deduped = migrated.filter((f) => {
           if (!f?.key || seen.has(f.key)) return false;
           seen.add(f.key);
           return true;
         });
+        return mergeNewReportDefaults(trainerId, deduped);
       }
-      return arr as ReportConfigField[];
+      return mergeNewReportDefaults(trainerId, arr as ReportConfigField[]);
     }
   } catch {
     /* ignore */

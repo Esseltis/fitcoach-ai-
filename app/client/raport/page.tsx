@@ -8,8 +8,33 @@ import {
   saveReport,
   getTrainerReportFields,
   getClientTrainerId,
+  getClientContent,
+  getDoneMeals,
+  getWaterForDate,
+  getMoodByDate,
+  getMeasurements,
+  getBodyWeightKg,
+  getActivities,
+  getDoneExerciseIds,
   type ReportConfigField,
 } from "@/lib/store";
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+type PanelSummary = {
+  mealsDone: number;
+  mealsTotal: number;
+  glasses: number;
+  waterGoal: number;
+  moodSatiety: number;
+  moodMotivation: number;
+  weight: number;
+  actCount: number;
+  actKcal: number;
+  actMinutes: number;
+  trainDone: number;
+  trainTotal: number;
+};
 
 export default function ClientReportPage() {
   const router = useRouter();
@@ -18,6 +43,11 @@ export default function ClientReportPage() {
   const [saved, setSaved] = useState(false);
   const [fields, setFields] = useState<ReportConfigField[]>([]);
   const [values, setValues] = useState<Record<string, string | number | boolean>>({});
+  const [summary, setSummary] = useState<PanelSummary | null>(null);
+  const [feedback, setFeedback] = useState<{ text: string; at: string }>({
+    text: "",
+    at: "",
+  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -33,12 +63,86 @@ export default function ClientReportPage() {
       ? getTrainerReportFields(trainerId)
       : [];
     setFields(defs);
+
+    // --- Dane z panelu: podsumowanie dnia + auto-uzupełnienie raportu ---
+    const content = getClientContent(storedEmail);
+    const today = todayISO();
+    const cats = content.diet.meals.map((m) => m.category ?? "").filter((c) => c !== "");
+    const doneMeals = getDoneMeals(storedEmail, today).filter((c) => cats.includes(c));
+    const mealsTotal = new Set(cats).size;
+    const glasses = getWaterForDate(storedEmail, today);
+    const kg = getBodyWeightKg(storedEmail, content.nutrition.weight);
+    const override = Number(content.guidelines?.waterGlasses);
+    const waterGoal =
+      Number.isFinite(override) && override > 0
+        ? Math.min(20, Math.round(override))
+        : kg
+        ? Math.max(4, Math.min(15, Math.round((kg * 31) / 250)))
+        : 8;
+    const mood = getMoodByDate(storedEmail)[today];
+    const ms = getMeasurements(storedEmail);
+    let weight = 0;
+    for (let i = ms.length - 1; i >= 0; i--) {
+      const w = parseFloat(String(ms[i].values?.weight ?? "").replace(",", "."));
+      if (Number.isFinite(w) && w > 0) {
+        weight = w;
+        break;
+      }
+    }
+    if (!weight) weight = kg;
+    const acts = getActivities(storedEmail, today);
+    const actKcal = acts.reduce((s, a) => s + (a.kcal || 0), 0);
+    const actMinutes = acts.reduce((s, a) => s + (a.minutes || 0), 0);
+    let trainDone = 0;
+    let trainTotal = 0;
+    content.training.days.forEach((_, i) => {
+      const dayId = i + 1;
+      const total = (content.training.dayExercises[dayId] ?? []).length;
+      trainTotal += total;
+      trainDone += getDoneExerciseIds(storedEmail, dayId).filter(
+        (id) => Number(id) >= 1 && Number(id) <= total
+      ).length;
+    });
+    setSummary({
+      mealsDone: doneMeals.length,
+      mealsTotal,
+      glasses,
+      waterGoal,
+      moodSatiety: mood?.satiety ?? 0,
+      moodMotivation: mood?.motivation ?? 0,
+      weight,
+      actCount: acts.length,
+      actKcal,
+      actMinutes,
+      trainDone,
+      trainTotal,
+    });
+    setFeedback(content.feedback ?? { text: "", at: "" });
+
     const init: Record<string, string | number | boolean> = {};
     for (const f of defs) init[f.key] = f.defaultValue;
+
+    // Fakty z panelu zawsze wygrywają ze starym raportem
+    const autoKeys = new Set(["waterIntake", "mealsDone", "activeMinutes"]);
+    init.waterIntake = Number((glasses * 0.25).toFixed(2));
+    if (mealsTotal > 0) init.mealsDone = doneMeals.length >= mealsTotal;
+    if (weight > 0) {
+      init.weight = weight;
+      autoKeys.add("weight");
+    }
+    if (actMinutes > 0) init.activeMinutes = actMinutes;
+    if (mood && (mood.satiety > 0 || mood.motivation > 0)) {
+      init.wellbeing = Math.max(
+        1,
+        Math.min(5, Math.round((mood.satiety + mood.motivation) / 2) || 3)
+      );
+      autoKeys.add("wellbeing");
+    }
+
     const existing = getReport(storedEmail);
     if (existing?.values) {
       for (const k of Object.keys(existing.values)) {
-        if (k in init) init[k] = existing.values[k];
+        if (k in init && !autoKeys.has(k)) init[k] = existing.values[k];
       }
     }
     setValues(init);
@@ -157,7 +261,11 @@ export default function ClientReportPage() {
           </div>
           <h1 className="text-lg font-semibold text-slate-50">Raport wysłany!</h1>
           <p className="text-sm text-slate-400">
-            Twój trener otrzymał raport. Możesz wysłać kolejny w dowolnym momencie.
+            Twój trener otrzymał raport. Możesz wysłać kolejny w dowolnym
+            momencie.
+          </p>
+          <p className="text-xs text-emerald-300">
+            Odpowiedź trenera zobaczysz tutaj oraz w panelu głównym.
           </p>
           <div className="flex flex-col gap-2">
             <Link
@@ -179,6 +287,10 @@ export default function ClientReportPage() {
     );
   }
 
+  const report = email ? getReport(email) : null;
+  const awaitingReply =
+    !!report && (!feedback.at || feedback.at < report.submittedAt);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <main className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-10">
@@ -193,6 +305,89 @@ export default function ClientReportPage() {
             Uzupełnij pola wymagane przez Twojego trenera.
           </p>
         </header>
+
+        {/* Dane z panelu — uzupełnione automatycznie */}
+        {summary && (
+          <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+                Dane z Twojego panelu
+              </p>
+              <p className="text-xs text-slate-400">
+                Uzupełnione automatycznie na dziś — trafią do raportu bez
+                przepisywania.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+              <SummaryChip
+                label="Posiłki"
+                value={`${summary.mealsDone}/${summary.mealsTotal}`}
+              />
+              <SummaryChip
+                label="Woda"
+                value={`${summary.glasses}/${summary.waterGoal} szkl.`}
+              />
+              <SummaryChip
+                label="Waga"
+                value={summary.weight > 0 ? `${summary.weight} kg` : "—"}
+              />
+              <SummaryChip
+                label="Samopoczucie"
+                value={
+                  summary.moodSatiety > 0
+                    ? `S ${summary.moodSatiety}/5 · M ${summary.moodMotivation}/5`
+                    : "—"
+                }
+              />
+              <SummaryChip
+                label="Aktywności"
+                value={
+                  summary.actCount > 0
+                    ? `${summary.actCount} · ${summary.actKcal} kcal`
+                    : "0"
+                }
+              />
+              <SummaryChip
+                label="Trening (plan)"
+                value={
+                  summary.trainTotal > 0
+                    ? `${summary.trainDone}/${summary.trainTotal} ćw.`
+                    : "—"
+                }
+              />
+            </div>
+          </section>
+        )}
+
+        {/* Odpowiedź trenera */}
+        <section className="space-y-2 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+            💬 Odpowiedź trenera
+          </p>
+          {feedback.text ? (
+            <>
+              <p className="whitespace-pre-line text-sm text-slate-200">
+                {feedback.text}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {feedback.at &&
+                  new Date(feedback.at).toLocaleString("pl-PL")}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400">
+              {report
+                ? "Trener widzi Twój raport — konkretne wytyczne pojawią się tutaj."
+                : "Wyślij raport, a trener odpowie z konkretnymi wskazówkami."}
+            </p>
+          )}
+          {awaitingReply && (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-[11px] text-amber-200">
+              ⏳ Trener jeszcze nie odpowiedział na raport
+              {report ? ` z ${new Date(report.submittedAt).toLocaleString("pl-PL")}` : ""}.
+            </p>
+          )}
+        </section>
 
         <form
           onSubmit={handleSubmit}
@@ -225,6 +420,17 @@ export default function ClientReportPage() {
           </div>
         </form>
       </main>
+    </div>
+  );
+}
+
+function SummaryChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+      <p className="mt-0.5 font-semibold text-slate-100">{value}</p>
     </div>
   );
 }

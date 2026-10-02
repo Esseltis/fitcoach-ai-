@@ -834,6 +834,7 @@ function DashboardSection({
 }) {
   const [streakData, setStreakData] = useState({ streak: 0, monthPct: 0 });
   const [tasksDone, setTasksDone] = useState<string[]>([]);
+  const [reportAt, setReportAt] = useState<string | null>(null);
   const [mood, setMood] = useState<{ satiety: number; motivation: number }>({
     satiety: 0,
     motivation: 0,
@@ -901,6 +902,7 @@ function DashboardSection({
   // Zadania od trenera — odhaczane per dzień
   useEffect(() => {
     setTasksDone(getTasksDone(email, todayISO()));
+    setReportAt(getReport(email)?.submittedAt ?? null);
   }, [email]);
 
   const toggleTask = (task: string) => {
@@ -1246,6 +1248,14 @@ function DashboardSection({
             </div>
           </div>
         )}
+        {reportAt &&
+          (!content.feedback?.at || content.feedback.at < reportAt) && (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-900/20 px-3 py-2 text-[11px] text-amber-200">
+              ⏳ Twój raport z {new Date(reportAt).toLocaleString("pl-PL")}{" "}
+              czeka na odpowiedź trenera.
+            </p>
+          )}
+
         {/* Sytość i motywacja (check-in jak w Respo) */}
         <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
           <div>
@@ -1375,6 +1385,32 @@ function GuidelinesCard({
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// Wskazówki trenera widoczne w sekcjach Dieta / Trening / Suplementy / Nawodnienie
+function TrainerTipsBanner({ content }: { content: TrainerContent }) {
+  const focus = content.guidelines?.weeklyFocus?.trim() ?? "";
+  const fb = content.feedback;
+  const hasFb = Boolean(fb?.text.trim());
+  if (!focus && !hasFb) return null;
+  return (
+    <div className="space-y-1.5 rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/60 to-slate-950/80 p-4 shadow-[0_0_25px_rgba(16,185,129,0.12)]">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+        🎯 Wskazówki trenera
+      </p>
+      {focus && <p className="text-sm font-medium text-amber-200">{focus}</p>}
+      {hasFb && (
+        <p className="max-h-24 overflow-hidden whitespace-pre-line text-xs leading-relaxed text-slate-300">
+          {fb!.text}
+        </p>
+      )}
+      {fb?.at && (
+        <p className="text-[10px] text-slate-500">
+          Odpowiedź z {new Date(fb.at).toLocaleString("pl-PL")}
+        </p>
       )}
     </div>
   );
@@ -1934,6 +1970,8 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
         </p>
       </header>
 
+      <TrainerTipsBanner content={content} />
+
       {/* Postęp dnia */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3">
         <div className="flex items-center justify-between text-xs text-slate-200">
@@ -2196,6 +2234,8 @@ function SupplementsSection({ content }: { content: TrainerContent }) {
         </p>
       </header>
 
+      <TrainerTipsBanner content={content} />
+
       <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-200">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
           PRZEPISANE SUPLEMENTY
@@ -2311,6 +2351,8 @@ function HydrationSection({ content }: { content: TrainerContent }) {
           jest to drugi najważniejszy obszar, którego codziennie pilnujesz.
         </p>
       </header>
+
+      <TrainerTipsBanner content={content} />
 
       {/* Interaktywny licznik wody */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 text-xs text-slate-200">
@@ -2546,6 +2588,8 @@ function TrainingSection({ content }: { content: TrainerContent }) {
           ))}
         </div>
       </header>
+
+      <TrainerTipsBanner content={content} />
 
       <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
         <div className="flex items-center justify-between">

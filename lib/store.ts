@@ -1061,3 +1061,209 @@ export function removeProgressPhoto(email: string, id: string): ProgressPhoto[] 
   safeSet(photosKey(email), JSON.stringify(list));
   return list;
 }
+
+// ---- Masa ciała (profil klienta lub treść trenera) ----
+
+export function getBodyWeightKg(
+  email: string,
+  fallbackWeight?: string
+): number {
+  const profile = getClientProfile(email);
+  const raw = profile?.weight ?? fallbackWeight ?? "";
+  const kg = parseFloat(String(raw).replace(",", "."));
+  return Number.isFinite(kg) && kg > 0 ? kg : 0;
+}
+
+// ---- Aktywności spoza planu (bilans energetyczny, wzorowany na Respo) ----
+
+export type ActivityEntry = {
+  id: string;
+  name: string;
+  minutes: number; // 0, gdy podano własny kcal
+  kcal: number;
+};
+
+export const ACTIVITY_PRESETS: {
+  id: string;
+  name: string;
+  met: number; // met metaboliczny — kcal = MET × waga × godziny
+}[] = [
+  { id: "spacer", name: "Spacer", met: 3.5 },
+  { id: "marsz", name: "Szybki marsz", met: 5 },
+  { id: "bieg", name: "Bieg", met: 9 },
+  { id: "rower", name: "Rower", met: 6.5 },
+  { id: "plywanie", name: "Pływanie", met: 8 },
+  { id: "silownia", name: "Siłownia", met: 5 },
+  { id: "pilka", name: "Piłka nożna / koszykówka", met: 7 },
+  { id: "taniec", name: "Taniec", met: 5 },
+  { id: "schody", name: "Wchodzenie po schodach", met: 8 },
+  { id: "sprzatanie", name: "Sprzątanie / prace domowe", met: 3 },
+  { id: "joga", name: "Joga / rozciąganie", met: 2.5 },
+  { id: "inne", name: "Inne (własny kcal)", met: 0 },
+];
+
+export function estimateActivityKcal(
+  met: number,
+  weightKg: number,
+  minutes: number
+): number {
+  if (!met || !weightKg || !minutes) return 0;
+  return Math.round((met * weightKg * minutes) / 60);
+}
+
+const activitiesKey = (email: string) => `fitcoach_activities_${email}`;
+
+export function getActivitiesByDate(email: string): Record<
+  string,
+  ActivityEntry[]
+> {
+  const raw = safeGet(activitiesKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return typeof obj === "object" && obj !== null
+      ? (obj as Record<string, ActivityEntry[]>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getActivities(email: string, date: string): ActivityEntry[] {
+  return getActivitiesByDate(email)[date] ?? [];
+}
+
+export function addActivity(
+  email: string,
+  date: string,
+  entry: Omit<ActivityEntry, "id">
+): ActivityEntry[] {
+  const map = getActivitiesByDate(email);
+  const list = [
+    ...(map[date] ?? []),
+    { id: crypto.randomUUID(), ...entry },
+  ];
+  map[date] = list;
+  safeSet(activitiesKey(email), JSON.stringify(map));
+  return list;
+}
+
+export function removeActivity(
+  email: string,
+  date: string,
+  id: string
+): ActivityEntry[] {
+  const map = getActivitiesByDate(email);
+  const list = (map[date] ?? []).filter((a) => a.id !== id);
+  map[date] = list;
+  safeSet(activitiesKey(email), JSON.stringify(map));
+  return list;
+}
+
+// ---- Samopoczucie: sytość i motywacja (check-in 1–5) ----
+
+export type MoodEntry = { satiety: number; motivation: number };
+
+const moodKey = (email: string) => `fitcoach_mood_${email}`;
+
+export function getMoodByDate(email: string): Record<string, MoodEntry> {
+  const raw = safeGet(moodKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return typeof obj === "object" && obj !== null
+      ? (obj as Record<string, MoodEntry>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getMoodForDate(
+  email: string,
+  date: string
+): MoodEntry | null {
+  return getMoodByDate(email)[date] ?? null;
+}
+
+export function setMoodForDate(
+  email: string,
+  date: string,
+  entry: MoodEntry
+): MoodEntry {
+  const map = getMoodByDate(email);
+  const next = {
+    satiety: Math.min(5, Math.max(0, Math.round(entry.satiety))),
+    motivation: Math.min(5, Math.max(0, Math.round(entry.motivation))),
+  };
+  map[date] = next;
+  safeSet(moodKey(email), JSON.stringify(map));
+  return next;
+}
+
+// ---- Lista zakupów (agregacja składu dań + własne produkty) ----
+
+export type ShoppingState = { checked: string[]; custom: string[] };
+
+const shoppingKey = (email: string) => `fitcoach_shopping_${email}`;
+
+export function getShopping(email: string): ShoppingState {
+  const raw = safeGet(shoppingKey(email));
+  if (!raw) return { checked: [], custom: [] };
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj !== "object" || obj === null) {
+      return { checked: [], custom: [] };
+    }
+    return {
+      checked: Array.isArray(obj.checked) ? (obj.checked as string[]) : [],
+      custom: Array.isArray(obj.custom) ? (obj.custom as string[]) : [],
+    };
+  } catch {
+    return { checked: [], custom: [] };
+  }
+}
+
+function saveShopping(email: string, state: ShoppingState): ShoppingState {
+  safeSet(shoppingKey(email), JSON.stringify(state));
+  return state;
+}
+
+export function toggleShoppingItem(
+  email: string,
+  item: string
+): ShoppingState {
+  const state = getShopping(email);
+  const checked = state.checked.includes(item)
+    ? state.checked.filter((i) => i !== item)
+    : [...state.checked, item];
+  return saveShopping(email, { ...state, checked });
+}
+
+export function addCustomShoppingItem(
+  email: string,
+  item: string
+): ShoppingState {
+  const state = getShopping(email);
+  const clean = item.trim();
+  if (!clean) return state;
+  const all = [...state.custom];
+  if (!all.some((i) => i.toLowerCase() === clean.toLowerCase())) all.push(clean);
+  return saveShopping(email, { ...state, custom: all });
+}
+
+export function removeCustomShoppingItem(
+  email: string,
+  item: string
+): ShoppingState {
+  const state = getShopping(email);
+  return saveShopping(email, {
+    custom: state.custom.filter((i) => i !== item),
+    checked: state.checked.filter((i) => i !== item),
+  });
+}
+
+export function clearShoppingChecked(email: string): ShoppingState {
+  const state = getShopping(email);
+  return saveShopping(email, { ...state, checked: [] });
+}

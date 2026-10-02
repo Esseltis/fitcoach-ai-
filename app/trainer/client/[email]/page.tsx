@@ -18,6 +18,7 @@ import {
   saveTrainerRecipe,
   getTrainerWorkouts,
   saveTrainerWorkout,
+  getMoodByDate,
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
@@ -286,6 +287,7 @@ export default function TrainerClientPage({
         </div>
 
         {tab === "report" && (
+          <>
           <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
               Raport klienta
@@ -311,6 +313,75 @@ export default function TrainerClientPage({
               </div>
             )}
           </section>
+
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+              Sytość i motywacja (check-in 7 dni)
+            </h2>
+            {(() => {
+              const moods = getMoodByDate(email);
+              const rows: {
+                key: string;
+                label: string;
+                satiety: number;
+                motivation: number;
+              }[] = [];
+              for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const k =
+                  i === 0
+                    ? new Date().toISOString().slice(0, 10)
+                    : (() => {
+                        const mid = new Date(d);
+                        mid.setHours(12, 0, 0, 0);
+                        return mid.toISOString().slice(0, 10);
+                      })();
+                const e = moods[k];
+                rows.push({
+                  key: k,
+                  label:
+                    i === 0
+                      ? "Dziś"
+                      : d.toLocaleDateString("pl-PL", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        }),
+                  satiety: e?.satiety ?? 0,
+                  motivation: e?.motivation ?? 0,
+                });
+              }
+              const any = rows.some((r) => r.satiety > 0 || r.motivation > 0);
+              if (!any) {
+                return (
+                  <p className="text-sm text-slate-400">
+                    Klient nie zrobił jeszcze check-inu samopoczucia.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2 text-sm">
+                  {rows.map((r) => (
+                    <div
+                      key={r.key}
+                      className="flex items-center justify-between border-b border-slate-800/60 pb-2"
+                    >
+                      <span className="text-slate-400">{r.label}</span>
+                      <span className="flex gap-4">
+                        <span className="text-sky-300">
+                          Sytość: {r.satiety > 0 ? `${r.satiety}/5` : "—"}
+                        </span>
+                        <span className="text-amber-300">
+                          Motywacja: {r.motivation > 0 ? `${r.motivation}/5` : "—"}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </section>
+          </>
         )}
 
         {tab === "profile" && (

@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   Droplets,
   Camera,
+  Flame,
+  ShoppingBasket,
 } from "lucide-react";
 import {
   getClientContent,
@@ -32,7 +34,6 @@ import {
   setWaterForDate,
   getDoneExerciseIds,
   toggleExerciseDone,
-  getClientProfile,
   getMealChoices,
   setMealChoice,
   getTrainingLog,
@@ -41,18 +42,35 @@ import {
   getMealsDoneByDate,
   getWaterAll,
   getLastDrinkTs,
+  getBodyWeightKg,
+  getActivities,
+  getReport,
+  setMoodForDate,
+  getMoodByDate,
 } from "@/lib/store";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // Cel nawodnienia: ~31 ml/kg masy ciała, szklanka = 250 ml
 function computeWaterGoal(email: string, fallbackWeight?: string): number {
-  const profile = getClientProfile(email);
-  const raw = profile?.weight ?? fallbackWeight ?? "";
-  const kg = parseFloat(String(raw).replace(",", "."));
-  if (!Number.isFinite(kg) || kg <= 0) return 8;
+  const kg = getBodyWeightKg(email, fallbackWeight);
+  if (!kg) return 8;
   return Math.max(4, Math.min(15, Math.round((kg * 31) / 250)));
 }
+
+// Okna czasowe przypomnień o posiłkach (minuty od północy)
+const MEAL_WINDOWS: {
+  cat: string;
+  label: string;
+  from: number;
+  to: number;
+}[] = [
+  { cat: "sniadanie", label: "śniadanie", from: 7 * 60, to: 10 * 60 },
+  { cat: "ii_sniadanie", label: "II śniadanie", from: 10 * 60, to: 12 * 60 },
+  { cat: "obiad", label: "obiad", from: 12 * 60, to: 15 * 60 },
+  { cat: "podwieczorek", label: "podwieczorek", from: 15 * 60, to: 17 * 60 + 30 },
+  { cat: "kolacja", label: "kolację", from: 18 * 60, to: 21 * 60 },
+];
 
 type SectionId =
   | "dashboard"
@@ -285,6 +303,18 @@ export default function ClientDashboardPage() {
       href: "/client/zdjecia",
     },
     {
+      id: "aktywnosci",
+      label: "Aktywności",
+      icon: Flame,
+      href: "/client/aktywnosci",
+    },
+    {
+      id: "zakupy",
+      label: "Lista zakupów",
+      icon: ShoppingBasket,
+      href: "/client/zakupy",
+    },
+    {
       id: "raport",
       label: "Wyślij raport",
       icon: FileText,
@@ -345,7 +375,9 @@ export default function ClientDashboardPage() {
                   !hasTrainer &&
                   item.id !== "dashboard" &&
                   item.id !== "pomiary" &&
-                  item.id !== "zdjecia";
+                  item.id !== "zdjecia" &&
+                  item.id !== "aktywnosci" &&
+                  item.id !== "zakupy";
                 return (
                   <button
                     key={item.id}
@@ -564,26 +596,45 @@ export default function ClientDashboardPage() {
         )}
       </main>
       {email && (
-        <WaterReminder
+        <ReminderHost
           email={email}
           fallbackWeight={content.nutrition.weight}
+          mealCats={content.diet.meals
+            .map((m) => m.category ?? "")
+            .filter((c) => c !== "")}
+          canReport={hasTrainer}
+          onOpenDiet={() => {
+            setShowIntro(false);
+            setActiveSection("dieta");
+          }}
         />
       )}
     </div>
   );
 }
 
-function WaterReminder({
+function ReminderHost({
   email,
   fallbackWeight,
+  mealCats,
+  canReport,
+  onOpenDiet,
 }: {
   email: string;
   fallbackWeight?: string;
+  mealCats: string[];
+  canReport: boolean;
+  onOpenDiet: () => void;
 }) {
-  const [show, setShow] = useState(false);
+  const router = useRouter();
+  const [kind, setKind] = useState<"water" | "meal" | "report" | null>(null);
+  const [mealLabel, setMealLabel] = useState("");
   const [glasses, setGlasses] = useState(0);
   const [goal, setGoal] = useState(8);
   const [closedAt, setClosedAt] = useState(0);
+
+  // zależność jako string — referencja tablicy zmienia się przy każdym renderze
+  const mealCatsKey = mealCats.join(",");
 
   useEffect(() => {
     const goalG = computeWaterGoal(email, fallbackWeight);
@@ -591,52 +642,137 @@ function WaterReminder({
     const openedAt = Date.now();
 
     const check = () => {
+      const now = Date.now();
       const g = getWaterForDate(email, todayISO());
-      const lastDrink = getLastDrinkTs(email);
-      const last = Math.max(lastDrink || 0, openedAt, closedAt);
-      const stale = Date.now() - last > 60 * 60 * 1000; // godzina bez wody
       setGlasses(g);
-      setShow(g < goalG && stale);
+
+      // „Później" wycisza wszystkie przypomnienia na godzinę
+      if (closedAt && now - closedAt < 60 * 60 * 1000) {
+        setKind(null);
+        return;
+      }
+
+      // 1) woda — godzina bez łyka
+      const last = Math.max(getLastDrinkTs(email) || 0, openedAt);
+      if (g < goalG && now - last > 60 * 60 * 1000) {
+        setKind("water");
+        return;
+      }
+
+      // 2) posiłek — okno czasowe, a posiłek nieodhaczony
+      const nowD = new Date();
+      const minutes = nowD.getHours() * 60 + nowD.getMinutes();
+      const done = getDoneMeals(email, todayISO());
+      const due = MEAL_WINDOWS.find(
+        (w) =>
+          mealCats.includes(w.cat) &&
+          !done.includes(w.cat) &&
+          minutes >= w.from &&
+          minutes <= w.to
+      );
+      if (due) {
+        setMealLabel(due.label);
+        setKind("meal");
+        return;
+      }
+
+      // 3) raport — wieczór i niewysłany dziś
+      if (
+        canReport &&
+        nowD.getHours() >= 18 &&
+        getReport(email)?.submittedAt?.slice(0, 10) !== todayISO()
+      ) {
+        setKind("report");
+        return;
+      }
+
+      setKind(null);
     };
 
     check();
     const id = window.setInterval(check, 5 * 60 * 1000);
     return () => window.clearInterval(id);
-  }, [email, fallbackWeight, closedAt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, fallbackWeight, mealCatsKey, canReport, closedAt]);
+
+  const info =
+    kind === "water"
+      ? {
+          icon: "💧",
+          title: "Pora na szklankę wody!",
+          body: `Dzisiaj: ${glasses} z ${goal} szklanek.`,
+          primary: "+1 szklanka",
+          action: "water" as const,
+          border: "border-sky-500/40",
+          btn: "bg-sky-500 hover:bg-sky-400",
+        }
+      : kind === "meal"
+      ? {
+          icon: "🍽️",
+          title: `Pora na ${mealLabel}!`,
+          body: "Gdy zjesz — odhacz posiłek w Diecie.",
+          primary: "Odhacz w Diecie",
+          action: "diet" as const,
+          border: "border-amber-500/40",
+          btn: "bg-amber-500 hover:bg-amber-400",
+        }
+      : kind === "report"
+      ? {
+          icon: "📝",
+          title: "Raport czeka na wysłanie",
+          body: "Trener czeka na Twoje podsumowanie dnia.",
+          primary: "Wyślij raport",
+          action: "report" as const,
+          border: "border-emerald-500/40",
+          btn: "bg-emerald-500 hover:bg-emerald-400",
+        }
+      : null;
 
   useEffect(() => {
     if (
-      show &&
+      info &&
       typeof window !== "undefined" &&
       "Notification" in window &&
       Notification.permission === "granted"
     ) {
       try {
-        new Notification("💧 Pora na wodę", {
-          body: `Dzisiaj wypiłeś ${glasses} z ${goal} szklanek.`,
-        });
+        new Notification(`🔔 ${info.title}`, { body: info.body });
       } catch {
         /* ignore */
       }
     }
-  }, [show, glasses, goal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, glasses, goal, mealLabel]);
 
-  if (!show) return null;
+  if (!info) return null;
 
   const postpone = () => {
     setClosedAt(Date.now());
-    setShow(false);
+    setKind(null);
+  };
+
+  const runAction = () => {
+    if (info.action === "water") {
+      setGlasses(setWaterForDate(email, todayISO(), glasses + 1));
+      setKind(null);
+    } else if (info.action === "diet") {
+      onOpenDiet();
+      setKind(null);
+    } else {
+      router.push("/client/raport");
+      setKind(null);
+    }
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-72 rounded-2xl border border-sky-500/40 bg-slate-900 p-4 text-xs text-slate-200 shadow-2xl">
+    <div
+      className={`fixed bottom-4 right-4 z-50 w-72 rounded-2xl border ${info.border} bg-slate-900 p-4 text-xs text-slate-200 shadow-2xl`}
+    >
       <div className="flex items-start gap-2">
-        <span className="text-lg">💧</span>
+        <span className="text-lg">{info.icon}</span>
         <div className="flex-1">
-          <p className="font-semibold text-slate-50">Pora na szklankę wody!</p>
-          <p className="mt-1 text-slate-400">
-            Dzisiaj: {glasses} / {goal} szklanek
-          </p>
+          <p className="font-semibold text-slate-50">{info.title}</p>
+          <p className="mt-1 text-slate-400">{info.body}</p>
         </div>
         <button
           type="button"
@@ -650,13 +786,10 @@ function WaterReminder({
       <div className="mt-3 flex gap-2">
         <button
           type="button"
-          onClick={() => {
-            setGlasses(setWaterForDate(email, todayISO(), glasses + 1));
-            setShow(false);
-          }}
-          className="flex-1 rounded-xl bg-sky-500 px-3 py-2 font-semibold text-slate-950 hover:bg-sky-400"
+          onClick={runAction}
+          className={`flex-1 rounded-xl px-3 py-2 font-semibold text-slate-950 ${info.btn}`}
         >
-          +1 szklanka
+          {info.primary}
         </button>
         <button
           type="button"
@@ -680,10 +813,18 @@ function DashboardSection({
   email: string;
 }) {
   const [streakData, setStreakData] = useState({ streak: 0, monthPct: 0 });
+  const [mood, setMood] = useState<{ satiety: number; motivation: number }>({
+    satiety: 0,
+    motivation: 0,
+  });
+  const [moodWeek, setMoodWeek] = useState<
+    { key: string; label: string; satiety: number; motivation: number }[]
+  >([]);
 
   useEffect(() => {
     const meals = getMealsDoneByDate(email);
     const water = getWaterAll(email);
+    const moods = getMoodByDate(email);
     const now = new Date();
     // Klucze zapisujemy przez todayISO(); dla dni przeszłych bierzemy południe,
     // żeby konwersja UTC nie przesunęła daty na sąsiedni dzień.
@@ -717,7 +858,32 @@ function DashboardSection({
     const monthPct = Math.round((activeDays / now.getDate()) * 100);
 
     setStreakData({ streak: s, monthPct });
+
+    // Samopoczucie: dzisiaj + ostatnie 7 dni
+    setMood(moods[iso(now)] ?? { satiety: 0, motivation: 0 });
+    const week = [];
+    for (let i = 6; i >= 0; i--) {
+      const day = new Date(now);
+      day.setDate(day.getDate() - i);
+      const k = iso(day);
+      const e = moods[k];
+      week.push({
+        key: k,
+        label: day.toLocaleDateString("pl-PL", { weekday: "short" }).slice(0, 2),
+        satiety: e?.satiety ?? 0,
+        motivation: e?.motivation ?? 0,
+      });
+    }
+    setMoodWeek(week);
   }, [email]);
+
+  const setMoodValue = (field: "satiety" | "motivation", value: number) => {
+    const next = setMoodForDate(email, todayISO(), { ...mood, [field]: value });
+    setMood(next);
+    setMoodWeek((w) =>
+      w.map((d, i) => (i === w.length - 1 ? { ...d, ...next } : d))
+    );
+  };
 
   return (
     <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
@@ -979,8 +1145,104 @@ function DashboardSection({
             </div>
           </div>
         </div>
+
+        {/* Sytość i motywacja (check-in jak w Respo) */}
+        <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-400">
+              Sytość i motywacja
+            </p>
+            <p className="text-xs text-slate-300">
+              Oceń dzień w skali 1–5 — trener zobaczy Twój trend.
+            </p>
+          </div>
+          <MoodScale
+            label="Sytość"
+            value={mood.satiety}
+            activeClass="bg-sky-500 text-slate-950"
+            onChange={(v) => setMoodValue("satiety", v)}
+          />
+          <MoodScale
+            label="Motywacja"
+            value={mood.motivation}
+            activeClass="bg-amber-500 text-slate-950"
+            onChange={(v) => setMoodValue("motivation", v)}
+          />
+          {moodWeek.length > 0 && (
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-2">
+              <p className="mb-1 px-1 text-[10px] uppercase tracking-wide text-slate-500">
+                Ostatnie 7 dni
+              </p>
+              <div className="flex items-end justify-between gap-1">
+                {moodWeek.map((d) => (
+                  <div
+                    key={d.key}
+                    className="flex flex-1 flex-col items-center gap-1"
+                  >
+                    <div className="flex h-6 items-end gap-0.5">
+                      <span
+                        className="w-1.5 rounded-t-sm bg-sky-400"
+                        style={{ height: `${d.satiety * 4.8}px` }}
+                      />
+                      <span
+                        className="w-1.5 rounded-t-sm bg-amber-400"
+                        style={{ height: `${d.motivation * 4.8}px` }}
+                      />
+                    </div>
+                    <span className="text-[9px] text-slate-500">{d.label}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-1 flex items-center gap-3 px-1 text-[9px] text-slate-500">
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+                  sytość
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  motywacja
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </section>
+  );
+}
+
+function MoodScale({
+  label,
+  value,
+  onChange,
+  activeClass,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  activeClass: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs text-slate-300">{label}</span>
+      <div className="flex gap-1.5">
+        {[1, 2, 3, 4, 5].map((v) => (
+          <button
+            key={v}
+            type="button"
+            aria-label={`${label}: ${v}`}
+            onClick={() => onChange(v)}
+            className={`h-7 w-7 rounded-lg text-xs font-semibold transition ${
+              value === v
+                ? activeClass
+                : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1439,6 +1701,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
   const [email, setEmail] = useState("demo@fitcoach.ai");
   const [doneMeals, setDoneMeals] = useState<string[]>([]);
   const [choices, setChoices] = useState<Record<string, number>>({});
+  const [burned, setBurned] = useState(0);
 
   useEffect(() => {
     const storedEmail =
@@ -1446,6 +1709,9 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
     setEmail(storedEmail);
     setDoneMeals(getDoneMeals(storedEmail, todayISO()));
     setChoices(getMealChoices(storedEmail, todayISO()));
+    setBurned(
+      getActivities(storedEmail, todayISO()).reduce((s, a) => s + a.kcal, 0)
+    );
   }, []);
 
   const pickVariant = (idx: number) => {
@@ -1563,6 +1829,26 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
               }%`,
             }}
           />
+        </div>
+
+        {/* Bilans energetyczny (zjedzone − spalone, jak w Respo) */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+          <Link
+            href="/client/aktywnosci"
+            className="text-slate-400 hover:text-slate-200"
+          >
+            🔥 Spalone:{" "}
+            <span className="font-semibold text-orange-400">{burned} kcal</span>{" "}
+            <span className="text-[10px] underline underline-offset-2">
+              (dodaj aktywność →)
+            </span>
+          </Link>
+          <span className="text-slate-300">
+            Możesz jeszcze zjeść:{" "}
+            <span className="font-semibold text-emerald-400">
+              {Math.max(0, targetKcal - eaten.kcal + burned)} kcal
+            </span>
+          </span>
         </div>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-3">

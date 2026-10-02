@@ -684,14 +684,21 @@ function DashboardSection({
   useEffect(() => {
     const meals = getMealsDoneByDate(email);
     const water = getWaterAll(email);
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const now = new Date();
+    // Klucze zapisujemy przez todayISO(); dla dni przeszłych bierzemy południe,
+    // żeby konwersja UTC nie przesunęła daty na sąsiedni dzień.
+    const iso = (d: Date) => {
+      if (d.toDateString() === now.toDateString()) return todayISO();
+      const mid = new Date(d);
+      mid.setHours(12, 0, 0, 0);
+      return mid.toISOString().slice(0, 10);
+    };
     const isActive = (d: Date) => {
       const k = iso(d);
       return (meals[k]?.length ?? 0) > 0 || (water[k] ?? 0) > 0;
     };
 
     // Seria: kolejne dni z aktywnością (dziś jeszcze może być pusty)
-    const now = new Date();
     let s = 0;
     const cursor = new Date(now);
     if (!isActive(cursor)) cursor.setDate(cursor.getDate() - 1);

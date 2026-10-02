@@ -19,6 +19,15 @@ import {
   getTrainerWorkouts,
   saveTrainerWorkout,
   getMoodByDate,
+  getDoneMeals,
+  getWaterForDate,
+  getDoneExerciseIds,
+  getActivities,
+  getTrainingLog,
+  getMealsDoneByDate,
+  getWaterAll,
+  getBodyWeightKg,
+  getTasksDone,
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
@@ -38,10 +47,12 @@ import {
   HydrationEditor,
   TrainingEditor,
   CateringEditor,
+  GuidelinesEditor,
 } from "@/components/TrainerContentEditors";
 
 type TabKey =
   | "report"
+  | "wykonanie"
   | "profile"
   | "intro"
   | "nutrition"
@@ -51,10 +62,12 @@ type TabKey =
   | "hydration"
   | "training"
   | "catering"
+  | "guidelines"
   | "plan";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "report", label: "Raport" },
+  { key: "wykonanie", label: "Wykonanie" },
   { key: "profile", label: "Profil" },
   { key: "intro", label: "Wstęp" },
   { key: "nutrition", label: "Analiza" },
@@ -64,6 +77,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "hydration", label: "Nawodnienie" },
   { key: "training", label: "Trening" },
   { key: "catering", label: "Catering" },
+  { key: "guidelines", label: "Wytyczne" },
   { key: "plan", label: "Plan" },
 ];
 
@@ -214,6 +228,17 @@ export default function TrainerClientPage({
     flash();
   };
 
+  const sendFeedback = () => {
+    if (!trainerId) return;
+    const next: TrainerContent = {
+      ...content,
+      feedback: { text: content.feedback.text, at: new Date().toISOString() },
+    };
+    setContent(next);
+    saveClientContent(email, next);
+    flash();
+  };
+
   const reportFieldDefs = trainerId
     ? getTrainerReportFields(trainerId)
     : [];
@@ -275,7 +300,7 @@ export default function TrainerClientPage({
       <main className="mx-auto max-w-5xl p-6">
         <div className="mb-4 flex items-center justify-end gap-3">
           {saved && <span className="text-xs text-emerald-300">Zapisano ✓</span>}
-          {tab !== "report" && (
+          {tab !== "report" && tab !== "wykonanie" && (
             <button
               type="button"
               onClick={tab === "plan" ? savePlanSection : saveSection}
@@ -381,7 +406,49 @@ export default function TrainerClientPage({
               );
             })()}
           </section>
+
+          <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+              Odpowiedź dla podopiecznego
+            </h2>
+            <p className="text-[11px] text-slate-400">
+              Wiadomość pojawi się w jego panelu w karcie „Wiadomość od trenera"
+              — to Twoja stała odpowiedź na raport i bieżące wskazówki.
+            </p>
+            <textarea
+              value={content.feedback.text}
+              onChange={(e) =>
+                setContent({
+                  ...content,
+                  feedback: { ...content.feedback, text: e.target.value },
+                })
+              }
+              rows={4}
+              placeholder="np. Super robota z raportami — kalorie trzymamy, w tym tygodniu dokładamy 1 trening. Pamiętaj o zdjęciach w sobotę!"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[11px] text-slate-500">
+                {content.feedback.at
+                  ? `Ostatnia wiadomość: ${new Date(
+                      content.feedback.at
+                    ).toLocaleString("pl-PL")}`
+                  : "Brak wiadomości — podopieczny zobaczy domyślne przypomnienie."}
+              </span>
+              <button
+                type="button"
+                onClick={sendFeedback}
+                className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
+              >
+                Wyślij odpowiedź
+              </button>
+            </div>
+          </section>
           </>
+        )}
+
+        {tab === "wykonanie" && (
+          <WykonanieSection email={email} content={content} report={report} />
         )}
 
         {tab === "profile" && (
@@ -446,6 +513,9 @@ export default function TrainerClientPage({
           <TrainingEditor c={content} set={setContent} trainerId={trainerId} />
         )}
         {tab === "catering" && <CateringEditor c={content} set={setContent} />}
+        {tab === "guidelines" && (
+          <GuidelinesEditor c={content} set={setContent} />
+        )}
 
         {tab === "plan" && (
           <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
@@ -537,4 +607,310 @@ function formatReportValue(key: string, v: string | number | boolean): string {
   if (key === "weight") return `${v} kg`;
   if (key === "waterIntake") return `${v} l`;
   return String(v);
+}
+
+function StatBar({
+  label,
+  value,
+  sub,
+  done,
+  total,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  done?: number;
+  total?: number;
+}) {
+  const pct =
+    typeof done === "number" && typeof total === "number" && total > 0
+      ? Math.min(100, Math.round((done / total) * 100))
+      : null;
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+      <p className="text-[11px] uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-semibold text-slate-50">{value}</p>
+      {sub && <p className="text-[11px] text-slate-500">{sub}</p>}
+      {pct !== null && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WykonanieSection({
+  email,
+  content,
+  report,
+}: {
+  email: string;
+  content: TrainerContent;
+  report: ClientReport | null;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Posiłki
+  const mealCats = content.diet.meals.map((m) => m.category ?? "");
+  const doneMeals = getDoneMeals(email, today).filter((c) =>
+    mealCats.includes(c)
+  );
+  const mealTotal = Math.max(1, new Set(mealCats.filter(Boolean)).size);
+
+  // Woda: cel trenera, inaczej auto z masy ciała
+  const water = getWaterForDate(email, today);
+  const kg = getBodyWeightKg(email, content.nutrition.weight);
+  const autoGoal = kg
+    ? Math.max(4, Math.min(15, Math.round((kg * 31) / 250)))
+    : 8;
+  const override = Number(content.guidelines?.waterGlasses);
+  const waterGoal =
+    Number.isFinite(override) && override > 0
+      ? Math.min(20, Math.round(override))
+      : autoGoal;
+
+  // Trening: wykonane ćwiczenia per dzień planu
+  const trainingRows = content.training.days
+    .map((d, i) => {
+      const dayId = i + 1;
+      const total = (content.training.dayExercises[dayId] ?? []).length;
+      const done = getDoneExerciseIds(email, dayId).filter(
+        (id) => Number(id) >= 1 && Number(id) <= total
+      ).length;
+      return { dayId, label: d.label, status: d.status, total, done };
+    })
+    .filter((r) => r.total > 0);
+  const trainingDone = trainingRows.reduce((s, r) => s + r.done, 0);
+  const trainingTotal = trainingRows.reduce((s, r) => s + r.total, 0);
+
+  // Zadania od trenera
+  const tasks = content.tasks.filter((t) => t.trim());
+  const tasksDone = getTasksDone(email, today);
+
+  // Aktywności spoza planu
+  const acts = getActivities(email, today);
+  const actKcal = acts.reduce((s, a) => s + (a.kcal || 0), 0);
+
+  // Seria dni (ta sama logika co na dashbordzie podopiecznego)
+  const mealsAll = getMealsDoneByDate(email);
+  const waterAll = getWaterAll(email);
+  const now = new Date();
+  const iso = (d: Date) => {
+    if (d.toDateString() === now.toDateString()) return today;
+    const mid = new Date(d);
+    mid.setHours(12, 0, 0, 0);
+    return mid.toISOString().slice(0, 10);
+  };
+  const isActive = (d: Date) => {
+    const k = iso(d);
+    return (mealsAll[k]?.length ?? 0) > 0 || (waterAll[k] ?? 0) > 0;
+  };
+  let streak = 0;
+  const cursor = new Date(now);
+  if (!isActive(cursor)) cursor.setDate(cursor.getDate() - 1);
+  while (isActive(cursor) && streak < 365) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  const mood = getMoodByDate(email)[today];
+  const reportToday = report?.submittedAt?.slice(0, 10) === today;
+
+  // Log treningowy (wpisy kg × powtórzenia)
+  const logRows: {
+    day: string;
+    name: string;
+    kg: string;
+    reps: string;
+    effort: string;
+  }[] = [];
+  for (const r of trainingRows) {
+    const log = getTrainingLog(email, r.dayId);
+    const exs = content.training.dayExercises[r.dayId] ?? [];
+    exs.forEach((ex, i) => {
+      const e = log[String(i + 1)];
+      if (e && (e.kg || e.reps || e.effort)) {
+        logRows.push({
+          day: r.label,
+          name: ex.name,
+          kg: e.kg,
+          reps: e.reps,
+          effort: e.effort,
+        });
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+            Wykonanie dzisiaj
+          </h2>
+          <span className="text-[11px] text-slate-500">
+            {new Date().toLocaleDateString("pl-PL", {
+              day: "2-digit",
+              month: "long",
+            })}
+          </span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatBar
+            label="Posiłki"
+            value={`${doneMeals.length} / ${mealTotal}`}
+            done={doneMeals.length}
+            total={mealTotal}
+          />
+          <StatBar
+            label="Woda"
+            value={`${water} / ${waterGoal} szkl.`}
+            sub={content.guidelines?.waterGlasses ? "cel od trenera" : "auto z wagi"}
+            done={water}
+            total={waterGoal}
+          />
+          <StatBar
+            label="Trening (plan)"
+            value={
+              trainingTotal > 0
+                ? `${trainingDone} / ${trainingTotal}`
+                : "brak ćwiczeń"
+            }
+            done={trainingDone}
+            total={trainingTotal}
+          />
+          <StatBar
+            label="Zadania dnia"
+            value={
+              tasks.length > 0
+                ? `${tasksDone.filter((t) => tasks.includes(t)).length} / ${tasks.length}`
+                : "—"
+            }
+            done={tasksDone.filter((t) => tasks.includes(t)).length}
+            total={tasks.length}
+          />
+          <StatBar
+            label="Aktywności"
+            value={acts.length > 0 ? `${acts.length} · ${actKcal} kcal` : "0"}
+          />
+          <StatBar label="Seria dni 🔥" value={`${streak} dni`} />
+          <StatBar
+            label="Samopoczucie"
+            value={
+              mood
+                ? `S ${mood.satiety}/5 · M ${mood.motivation}/5`
+                : "brak oceny"
+            }
+          />
+          <StatBar
+            label="Raport dzienny"
+            value={reportToday ? "Wysłany ✓" : "Nie wysłany"}
+          />
+        </div>
+
+        {tasks.length > 0 && (
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Zadania od Ciebie
+            </p>
+            <ul className="mt-2 space-y-1.5 text-sm">
+              {tasks.map((t, i) => {
+                const done = tasksDone.includes(t);
+                return (
+                  <li key={i} className="flex items-center gap-2">
+                    <span
+                      className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold ${
+                        done
+                          ? "bg-emerald-500 text-slate-950"
+                          : "bg-slate-800 text-slate-500"
+                      }`}
+                    >
+                      {done ? "✓" : ""}
+                    </span>
+                    <span className={done ? "text-slate-500 line-through" : "text-slate-200"}>
+                      {t}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+          Log treningowy (kg × powtórzenia)
+        </h2>
+        {logRows.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Podopieczny nie uzupełnił jeszcze logu żadnego ćwiczenia.
+          </p>
+        ) : (
+          <div className="space-y-2 text-sm">
+            {logRows.slice(0, 12).map((r, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2"
+              >
+                <span className="min-w-0 truncate text-slate-300">
+                  <span className="mr-2 text-[10px] uppercase text-slate-500">
+                    {r.day}
+                  </span>
+                  {r.name}
+                </span>
+                <span className="shrink-0 text-slate-100">
+                  {r.kg && `${r.kg} kg`}
+                  {r.reps && ` × ${r.reps}`}
+                  {r.effort && (
+                    <span className="ml-2 text-[11px] text-amber-300">
+                      RPE {r.effort}
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+          Aktywności spoza planu (dzisiaj)
+        </h2>
+        {acts.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Brak dodatkowych aktywności — podopieczny dolicza je sam w zakładce
+            „Aktywności".
+          </p>
+        ) : (
+          <div className="space-y-2 text-sm">
+            {acts.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between border-b border-slate-800/60 pb-2"
+              >
+                <span className="text-slate-300">
+                  {a.name}
+                  {a.minutes > 0 && (
+                    <span className="ml-2 text-[11px] text-slate-500">
+                      {a.minutes} min
+                    </span>
+                  )}
+                </span>
+                <span className="font-medium text-amber-300">{a.kcal} kcal</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }

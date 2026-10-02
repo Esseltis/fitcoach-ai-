@@ -47,12 +47,23 @@ import {
   getReport,
   setMoodForDate,
   getMoodByDate,
+  getTasksDone,
+  toggleTaskDone,
 } from "@/lib/store";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// Cel nawodnienia: ~31 ml/kg masy ciała, szklanka = 250 ml
-function computeWaterGoal(email: string, fallbackWeight?: string): number {
+// Cel nawodnienia: ~31 ml/kg masy ciała, szklanka = 250 ml.
+// Trener może nadpisać cel liczbą szklanek (guidelines.waterGlasses).
+function computeWaterGoal(
+  email: string,
+  fallbackWeight?: string,
+  trainerGlasses?: string
+): number {
+  const override = Number(trainerGlasses);
+  if (trainerGlasses && Number.isFinite(override) && override > 0) {
+    return Math.max(1, Math.min(20, Math.round(override)));
+  }
   const kg = getBodyWeightKg(email, fallbackWeight);
   if (!kg) return 8;
   return Math.max(4, Math.min(15, Math.round((kg * 31) / 250)));
@@ -560,7 +571,8 @@ export default function ClientDashboardPage() {
               <DashboardSection
                 activeSection={activeSection}
                 setActiveSection={setActiveSection}
-                email={email}
+                email={email ?? ""}
+                content={content}
               />
             )}
             {activeSection === "analiza" && (
@@ -603,6 +615,8 @@ export default function ClientDashboardPage() {
             .map((m) => m.category ?? "")
             .filter((c) => c !== "")}
           canReport={hasTrainer}
+          reportHour={Number(content.guidelines?.reportHour) || 18}
+          trainerWaterGlasses={content.guidelines?.waterGlasses}
           onOpenDiet={() => {
             setShowIntro(false);
             setActiveSection("dieta");
@@ -619,12 +633,16 @@ function ReminderHost({
   mealCats,
   canReport,
   onOpenDiet,
+  reportHour,
+  trainerWaterGlasses,
 }: {
   email: string;
   fallbackWeight?: string;
   mealCats: string[];
   canReport: boolean;
   onOpenDiet: () => void;
+  reportHour: number;
+  trainerWaterGlasses?: string;
 }) {
   const router = useRouter();
   const [kind, setKind] = useState<"water" | "meal" | "report" | null>(null);
@@ -637,7 +655,7 @@ function ReminderHost({
   const mealCatsKey = mealCats.join(",");
 
   useEffect(() => {
-    const goalG = computeWaterGoal(email, fallbackWeight);
+    const goalG = computeWaterGoal(email, fallbackWeight, trainerWaterGlasses);
     setGoal(goalG);
     const openedAt = Date.now();
 
@@ -676,10 +694,10 @@ function ReminderHost({
         return;
       }
 
-      // 3) raport — wieczór i niewysłany dziś
+      // 3) raport — wieczór (godzina od trenera) i niewysłany dziś
       if (
         canReport &&
-        nowD.getHours() >= 18 &&
+        nowD.getHours() >= reportHour &&
         getReport(email)?.submittedAt?.slice(0, 10) !== todayISO()
       ) {
         setKind("report");
@@ -693,7 +711,7 @@ function ReminderHost({
     const id = window.setInterval(check, 5 * 60 * 1000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, fallbackWeight, mealCatsKey, canReport, closedAt]);
+  }, [email, fallbackWeight, mealCatsKey, canReport, closedAt, reportHour, trainerWaterGlasses]);
 
   const info =
     kind === "water"
@@ -807,12 +825,15 @@ function DashboardSection({
   activeSection,
   setActiveSection,
   email,
+  content,
 }: {
   activeSection: SectionId;
   setActiveSection: (id: SectionId) => void;
   email: string;
+  content: TrainerContent;
 }) {
   const [streakData, setStreakData] = useState({ streak: 0, monthPct: 0 });
+  const [tasksDone, setTasksDone] = useState<string[]>([]);
   const [mood, setMood] = useState<{ satiety: number; motivation: number }>({
     satiety: 0,
     motivation: 0,
@@ -877,6 +898,15 @@ function DashboardSection({
     setMoodWeek(week);
   }, [email]);
 
+  // Zadania od trenera — odhaczane per dzień
+  useEffect(() => {
+    setTasksDone(getTasksDone(email, todayISO()));
+  }, [email]);
+
+  const toggleTask = (task: string) => {
+    setTasksDone(toggleTaskDone(email, todayISO(), task));
+  };
+
   const setMoodValue = (field: "satiety" | "motivation", value: number) => {
     const next = setMoodForDate(email, todayISO(), { ...mood, [field]: value });
     setMood(next);
@@ -885,8 +915,13 @@ function DashboardSection({
     );
   };
 
+  const taskItems = (content.tasks ?? []).filter((t) => t.trim());
+  const tasksDoneCount = tasksDone.filter((t) => taskItems.includes(t)).length;
+
   return (
-    <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
+    <div className="space-y-6">
+      <GuidelinesCard g={content.guidelines} />
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
       {/* Karta z BMI i wymiarami */}
       <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
         <div className="flex flex-col gap-4 lg:flex-row">
@@ -1064,88 +1099,153 @@ function DashboardSection({
         <div className="flex items-center justify-between gap-2">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-              Dzisiejsze zadania
+              {taskItems.length > 0 ? "Zadania od trenera" : "Dzisiejsze zadania"}
             </p>
             <p className="text-xs text-slate-300">
-              Zrealizuj plan, wypełnij raport i wyślij do trenera.
+              {taskItems.length > 0
+                ? "Odhacz po kolei — jutro lista startuje od nowa."
+                : "Zrealizuj plan, wypełnij raport i wyślij do trenera."}
             </p>
           </div>
-          <Link
-            href="/client/raport"
-            className="rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400"
-          >
-            Wyślij raport
-          </Link>
-        </div>
-
-        <ol className="space-y-2 text-xs text-slate-200">
-          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
-            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-slate-950">
-              1
-            </span>
-            <div>
-              <p className="font-semibold text-slate-50">
-                Przeczytaj plan na dziś
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Sprawdź ćwiczenia, serie i powtórzenia oraz uwagi od trenera.
-              </p>
-            </div>
-          </li>
-          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
-            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-200">
-              2
-            </span>
-            <div>
-              <p className="font-semibold text-slate-50">
-                Zrealizuj trening i posiłki
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Zaznacz, co udało się wykonać, a co wymagało modyfikacji.
-              </p>
-            </div>
-          </li>
-          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
-            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-200">
-              3
-            </span>
-            <div>
-              <p className="font-semibold text-slate-50">
-                Wypełnij krótki raport
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Napisz, jak się czułeś, co było łatwe, a co trudniejsze.
-              </p>
-            </div>
-          </li>
-          <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
-            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-200">
-              4
-            </span>
-            <div>
-              <p className="font-semibold text-slate-50">
-                Wyślij do trenera i czekaj na feedback
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Trener dostosuje kolejne dni na podstawie Twoich raportów.
-              </p>
-            </div>
-          </li>
-        </ol>
-
-        <div className="rounded-2xl border border-amber-500/40 bg-amber-900/30 p-3 text-xs text-amber-100">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
-            <div>
-              <p className="font-semibold">Przypomnienie od trenera</p>
-              <p className="text-[11px] text-amber-100/90">
-                Pamiętaj o zdjęciach sylwetki raz na 2 tygodnie – pomoże to lepiej
-                ocenić postępy niż sama waga.
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            {taskItems.length > 0 && (
+              <span className="rounded-full bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                {tasksDoneCount}/{taskItems.length}
+              </span>
+            )}
+            <Link
+              href="/client/raport"
+              className="rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400"
+            >
+              Wyślij raport
+            </Link>
           </div>
         </div>
 
+        {taskItems.length > 0 ? (
+          <ol className="space-y-2 text-xs text-slate-200">
+            {taskItems.map((task, i) => {
+              const done = tasksDone.includes(task);
+              return (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onClick={() => toggleTask(task)}
+                    className={`flex w-full items-start gap-2 rounded-xl border p-2.5 text-left transition ${
+                      done
+                        ? "border-emerald-500/40 bg-emerald-950/40"
+                        : "border-slate-800 bg-slate-900/80 hover:border-slate-700"
+                    }`}
+                  >
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                        done
+                          ? "bg-emerald-500 text-slate-950"
+                          : "bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      {done ? "✓" : i + 1}
+                    </span>
+                    <span
+                      className={`font-semibold ${
+                        done ? "text-slate-400 line-through" : "text-slate-50"
+                      }`}
+                    >
+                      {task}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <ol className="space-y-2 text-xs text-slate-200">
+            <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+              <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-slate-950">
+                1
+              </span>
+              <div>
+                <p className="font-semibold text-slate-50">
+                  Przeczytaj plan na dziś
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Sprawdź ćwiczenia, serie i powtórzenia oraz uwagi od trenera.
+                </p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+              <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-950">
+                2
+              </span>
+              <div>
+                <p className="font-semibold text-slate-50">
+                  Zrealizuj trening i posiłki
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Zaznacz, co udało się wykonać, a co wymagało modyfikacji.
+                </p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+              <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-950">
+                3
+              </span>
+              <div>
+                <p className="font-semibold text-slate-50">
+                  Wypełnij krótki raport
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Napisz, jak się czułeś, co było łatwe, a co trudniejsze.
+                </p>
+              </div>
+            </li>
+            <li className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/80 p-2.5">
+              <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-950">
+                4
+              </span>
+              <div>
+                <p className="font-semibold text-slate-50">
+                  Wyślij do trenera i czekaj na feedback
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Trener dostosuje kolejne dni na podstawie Twoich raportów.
+                </p>
+              </div>
+            </li>
+          </ol>
+        )}
+
+        {content.feedback?.text ? (
+          <div className="rounded-2xl border border-emerald-500/40 bg-emerald-900/25 p-3 text-xs text-emerald-50">
+            <div className="flex items-start gap-2">
+              <MessageCircle className="mt-0.5 h-4 w-4 text-emerald-300" />
+              <div className="min-w-0">
+                <p className="font-semibold">Wiadomość od trenera</p>
+                <p className="mt-1 whitespace-pre-line text-[11px] text-emerald-50/90">
+                  {content.feedback.text}
+                </p>
+                {content.feedback.at && (
+                  <p className="mt-1.5 text-[10px] text-emerald-200/60">
+                    {new Date(content.feedback.at).toLocaleString("pl-PL")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-900/30 p-3 text-xs text-amber-100">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+              <div>
+                <p className="font-semibold">Przypomnienie od trenera</p>
+                <p className="text-[11px] text-amber-100/90">
+                  Pamiętaj o zdjęciach sylwetki raz na 2 tygodnie – pomoże to lepiej
+                  ocenić postępy niż sama waga.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Sytość i motywacja (check-in jak w Respo) */}
         <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
           <div>
@@ -1208,6 +1308,75 @@ function DashboardSection({
         </div>
       </div>
     </section>
+    </div>
+  );
+}
+
+function GuidelinesCard({
+  g,
+}: {
+  g: TrainerContent["guidelines"] | undefined;
+}) {
+  if (!g) return null;
+  const rules = (g.rules ?? []).filter((r) => r.trim());
+  const hasAny =
+    g.periodGoal.trim() ||
+    g.weeklyFocus.trim() ||
+    rules.length > 0 ||
+    g.waterGlasses ||
+    g.trainingsPerWeek ||
+    g.reportHour;
+  if (!hasAny) return null;
+  return (
+    <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/70 via-slate-950/95 to-slate-950/95 p-4 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+            🎯 Wytyczne trenera
+          </p>
+          {g.periodGoal && (
+            <p className="mt-1 text-lg font-semibold text-slate-50">
+              {g.periodGoal}
+            </p>
+          )}
+          {g.weeklyFocus && (
+            <p className="mt-0.5 text-xs text-amber-200/90">
+              📌 {g.weeklyFocus}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          {g.waterGlasses && (
+            <span className="rounded-full bg-sky-500/15 px-2.5 py-1 text-sky-300">
+              💧 {g.waterGlasses} szklanek / dzień
+            </span>
+          )}
+          {g.trainingsPerWeek && (
+            <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-emerald-300">
+              🏋️ {g.trainingsPerWeek}× trening / tydz.
+            </span>
+          )}
+          {g.reportHour && (
+            <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-300">
+              📝 raport do {g.reportHour}:00
+            </span>
+          )}
+        </div>
+      </div>
+      {rules.length > 0 && (
+        <ul className="mt-3 grid gap-1.5 text-xs text-slate-300 sm:grid-cols-2 lg:grid-cols-3">
+          {rules.map((r, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/70 px-2 py-1.5"
+            >
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+              <span>{r}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -2122,7 +2291,9 @@ function HydrationSection({ content }: { content: TrainerContent }) {
       window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
     setEmail(storedEmail);
     setGlasses(getWaterForDate(storedEmail, todayISO()));
-    setGoal(computeWaterGoal(storedEmail, content.nutrition.weight));
+    setGoal(
+      computeWaterGoal(storedEmail, content.nutrition.weight, content.guidelines?.waterGlasses)
+    );
   }, [content.nutrition.weight]);
 
   const setGlassesFor = (count: number) => {
@@ -2345,6 +2516,13 @@ function TrainingSection({ content }: { content: TrainerContent }) {
           Plan ułożony przez trenera – kolejność ćwiczeń, ilość serii, czas
           pracy i przerwy na każdy dzień.
         </p>
+
+        {content.guidelines?.trainingsPerWeek && (
+          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-300">
+            🎯 Cel trenera: {content.guidelines.trainingsPerWeek} treningi w
+            tygodniu
+          </p>
+        )}
 
         <div className="mt-2 flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/80 p-2 text-xs text-slate-200">
           {days.map((day, idx) => (

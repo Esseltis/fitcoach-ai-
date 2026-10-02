@@ -260,6 +260,115 @@ export function TipsEditor({
   );
 }
 
+export function GuidelinesEditor({
+  c,
+  set,
+}: {
+  c: TrainerContent;
+  set: (c: TrainerContent) => void;
+}) {
+  const g = c.guidelines;
+  const upd = (patch: Partial<TrainerContent["guidelines"]>) =>
+    set({ ...c, guidelines: { ...g, ...patch } });
+  const tasks = c.tasks;
+  const updTasks = (list: string[]) => set({ ...c, tasks: list });
+  return (
+    <div className="space-y-4">
+      <Card>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+          🎯 Cele i zasady współpracy
+        </p>
+        <p className="text-[11px] text-slate-400">
+          Podopieczny zobaczy te wytyczne na górze swojego panelu, a wartości
+          liczbowe na dole sterują aplikacją (cel wody, przypomnienia).
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input
+            label="Cel okresu (np. −4 kg w 8 tygodni)"
+            value={g.periodGoal}
+            placeholder="np. Redukcja: −4 kg w 8 tygodni"
+            onChange={(v) => upd({ periodGoal: v })}
+          />
+          <Input
+            label="Priorytet tygodnia"
+            value={g.weeklyFocus}
+            placeholder="np. 4 treningi, zero słodyczy, sen 7+ h"
+            onChange={(v) => upd({ weeklyFocus: v })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[11px] font-medium text-slate-300">
+            Zasady (jedna na linię — wyświetlane jako lista)
+          </p>
+          {g.rules.map((r, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={r}
+                onChange={(e) =>
+                  upd({
+                    rules: g.rules.map((x, j) => (j === i ? e.target.value : x)),
+                  })
+                }
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+              />
+              <RemoveBtn
+                onClick={() => upd({ rules: g.rules.filter((_, j) => j !== i) })}
+              />
+            </div>
+          ))}
+          <AddBtn onClick={() => upd({ rules: [...g.rules, ""] })} label="Dodaj zasadę" />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Input
+            label="Szklanki wody / dzień (puste = auto z wagi)"
+            value={g.waterGlasses}
+            placeholder="np. 10"
+            onChange={(v) => upd({ waterGlasses: v.replace(/\D/g, "") })}
+          />
+          <Input
+            label="Godzina raportu, 0–23 (puste = 18)"
+            value={g.reportHour}
+            placeholder="np. 20"
+            onChange={(v) => upd({ reportHour: v.replace(/\D/g, "").slice(0, 2) })}
+          />
+          <Input
+            label="Treningów w tygodniu (puste = brak celu)"
+            value={g.trainingsPerWeek}
+            placeholder="np. 4"
+            onChange={(v) => upd({ trainingsPerWeek: v.replace(/\D/g, "").slice(0, 2) })}
+          />
+        </div>
+      </Card>
+
+      <Card>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+          ✅ Zadania dla podopiecznego
+        </p>
+        <p className="text-[11px] text-slate-400">
+          Pojawią się w karcie „Zadania od trenera" na jego panelu — może je
+          odhaczać każdego dnia, a Ty zobaczysz wykonanie w zakładce „Wykonanie".
+        </p>
+        {tasks.map((t, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              value={t}
+              onChange={(e) =>
+                updTasks(tasks.map((x, j) => (j === i ? e.target.value : x)))
+              }
+              placeholder="np. Pomiary ciała w sobotę rano"
+              className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+            />
+            <RemoveBtn onClick={() => updTasks(tasks.filter((_, j) => j !== i))} />
+          </div>
+        ))}
+        <AddBtn onClick={() => updTasks([...tasks, ""])} label="Dodaj zadanie" />
+      </Card>
+    </div>
+  );
+}
+
 export function DietEditor({
   c,
   set,
@@ -676,7 +785,9 @@ export function DietEditor({
                     <input
                       type="number"
                       value={gramsById[p.id] ?? "100"}
-                      onChange={(e) => setProductGrams(p.id, e.target.value)}
+                      onChange={(e) =>
+                        setGramsById((m) => ({ ...m, [p.id]: e.target.value }))
+                      }
                       className="w-20 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none focus:border-emerald-400"
                     />
                     <span className="text-[10px] text-slate-400">g</span>

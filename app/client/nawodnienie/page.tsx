@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Plus, Minus, Droplets, RotateCcw } from "lucide-react";
-import { getWaterForDate, setWaterForDate, getClientProfile } from "@/lib/store";
+import { getWaterForDate, setWaterForDate, getClientProfile, getClientContent } from "@/lib/store";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -17,13 +17,18 @@ export default function HydrationPage() {
     const storedEmail = window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
     setEmail(storedEmail);
     setCount(getWaterForDate(storedEmail, todayISO()));
-    // Cel: ~31 ml/kg masy ciała (szklanka = 250 ml)
-    const kg = parseFloat((getClientProfile(storedEmail)?.weight ?? "").replace(",", "."));
-    setGoal(
-      Number.isFinite(kg) && kg > 0
-        ? Math.max(4, Math.min(15, Math.round((kg * 31) / 250)))
-        : 8
-    );
+    // Cel od trenera (szklanki/dzień), inaczej ~31 ml/kg masy ciała (szklanka = 250 ml)
+    const trainerGlasses = Number(getClientContent(storedEmail).guidelines?.waterGlasses);
+    if (Number.isFinite(trainerGlasses) && trainerGlasses > 0) {
+      setGoal(Math.min(20, Math.round(trainerGlasses)));
+    } else {
+      const kg = parseFloat((getClientProfile(storedEmail)?.weight ?? "").replace(",", "."));
+      setGoal(
+        Number.isFinite(kg) && kg > 0
+          ? Math.max(4, Math.min(15, Math.round((kg * 31) / 250)))
+          : 8
+      );
+    }
     setReady(true);
   }, []);
 

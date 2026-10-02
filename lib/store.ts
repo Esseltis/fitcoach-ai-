@@ -409,7 +409,20 @@ export type TrainerContent = {
     note: string;
     providers: CateringProvider[];
   };
+  guidelines: TrainerGuidelines;
+  tasks: string[];
+  feedback: { text: string; at: string };
   updatedAt: string;
+};
+
+// Wytyczne trenera — sterują aplikacją podopiecznego (woda, przypomnienia, cele)
+export type TrainerGuidelines = {
+  periodGoal: string; // cel okresu, np. "−4 kg w 8 tygodni"
+  weeklyFocus: string; // priorytet bieżącego tygodnia
+  rules: string[]; // zasady (jedna na linię)
+  waterGlasses: string; // "" = auto z masy ciała
+  reportHour: string; // "" = 18
+  trainingsPerWeek: string; // "" = brak celu
 };
 
 export const DEFAULT_CONTENT: TrainerContent = {
@@ -502,6 +515,25 @@ export const DEFAULT_CONTENT: TrainerContent = {
       { name: "FitBox", note: "Opcja wegetariańska.", recommended: false },
     ],
   },
+  guidelines: {
+    periodGoal: "Redukcja: −4 kg w 8 tygodni",
+    weeklyFocus: "Ten tydzień: 4 treningi, zero słodyczy, sen 7+ h.",
+    rules: [
+      "Raport dnia do godziny 20:00",
+      "Waga rano na czczo, po toalecie",
+      "Posiłek potreningowy do 30 min po treningu",
+    ],
+    waterGlasses: "",
+    reportHour: "20",
+    trainingsPerWeek: "4",
+  },
+  tasks: [
+    "Zrealizuj trening zgodnie z planem dnia",
+    "Odhacz wszystkie posiłki w Diecie",
+    "Wypij minimum 8 szklanek wody",
+    "Wypełnij raport dnia i wyślij do trenera",
+  ],
+  feedback: { text: "", at: "" },
   updatedAt: "",
 };
 
@@ -511,7 +543,16 @@ export function getClientContent(email: string): TrainerContent {
   const raw = safeGet(contentKey(email));
   if (!raw) return structuredClone(DEFAULT_CONTENT);
   try {
-    return { ...structuredClone(DEFAULT_CONTENT), ...JSON.parse(raw) };
+    const base = structuredClone(DEFAULT_CONTENT);
+    const parsed = JSON.parse(raw) as Partial<TrainerContent>;
+    return {
+      ...base,
+      ...parsed,
+      // treści zapisane przed dodaniem wytycznych — uzupełnij brakujące pola
+      guidelines: { ...base.guidelines, ...(parsed.guidelines ?? {}) },
+      feedback: { ...base.feedback, ...(parsed.feedback ?? {}) },
+      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : base.tasks,
+    };
   } catch {
     return structuredClone(DEFAULT_CONTENT);
   }
@@ -1199,6 +1240,43 @@ export function setMoodForDate(
   map[date] = next;
   safeSet(moodKey(email), JSON.stringify(map));
   return next;
+}
+
+// ---- Zadania od trenera (checklista dnia, odhaczana per data) ----
+
+const tasksDoneKey = (email: string) => `fitcoach_tasks_done_${email}`;
+
+export function getTasksDone(email: string, date: string): string[] {
+  const raw = safeGet(tasksDoneKey(email));
+  if (!raw) return [];
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj !== "object" || obj === null) return [];
+    return (obj[date] ?? []) as string[];
+  } catch {
+    return [];
+  }
+}
+
+export function toggleTaskDone(
+  email: string,
+  date: string,
+  task: string
+): string[] {
+  const raw = safeGet(tasksDoneKey(email));
+  let map: Record<string, string[]> = {};
+  try {
+    const obj = raw ? JSON.parse(raw) : null;
+    if (typeof obj === "object" && obj !== null) map = obj;
+  } catch {
+    /* ignore */
+  }
+  const current = map[date] ?? [];
+  map[date] = current.includes(task)
+    ? current.filter((t) => t !== task)
+    : [...current, task];
+  safeSet(tasksDoneKey(email), JSON.stringify(map));
+  return map[date];
 }
 
 // ---- Lista zakupów (agregacja składu dań + własne produkty) ----

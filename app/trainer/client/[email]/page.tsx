@@ -29,6 +29,7 @@ import {
   getBodyWeightKg,
   getTasksDone,
   getPhotoMeals,
+  getDishLog,
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
@@ -725,9 +726,12 @@ function WykonanieSection({
   const acts = getActivities(email, today);
   const actKcal = acts.reduce((s, a) => s + (a.kcal || 0), 0);
 
-  // Posiłki ze zdjęcia (wycena AI / testowa) — co podopieczny jadł spoza planu
+  // Posiłki spoza planu: zdjęcia (wycena AI) + dania własne (składniki/ręczne)
   const photoMeals = getPhotoMeals(email, today);
-  const photoKcal = photoMeals.reduce((s, p) => s + (p.kcal || 0), 0);
+  const dishLogs = getDishLog(email, today);
+  const outKcal =
+    photoMeals.reduce((s, p) => s + (p.kcal || 0), 0) +
+    dishLogs.reduce((s, l) => s + (l.kcal || 0), 0);
   const photoCatLabels: Record<string, string> = {
     sniadanie: "Śniadanie",
     ii_sniadanie: "II śniadanie",
@@ -951,14 +955,14 @@ function WykonanieSection({
         )}
       </section>
 
-      {photoMeals.length > 0 && (
+      {(photoMeals.length > 0 || dishLogs.length > 0) && (
         <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-              Posiłki ze zdjęcia (poza planem)
+              Posiłki spoza planu (zdjęcie / własne)
             </h2>
             <span className="text-[11px] text-slate-500">
-              {photoMeals.length} szt. · {photoKcal} kcal
+              {photoMeals.length + dishLogs.length} szt. · {outKcal} kcal
             </span>
           </div>
           <div className="space-y-2 text-sm">
@@ -972,6 +976,7 @@ function WykonanieSection({
                     {photoCatLabels[p.category] ?? p.category}
                   </span>
                   <span className="text-slate-300">{p.name}</span>
+                  <span className="ml-2 text-[10px] text-sky-300">📷</span>
                   {p.source === "demo" && (
                     <span className="ml-2 text-[10px] text-amber-300">
                       wycena testowa
@@ -986,10 +991,39 @@ function WykonanieSection({
                 </span>
               </div>
             ))}
+            {dishLogs.map((l) => (
+              <div
+                key={l.id}
+                className="flex items-center justify-between gap-3 border-b border-slate-800/60 pb-2"
+              >
+                <span className="min-w-0">
+                  <span className="mr-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] uppercase text-slate-400">
+                    {photoCatLabels[l.category] ?? l.category}
+                  </span>
+                  <span className="text-slate-300">{l.name}</span>
+                  <span className="ml-2 text-[10px]">
+                    {l.source === "skladniki" ? "🧩 składniki" : l.source === "zapisane" ? "⭐ moje dania" : "✏️ ręczny"}
+                  </span>
+                  <span
+                    className={`ml-2 text-[10px] ${
+                      l.replacePlan ? "text-emerald-400" : "text-amber-300"
+                    }`}
+                  >
+                    {l.replacePlan ? "zamiast planu" : "dodatkowo"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right text-[11px] text-slate-100">
+                  <span className="font-semibold text-sky-300">{l.kcal} kcal</span>
+                  <span className="ml-2 text-slate-400">
+                    W {l.carbs} · B {l.protein} · T {l.fat}
+                  </span>
+                </span>
+              </div>
+            ))}
           </div>
           <p className="text-[11px] text-slate-500">
-            Wartości wyceniane przez AI ze zdjęcia — w bilansie dnia zastępują
-            planowany wariant tego posiłku.
+            Wpisy „zamiast planu" zastępują planowany wariant w bilansie dnia,
+            „dodatkowo" są doliczane osobno.
           </p>
         </section>
       )}

@@ -1452,3 +1452,132 @@ export function removePhotoMeal(
   safeSet(photoMealsKey(email), JSON.stringify(map));
   return list;
 }
+
+// ---- Składanie dań z produktów (jak w Fitatu) ----
+
+// Składnik DANIA — wartości przeliczone na wybraną gramaturę.
+export type DishIngredient = {
+  name: string;
+  grams: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
+// Danie zapisane do powtarzania („moje dania") — wartości CAŁEGO dania.
+export type SavedDish = {
+  id: string;
+  name: string;
+  ingredients: DishIngredient[];
+  portions: number; // na ile porcji rozłożono danie
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  createdAt: string;
+};
+
+// Wpis do dziennika jedzenia — ląduje w kategorii i w makro dnia.
+export type DishLogEntry = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  category: string; // sniadanie | ii_sniadanie | obiad | podwieczorek | kolacja
+  name: string;
+  kcal: number; // dla zjedzonej porcji
+  protein: number;
+  carbs: number;
+  fat: number;
+  ingredients: DishIngredient[]; // skład CAŁEGO dania (podgląd)
+  portions: number; // z ilu porcji składało się danie
+  servings: number; // ile porcji faktycznie zjedzono
+  replacePlan: boolean; // true = zamiast planu w kategorii; false = dodatkowo
+  source: "skladniki" | "zapisane" | "reczne";
+  createdAt: string;
+};
+
+export const MAX_SAVED_DISHES = 40;
+export const MAX_DISH_LOG_PER_DAY = 30;
+
+const savedDishesKey = (email: string) => `fitcoach_saved_dishes_${email}`;
+
+export function getSavedDishes(email: string): SavedDish[] {
+  const raw = safeGet(savedDishesKey(email));
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? (arr as SavedDish[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSavedDish(
+  email: string,
+  dish: Omit<SavedDish, "id" | "createdAt">
+): SavedDish[] {
+  const list = getSavedDishes(email);
+  if (list.length >= MAX_SAVED_DISHES) return list;
+  const next = [
+    { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...dish },
+    ...list,
+  ];
+  safeSet(savedDishesKey(email), JSON.stringify(next));
+  return next;
+}
+
+export function removeSavedDish(email: string, id: string): SavedDish[] {
+  const next = getSavedDishes(email).filter((d) => d.id !== id);
+  safeSet(savedDishesKey(email), JSON.stringify(next));
+  return next;
+}
+
+const dishLogKey = (email: string) => `fitcoach_dish_log_${email}`;
+
+export function getDishLogByDate(email: string): Record<
+  string,
+  DishLogEntry[]
+> {
+  const raw = safeGet(dishLogKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return typeof obj === "object" && obj !== null
+      ? (obj as Record<string, DishLogEntry[]>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getDishLog(email: string, date: string): DishLogEntry[] {
+  return getDishLogByDate(email)[date] ?? [];
+}
+
+export function addDishLog(
+  email: string,
+  entry: Omit<DishLogEntry, "id" | "createdAt">
+): DishLogEntry[] {
+  const map = getDishLogByDate(email);
+  const list = map[entry.date] ?? [];
+  if (list.length >= MAX_DISH_LOG_PER_DAY) return list;
+  const next = [
+    { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...entry },
+    ...list,
+  ];
+  map[entry.date] = next;
+  safeSet(dishLogKey(email), JSON.stringify(map));
+  return next;
+}
+
+export function removeDishLog(
+  email: string,
+  date: string,
+  id: string
+): DishLogEntry[] {
+  const map = getDishLogByDate(email);
+  const list = (map[date] ?? []).filter((e) => e.id !== id);
+  map[date] = list;
+  safeSet(dishLogKey(email), JSON.stringify(map));
+  return list;
+}

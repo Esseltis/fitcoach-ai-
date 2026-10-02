@@ -54,8 +54,12 @@ import {
   removePhotoMeal,
   MAX_PHOTO_MEALS_PER_DAY,
   type PhotoMeal,
+  getDishLog,
+  removeDishLog,
+  type DishLogEntry,
 } from "@/lib/store";
 import { fileToDataUrl } from "@/lib/images";
+import MealAddPanel from "@/components/MealAddPanel";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -1939,6 +1943,10 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
   const [analysis, setAnalysis] = useState<AnalyzeOk | null>(null);
   const [photoError, setPhotoError] = useState("");
 
+  // Wpisy z panelu „Dodaj posiłek" (składniki / moje dania / ręczne)
+  const [dishLogs, setDishLogs] = useState<DishLogEntry[]>([]);
+  const [showAddMeal, setShowAddMeal] = useState(false);
+
   useEffect(() => {
     const storedEmail =
       window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
@@ -1949,6 +1957,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
       getActivities(storedEmail, todayISO()).reduce((s, a) => s + a.kcal, 0)
     );
     setPhotoMeals(getPhotoMeals(storedEmail, todayISO()));
+    setDishLogs(getDishLog(storedEmail, todayISO()));
   }, []);
 
   const pickVariant = (idx: number) => {
@@ -2046,29 +2055,62 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
   };
 
   const catPhotos = photoMeals.filter((p) => p.category === group?.cat);
+  const catLogs = dishLogs.filter((l) => l.category === group?.cat);
+
+  const deleteLog = (id: string) => {
+    setDishLogs(removeDishLog(email, todayISO(), id));
+  };
+
+  const handleDishSaved = (list: DishLogEntry[]) => {
+    setDishLogs(list);
+    // Wpis „zamiast planu" = posiłek zjedzony — odhacz kategorię
+    if (
+      group &&
+      list.some((e) => e.category === group.cat && e.replacePlan) &&
+      !doneMeals.includes(group.cat)
+    ) {
+      setDoneMeals(toggleMealDone(email, todayISO(), group.cat));
+    }
+    setShowAddMeal(false);
+  };
 
   const doneCount = groups.filter((g) => doneMeals.includes(g.cat)).length;
 
-  // Kalorie i makro z odhaczonych posiłków (wg wybranych wariantów).
-  // Jedzenie spoza planu (zdjęcie) zastępuje wariant z diety w tej kategorii.
+  // Bilans dnia: zdjęcia i wpisy „zamiast planu" zastępują wariant z diety,
+  // wpisy „dodatkowo" zawsze się doliczają (jak w Fitatu).
   const eaten = groups.reduce(
     (acc, g) => {
-      if (!doneMeals.includes(g.cat)) return acc;
+      const add = (v: {
+        kcal: number;
+        protein: number;
+        carbs: number;
+        fat: number;
+      }) => {
+        acc.kcal += Math.round(v.kcal);
+        acc.carbs += v.carbs;
+        acc.protein += v.protein;
+        acc.fat += v.fat;
+      };
       const photos = photoMeals.filter((p) => p.category === g.cat);
-      if (photos.length > 0) {
-        photos.forEach((p) => {
-          acc.kcal += p.kcal;
-          acc.carbs += p.carbs;
-          acc.protein += p.protein;
-          acc.fat += p.fat;
+      const repl = dishLogs.filter(
+        (l) => l.category === g.cat && l.replacePlan
+      );
+      const extraLogs = dishLogs.filter(
+        (l) => l.category === g.cat && !l.replacePlan
+      );
+      if (photos.length > 0 || repl.length > 0) {
+        photos.forEach(add);
+        repl.forEach(add);
+      } else if (doneMeals.includes(g.cat)) {
+        const v = g.items[choices[g.cat] ?? 0] ?? g.items[0];
+        add({
+          kcal: parseInt(v.calories) || 0,
+          protein: parseInt(v.protein || "0") || 0,
+          carbs: parseInt(v.carbs || "0") || 0,
+          fat: parseInt(v.fat || "0") || 0,
         });
-        return acc;
       }
-      const v = g.items[choices[g.cat] ?? 0] ?? g.items[0];
-      acc.kcal += parseInt(v.calories) || 0;
-      acc.carbs += parseInt(v.carbs || "0") || 0;
-      acc.protein += parseInt(v.protein || "0") || 0;
-      acc.fat += parseInt(v.fat || "0") || 0;
+      extraLogs.forEach(add);
       return acc;
     },
     { kcal: 0, carbs: 0, protein: 0, fat: 0 }
@@ -2094,8 +2136,9 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
         </h1>
         <p className="mt-3 max-w-3xl text-sm text-slate-300">
           Posiłki ułożone przez trenera — w każdej kategorii możesz wybrać
-          spośród kilku wariantów. Zjadłeś coś innego? Wgraj zdjęcie dania, a AI
-          wyceni kalorie, makro i rozpisze skład.
+          spośród kilku wariantów. Zjadłeś coś innego? Wgraj zdjęcie dania (AI
+          wyceni kcal i makro) albo złóż własne danie z produktów — jak w
+          Fitatu — i dopisz je do bilansu dnia.
         </p>
       </header>
 
@@ -2121,30 +2164,54 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
         </div>
       </section>
 
-      {/* Kalorie i makro dnia */}
+      {/* Kalorie i makro dnia — układ jak w Fitatu */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
-            Dzisiejsze kalorie i makro
+            Dzisiejszy bilans dnia
           </p>
           <p className="text-slate-400">
-            suma z odhaczonych posiłków (w tym ze zdjęć)
+            plan + wpisy własne + zdjęcia
           </p>
         </div>
 
-        <div className="mt-3 flex items-center justify-between text-sm">
-          <p className="text-slate-300">
-            <span className="text-xl font-semibold text-slate-50">
-              {eaten.kcal}
-            </span>{" "}
-            / {targetKcal} kcal
-          </p>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-slate-500">
+              Pozostało do zjedzenia
+            </p>
+            <p
+              className={`text-3xl font-extrabold tracking-tight ${
+                targetKcal > 0 && targetKcal - eaten.kcal >= 0
+                  ? "text-emerald-400"
+                  : "text-red-400"
+              }`}
+            >
+              {targetKcal > 0 ? (
+                targetKcal - eaten.kcal >= 0 ? (
+                  targetKcal - eaten.kcal
+                ) : (
+                  `+${eaten.kcal - targetKcal}`
+                )
+              ) : (
+                "—"
+              )}
+              <span className="ml-1 text-sm font-semibold text-slate-400">
+                kcal
+              </span>
+            </p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              zjedzono{" "}
+              <span className="font-semibold text-slate-100">{eaten.kcal}</span>{" "}
+              z {targetKcal} kcal
+            </p>
+          </div>
           <p
-            className={
+            className={`text-2xl font-extrabold ${
               targetKcal > 0 && eaten.kcal > targetKcal
                 ? "text-amber-400"
                 : "text-emerald-400"
-            }
+            }`}
           >
             {targetKcal > 0
               ? Math.min(999, Math.round((eaten.kcal / targetKcal) * 100))
@@ -2219,6 +2286,11 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
                 <span className="font-semibold text-slate-100">
                   {m.value} / {m.target} g
                 </span>
+              </div>
+              <div className="mt-0.5 text-[10px] text-slate-500">
+                {m.target - m.value >= 0
+                  ? `pozostało ${m.target - m.value} g`
+                  : `ponad plan o ${m.value - m.target} g`}
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
                 <div
@@ -2321,11 +2393,11 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
           <p>{variant?.description || "Brak opisu tego posiłku."}</p>
         </div>
 
-        {/* Twoje danie spoza planu (zdjęcie → AI) */}
-        {catPhotos.length > 0 && (
+        {/* Twoje wpisy: zdjęcia (AI) + dania ze składników / ręczne */}
+        {(catPhotos.length > 0 || catLogs.length > 0) && (
           <div className="space-y-2 rounded-2xl border border-sky-500/40 bg-sky-950/30 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
-              📷 Twoje danie spoza planu — {group.label}
+              🧩 Twoje wpisy — {group.label}
             </p>
             {catPhotos.map((p) => (
               <div
@@ -2373,27 +2445,119 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
                 </div>
               </div>
             ))}
+            {catLogs.map((l) => (
+              <div
+                key={l.id}
+                className="flex gap-3 rounded-xl border border-slate-800 bg-slate-950/80 p-3"
+              >
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-slate-800 bg-slate-900 text-2xl">
+                  {l.source === "skladniki"
+                    ? "🧩"
+                    : l.source === "zapisane"
+                    ? "⭐"
+                    : "✏️"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate text-sm font-semibold text-slate-100">
+                      {l.name}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => deleteLog(l.id)}
+                      title="Usuń wpis"
+                      className="shrink-0 rounded-md px-2 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <p className="mt-0.5 text-xs text-slate-300">
+                    <span className="text-sm font-semibold text-sky-300">
+                      {l.kcal} kcal
+                    </span>{" "}
+                    · W {l.carbs} · B {l.protein} · T {l.fat} g
+                    {l.portions > 1 && (
+                      <span className="ml-1 text-slate-500">
+                        ({l.servings}/{l.portions} porcji)
+                      </span>
+                    )}
+                  </p>
+                  {l.ingredients.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer truncate text-[10px] text-slate-500 hover:text-slate-300">
+                        Skład:{" "}
+                        {l.ingredients
+                          .map((i) => `${i.name.split(" (")[0]} ${i.grams} g`)
+                          .join(" · ")}
+                      </summary>
+                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[10px] text-slate-400">
+                        {l.ingredients.map((i, idx) => (
+                          <li key={idx}>
+                            {i.name} — {i.grams} g ({i.kcal} kcal)
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  <p className="mt-1 text-[10px]">
+                    {l.replacePlan ? (
+                      <span className="text-emerald-400">zamiast planu</span>
+                    ) : (
+                      <span className="text-amber-300">dodatkowo</span>
+                    )}
+                    {l.source === "zapisane" && (
+                      <span className="text-slate-500"> · z moich dań</span>
+                    )}
+                    {l.source === "reczne" && (
+                      <span className="text-slate-500"> · wpis ręczny</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            ))}
             <p className="text-[10px] text-slate-500">
-              Te wartości zastępują planowany wariant w bilansie dnia — są
-              odhaczone jako zjedzone.
+              Wpisy „zamiast planu" zastępują planowany wariant w bilansie dnia,
+              „dodatkowo" są doliczane osobno.
             </p>
           </div>
         )}
 
+        {/* Dodawanie posiłku: zdjęcie (AI) albo składniki jak w Fitatu */}
+        {!showUpload && !showAddMeal && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => {
+                setPhotoError("");
+                setShowUpload(true);
+              }}
+              className="flex items-center justify-center gap-2 rounded-xl border border-sky-500/50 bg-sky-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-sky-200 transition hover:bg-sky-500/20"
+            >
+              <Camera className="h-4 w-4" />
+              📷 Zdjęcie dania (AI)
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddMeal(true)}
+              className="flex items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-sky-400"
+            >
+              ➕ Dodaj posiłek (składniki)
+            </button>
+          </div>
+        )}
+
+        {showAddMeal && (
+          <MealAddPanel
+            email={email}
+            category={group.cat}
+            categoryLabel={group.label}
+            onClose={() => setShowAddMeal(false)}
+            onSaved={handleDishSaved}
+          />
+        )}
+
         {/* Wgrywanie zdjęcia posiłku */}
-        {!showUpload ? (
-          <button
-            type="button"
-            onClick={() => {
-              setPhotoError("");
-              setShowUpload(true);
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500/50 bg-sky-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-sky-200 transition hover:bg-sky-500/20"
-          >
-            <Camera className="h-4 w-4" />
-            Zjadłeś coś innego? Wgraj zdjęcie dania
-          </button>
-        ) : (
+        {showUpload && (
           <div className="space-y-3 rounded-2xl border border-sky-500/40 bg-slate-950/90 p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">

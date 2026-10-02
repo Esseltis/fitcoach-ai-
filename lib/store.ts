@@ -76,8 +76,14 @@ export function getTrainerReportFields(trainerId: string): ReportConfigField[] {
             }
             return item;
           })
-          .filter(Boolean);
-        return migrated as ReportConfigField[];
+          .filter(Boolean) as ReportConfigField[];
+        // usuń duplikaty po kluczu (stary tablica mogła mieć klucz + obiekt)
+        const seen = new Set<string>();
+        return migrated.filter((f) => {
+          if (!f?.key || seen.has(f.key)) return false;
+          seen.add(f.key);
+          return true;
+        });
       }
       return arr as ReportConfigField[];
     }

@@ -36,7 +36,7 @@ export default function ClientReportPage() {
     const init: Record<string, string | number | boolean> = {};
     for (const f of defs) init[f.key] = f.defaultValue;
     const existing = getReport(storedEmail);
-    if (existing) {
+    if (existing?.values) {
       for (const k of Object.keys(existing.values)) {
         if (k in init) init[k] = existing.values[k];
       }

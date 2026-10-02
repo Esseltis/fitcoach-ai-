@@ -290,7 +290,7 @@ export default function TrainerClientPage({
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
               Raport klienta
             </h2>
-            {!report ? (
+            {!report?.values ? (
               <p className="text-sm text-slate-400">
                 Klient jeszcze nie wysłał raportu.
               </p>

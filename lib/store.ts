@@ -64,7 +64,23 @@ export function getTrainerReportFields(trainerId: string): ReportConfigField[] {
   if (!raw) return REPORT_FIELDS.map((f) => ({ ...f, custom: false }));
   try {
     const arr = JSON.parse(raw);
-    if (Array.isArray(arr)) return arr as ReportConfigField[];
+    if (Array.isArray(arr)) {
+      // Migracja starego formatu: tablica samych kluczy ("wellbeing", ...).
+      const isLegacy = arr.some((item) => typeof item === "string");
+      if (isLegacy) {
+        const migrated = arr
+          .map((item) => {
+            if (typeof item === "string") {
+              const def = REPORT_FIELDS.find((f) => f.key === item);
+              return def ? { ...def, custom: false } : null;
+            }
+            return item;
+          })
+          .filter(Boolean);
+        return migrated as ReportConfigField[];
+      }
+      return arr as ReportConfigField[];
+    }
   } catch {
     /* ignore */
   }

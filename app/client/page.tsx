@@ -20,6 +20,7 @@ import {
   FileText,
   CheckCircle2,
   Droplets,
+  Camera,
 } from "lucide-react";
 import {
   getClientContent,
@@ -31,9 +32,27 @@ import {
   setWaterForDate,
   getDoneExerciseIds,
   toggleExerciseDone,
+  getClientProfile,
+  getMealChoices,
+  setMealChoice,
+  getTrainingLog,
+  setTrainingLogEntry,
+  type ExerciseLogEntry,
+  getMealsDoneByDate,
+  getWaterAll,
+  getLastDrinkTs,
 } from "@/lib/store";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Cel nawodnienia: ~31 ml/kg masy ciała, szklanka = 250 ml
+function computeWaterGoal(email: string, fallbackWeight?: string): number {
+  const profile = getClientProfile(email);
+  const raw = profile?.weight ?? fallbackWeight ?? "";
+  const kg = parseFloat(String(raw).replace(",", "."));
+  if (!Number.isFinite(kg) || kg <= 0) return 8;
+  return Math.max(4, Math.min(15, Math.round((kg * 31) / 250)));
+}
 
 type SectionId =
   | "dashboard"
@@ -260,6 +279,12 @@ export default function ClientDashboardPage() {
       href: "/client/stats",
     },
     {
+      id: "zdjecia",
+      label: "Zdjęcia postępów",
+      icon: Camera,
+      href: "/client/zdjecia",
+    },
+    {
       id: "raport",
       label: "Wyślij raport",
       icon: FileText,
@@ -319,7 +344,8 @@ export default function ClientDashboardPage() {
                 const disabled =
                   !hasTrainer &&
                   item.id !== "dashboard" &&
-                  item.id !== "pomiary";
+                  item.id !== "pomiary" &&
+                  item.id !== "zdjecia";
                 return (
                   <button
                     key={item.id}
@@ -537,6 +563,109 @@ export default function ClientDashboardPage() {
           </>
         )}
       </main>
+      {email && (
+        <WaterReminder
+          email={email}
+          fallbackWeight={content.nutrition.weight}
+        />
+      )}
+    </div>
+  );
+}
+
+function WaterReminder({
+  email,
+  fallbackWeight,
+}: {
+  email: string;
+  fallbackWeight?: string;
+}) {
+  const [show, setShow] = useState(false);
+  const [glasses, setGlasses] = useState(0);
+  const [goal, setGoal] = useState(8);
+  const [closedAt, setClosedAt] = useState(0);
+
+  useEffect(() => {
+    const goalG = computeWaterGoal(email, fallbackWeight);
+    setGoal(goalG);
+    const openedAt = Date.now();
+
+    const check = () => {
+      const g = getWaterForDate(email, todayISO());
+      const lastDrink = getLastDrinkTs(email);
+      const last = Math.max(lastDrink || 0, openedAt, closedAt);
+      const stale = Date.now() - last > 60 * 60 * 1000; // godzina bez wody
+      setGlasses(g);
+      setShow(g < goalG && stale);
+    };
+
+    check();
+    const id = window.setInterval(check, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [email, fallbackWeight, closedAt]);
+
+  useEffect(() => {
+    if (
+      show &&
+      typeof window !== "undefined" &&
+      "Notification" in window &&
+      Notification.permission === "granted"
+    ) {
+      try {
+        new Notification("💧 Pora na wodę", {
+          body: `Dzisiaj wypiłeś ${glasses} z ${goal} szklanek.`,
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [show, glasses, goal]);
+
+  if (!show) return null;
+
+  const postpone = () => {
+    setClosedAt(Date.now());
+    setShow(false);
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-50 w-72 rounded-2xl border border-sky-500/40 bg-slate-900 p-4 text-xs text-slate-200 shadow-2xl">
+      <div className="flex items-start gap-2">
+        <span className="text-lg">💧</span>
+        <div className="flex-1">
+          <p className="font-semibold text-slate-50">Pora na szklankę wody!</p>
+          <p className="mt-1 text-slate-400">
+            Dzisiaj: {glasses} / {goal} szklanek
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="Zamknij przypomnienie"
+          onClick={postpone}
+          className="text-slate-500 hover:text-slate-300"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setGlasses(setWaterForDate(email, todayISO(), glasses + 1));
+            setShow(false);
+          }}
+          className="flex-1 rounded-xl bg-sky-500 px-3 py-2 font-semibold text-slate-950 hover:bg-sky-400"
+        >
+          +1 szklanka
+        </button>
+        <button
+          type="button"
+          onClick={postpone}
+          className="rounded-xl border border-slate-700 px-3 py-2 text-slate-300 hover:bg-slate-800"
+        >
+          Później
+        </button>
+      </div>
     </div>
   );
 }
@@ -550,6 +679,39 @@ function DashboardSection({
   setActiveSection: (id: SectionId) => void;
   email: string;
 }) {
+  const [streakData, setStreakData] = useState({ streak: 0, monthPct: 0 });
+
+  useEffect(() => {
+    const meals = getMealsDoneByDate(email);
+    const water = getWaterAll(email);
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const isActive = (d: Date) => {
+      const k = iso(d);
+      return (meals[k]?.length ?? 0) > 0 || (water[k] ?? 0) > 0;
+    };
+
+    // Seria: kolejne dni z aktywnością (dziś jeszcze może być pusty)
+    const now = new Date();
+    let s = 0;
+    const cursor = new Date(now);
+    if (!isActive(cursor)) cursor.setDate(cursor.getDate() - 1);
+    while (isActive(cursor) && s < 365) {
+      s++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    // Aktywność w bieżącym miesiącu
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    let activeDays = 0;
+    while (d <= now) {
+      if (isActive(d)) activeDays++;
+      d.setDate(d.getDate() + 1);
+    }
+    const monthPct = Math.round((activeDays / now.getDate()) * 100);
+
+    setStreakData({ streak: s, monthPct });
+  }, [email]);
+
   return (
     <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
       {/* Karta z BMI i wymiarami */}
@@ -663,6 +825,31 @@ function DashboardSection({
               </div>
               <p className="mt-1 text-[11px] text-slate-500">
                 33% planu za Tobą – trzymaj tempo!
+              </p>
+            </div>
+
+            {/* Seria dni */}
+            <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/30 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-300/90">
+                Seria dni 🔥
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-amber-400">
+                {streakData.streak}{" "}
+                {streakData.streak === 1 ? "dzień" : "dni"}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                {streakData.streak > 0
+                  ? "z rzędu z realizacją planu"
+                  : "Odhacz posiłek lub napij się wody, żeby zacząć serię"}
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-400 to-emerald-500 transition-all"
+                  style={{ width: `${streakData.monthPct}%` }}
+                />
+              </div>
+              <p className="mt-1 text-[10px] text-slate-500">
+                {streakData.monthPct}% aktywności w tym miesiącu
               </p>
             </div>
           </div>
@@ -1244,19 +1431,46 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
   const variant = group?.items[activeVariant] ?? group?.items[0];
   const [email, setEmail] = useState("demo@fitcoach.ai");
   const [doneMeals, setDoneMeals] = useState<string[]>([]);
+  const [choices, setChoices] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const storedEmail =
       window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
     setEmail(storedEmail);
     setDoneMeals(getDoneMeals(storedEmail, todayISO()));
+    setChoices(getMealChoices(storedEmail, todayISO()));
   }, []);
 
+  const pickVariant = (idx: number) => {
+    setActiveVariant(idx);
+    setChoices(setMealChoice(email, todayISO(), group.cat, idx));
+  };
+
   const toggleMeal = (cat: string) => {
+    const shownIdx = group.items[activeVariant] ? activeVariant : 0;
+    setChoices(setMealChoice(email, todayISO(), cat, shownIdx));
     setDoneMeals(toggleMealDone(email, todayISO(), cat));
   };
 
   const doneCount = groups.filter((g) => doneMeals.includes(g.cat)).length;
+
+  // Kalorie i makro z odhaczonych posiłków (wg wybranych wariantów)
+  const eaten = groups.reduce(
+    (acc, g) => {
+      if (!doneMeals.includes(g.cat)) return acc;
+      const v = g.items[choices[g.cat] ?? 0] ?? g.items[0];
+      acc.kcal += parseInt(v.calories) || 0;
+      acc.carbs += parseInt(v.carbs || "0") || 0;
+      acc.protein += parseInt(v.protein || "0") || 0;
+      acc.fat += parseInt(v.fat || "0") || 0;
+      return acc;
+    },
+    { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+  );
+  const targetKcal = parseInt(content.diet.targetCalories) || 0;
+  const targetCarbs = parseInt(content.nutrition.carbsG) || 0;
+  const targetProtein = parseInt(content.nutrition.proteinG) || 0;
+  const targetFat = parseInt(content.nutrition.fatG) || 0;
 
   if (groups.length === 0) {
     return (
@@ -1298,6 +1512,98 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
         </div>
       </section>
 
+      {/* Kalorie i makro dnia */}
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
+            Dzisiejsze kalorie i makro
+          </p>
+          <p className="text-slate-400">suma z odhaczonych posiłków</p>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between text-sm">
+          <p className="text-slate-300">
+            <span className="text-xl font-semibold text-slate-50">
+              {eaten.kcal}
+            </span>{" "}
+            / {targetKcal} kcal
+          </p>
+          <p
+            className={
+              targetKcal > 0 && eaten.kcal > targetKcal
+                ? "text-amber-400"
+                : "text-emerald-400"
+            }
+          >
+            {targetKcal > 0
+              ? Math.min(999, Math.round((eaten.kcal / targetKcal) * 100))
+              : 0}
+            %
+          </p>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className={`h-full rounded-full transition-all ${
+              targetKcal > 0 && eaten.kcal > targetKcal
+                ? "bg-amber-500"
+                : "bg-emerald-500"
+            }`}
+            style={{
+              width: `${
+                targetKcal
+                  ? Math.min(100, (eaten.kcal / targetKcal) * 100)
+                  : 0
+              }%`,
+            }}
+          />
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          {[
+            {
+              label: "Węgle",
+              value: eaten.carbs,
+              target: targetCarbs,
+              color: "bg-sky-400",
+            },
+            {
+              label: "Białko",
+              value: eaten.protein,
+              target: targetProtein,
+              color: "bg-emerald-400",
+            },
+            {
+              label: "Tłuszcze",
+              value: eaten.fat,
+              target: targetFat,
+              color: "bg-amber-400",
+            },
+          ].map((m) => (
+            <div
+              key={m.label}
+              className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">{m.label}</span>
+                <span className="font-semibold text-slate-100">
+                  {m.value} / {m.target} g
+                </span>
+              </div>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className={`h-full rounded-full ${m.color}`}
+                  style={{
+                    width: `${
+                      m.target ? Math.min(100, (m.value / m.target) * 100) : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-xs text-slate-200">
         <div className="flex flex-wrap gap-2">
           {groups.map((g, idx) => (
@@ -1324,7 +1630,7 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
             <button
               key={idx}
               type="button"
-              onClick={() => setActiveVariant(idx)}
+              onClick={() => pickVariant(idx)}
               className={`rounded-full px-4 py-1.5 text-[11px] ${
                 activeVariant === idx
                   ? "bg-sky-500 text-slate-950 font-semibold"
@@ -1516,14 +1822,15 @@ function HydrationSection({ content }: { content: TrainerContent }) {
   const h = content.hydration;
   const [email, setEmail] = useState("demo@fitcoach.ai");
   const [glasses, setGlasses] = useState(0);
-  const goal = 8;
+  const [goal, setGoal] = useState(8);
 
   useEffect(() => {
     const storedEmail =
       window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
     setEmail(storedEmail);
     setGlasses(getWaterForDate(storedEmail, todayISO()));
-  }, []);
+    setGoal(computeWaterGoal(storedEmail, content.nutrition.weight));
+  }, [content.nutrition.weight]);
 
   const setGlassesFor = (count: number) => {
     setGlasses(setWaterForDate(email, todayISO(), count));
@@ -1703,16 +2010,32 @@ function TrainingSection({ content }: { content: TrainerContent }) {
   const activeDay = days[activeIdx] ?? days[0];
   const [email, setEmail] = useState("demo@fitcoach.ai");
   const [doneIds, setDoneIds] = useState<string[]>([]);
+  const [log, setLog] = useState<Record<string, ExerciseLogEntry>>({});
 
   useEffect(() => {
     const storedEmail =
       window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
     setEmail(storedEmail);
     setDoneIds(getDoneExerciseIds(storedEmail, activeDayNum));
+    setLog(getTrainingLog(storedEmail, activeDayNum));
   }, [activeDayNum]);
 
   const toggleExercise = (exerciseId: string) => {
     setDoneIds(toggleExerciseDone(email, activeDayNum, exerciseId));
+  };
+
+  const updateLog = (
+    exId: string,
+    field: keyof ExerciseLogEntry,
+    value: string
+  ) => {
+    const entry = log[exId] ?? { kg: "", reps: "", effort: "" };
+    setLog(
+      setTrainingLogEntry(email, activeDayNum, exId, {
+        ...entry,
+        [field]: value,
+      })
+    );
   };
 
   const doneCount = exercises.filter((_, i) =>
@@ -1779,6 +2102,11 @@ function TrainingSection({ content }: { content: TrainerContent }) {
           )}
           {exercises.map((ex, i) => {
             const isDone = doneIds.includes(String(i + 1));
+            const entry = log[String(i + 1)] ?? {
+              kg: "",
+              reps: "",
+              effort: "",
+            };
             return (
               <article
                 key={i}
@@ -1813,6 +2141,52 @@ function TrainingSection({ content }: { content: TrainerContent }) {
                     >
                       {ex.name}
                     </h2>
+
+                    {/* Mój log serii */}
+                    <div
+                      className="mt-2 flex flex-wrap items-center gap-1.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-[10px] uppercase tracking-wide text-slate-500">
+                        Mój log:
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="kg"
+                        aria-label={`Waga ćwiczenia ${i + 1}`}
+                        value={entry.kg}
+                        onChange={(e) =>
+                          updateLog(String(i + 1), "kg", e.target.value)
+                        }
+                        className="w-16 rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                      />
+                      <span className="text-slate-500">×</span>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="powt."
+                        aria-label={`Powtórzenia ćwiczenia ${i + 1}`}
+                        value={entry.reps}
+                        onChange={(e) =>
+                          updateLog(String(i + 1), "reps", e.target.value)
+                        }
+                        className="w-16 rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                      />
+                      <select
+                        aria-label={`Wysiłek ćwiczenia ${i + 1}`}
+                        value={entry.effort}
+                        onChange={(e) =>
+                          updateLog(String(i + 1), "effort", e.target.value)
+                        }
+                        className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-200 focus:border-emerald-500 focus:outline-none"
+                      >
+                        <option value="">Wysiłek</option>
+                        <option value="latwy">Łatwy</option>
+                        <option value="sredni">Średni</option>
+                        <option value="meczacy">Męczący</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
 

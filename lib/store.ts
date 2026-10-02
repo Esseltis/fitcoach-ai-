@@ -815,6 +815,7 @@ export function removeMeasurement(email: string, id: string): Measurement[] {
 // ---- Nawodnienie klienta (szklanki wody na dzień) ----
 
 const waterKey = (email: string) => `fitcoach_water_${email}`;
+const lastDrinkKey = (email: string) => `fitcoach_water_last_${email}`;
 
 function getWaterMap(email: string): Record<string, number> {
   const raw = safeGet(waterKey(email));
@@ -837,8 +838,12 @@ export function setWaterForDate(
   count: number
 ): number {
   const map = getWaterMap(email);
+  const prev = map[date] ?? 0;
   map[date] = Math.max(0, count);
   safeSet(waterKey(email), JSON.stringify(map));
+  if (map[date] > prev) {
+    safeSet(lastDrinkKey(email), String(Date.now()));
+  }
   return map[date];
 }
 
@@ -912,4 +917,147 @@ export function toggleMealDone(
   map[date] = next;
   safeSet(mealsDoneKey(email), JSON.stringify(map));
   return next;
+}
+
+// ---- Wybór wariantu posiłku (do zliczania kalorii i makro) ----
+
+const mealChoicesKey = (email: string) => `fitcoach_meal_choices_${email}`;
+
+export function getMealChoices(
+  email: string,
+  date: string
+): Record<string, number> {
+  const raw = safeGet(mealChoicesKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj !== "object" || obj === null) return {};
+    return (obj[date] ?? {}) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+export function setMealChoice(
+  email: string,
+  date: string,
+  category: string,
+  variantIdx: number
+): Record<string, number> {
+  const raw = safeGet(mealChoicesKey(email));
+  let map: Record<string, Record<string, number>> = {};
+  try {
+    const obj = raw ? JSON.parse(raw) : null;
+    if (typeof obj === "object" && obj !== null) map = obj;
+  } catch {
+    /* ignore */
+  }
+  map[date] = { ...(map[date] ?? {}), [category]: variantIdx };
+  safeSet(mealChoicesKey(email), JSON.stringify(map));
+  return map[date];
+}
+
+// ---- Log treningowy: wykonane serie (kg × powtórzenia × wysiłek) ----
+
+export type ExerciseLogEntry = { kg: string; reps: string; effort: string };
+
+const trainingLogKey = (email: string) => `fitcoach_training_log_${email}`;
+
+export function getTrainingLog(
+  email: string,
+  dayId: number
+): Record<string, ExerciseLogEntry> {
+  const raw = safeGet(trainingLogKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj !== "object" || obj === null) return {};
+    return (obj[String(dayId)] ?? {}) as Record<string, ExerciseLogEntry>;
+  } catch {
+    return {};
+  }
+}
+
+export function setTrainingLogEntry(
+  email: string,
+  dayId: number,
+  exerciseId: string,
+  entry: ExerciseLogEntry
+): Record<string, ExerciseLogEntry> {
+  const raw = safeGet(trainingLogKey(email));
+  let map: Record<string, Record<string, ExerciseLogEntry>> = {};
+  try {
+    const obj = raw ? JSON.parse(raw) : null;
+    if (typeof obj === "object" && obj !== null) map = obj;
+  } catch {
+    /* ignore */
+  }
+  map[String(dayId)] = { ...(map[String(dayId)] ?? {}), [exerciseId]: entry };
+  safeSet(trainingLogKey(email), JSON.stringify(map));
+  return map[String(dayId)];
+}
+
+// ---- Ostatni łyk wody (do przypomnień o nawodnieniu) ----
+
+export function getLastDrinkTs(email: string): number {
+  const raw = safeGet(lastDrinkKey(email));
+  const n = raw ? parseInt(raw, 10) : 0;
+  return Number.isFinite(n) ? n : 0;
+}
+
+// ---- Surowe mapy aktywności (seria dni na dashboardzie) ----
+
+export { getMealsDone as getMealsDoneByDate, getWaterMap as getWaterAll };
+
+// ---- Zdjęcia postępów ----
+
+export type ProgressPhoto = { id: string; date: string; dataUrl: string };
+
+const photosKey = (email: string) => `fitcoach_photos_${email}`;
+export const MAX_PROGRESS_PHOTOS = 15;
+
+export function getProgressPhotos(email: string): ProgressPhoto[] {
+  const raw = safeGet(photosKey(email));
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? (arr as ProgressPhoto[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addProgressPhoto(
+  email: string,
+  photo: { date: string; dataUrl: string }
+): { photos: ProgressPhoto[]; error: string | null } {
+  const list = getProgressPhotos(email);
+  if (list.length >= MAX_PROGRESS_PHOTOS) {
+    return {
+      photos: list,
+      error: `Osiągnięto limit ${MAX_PROGRESS_PHOTOS} zdjęć. Usuń starsze, aby dodać nowe.`,
+    };
+  }
+  const next: ProgressPhoto[] = [
+    { id: crypto.randomUUID(), date: photo.date, dataUrl: photo.dataUrl },
+    ...list,
+  ];
+  if (typeof window === "undefined") {
+    return { photos: list, error: "Brak dostępu do pamięci przeglądarki." };
+  }
+  try {
+    window.localStorage.setItem(photosKey(email), JSON.stringify(next));
+  } catch {
+    return {
+      photos: list,
+      error: "Brak miejsca w przeglądarce — usuń jedno ze starszych zdjęć.",
+    };
+  }
+  return { photos: next, error: null };
+}
+
+export function removeProgressPhoto(email: string, id: string): ProgressPhoto[] {
+  const list = getProgressPhotos(email).filter((p) => p.id !== id);
+  safeSet(photosKey(email), JSON.stringify(list));
+  return list;
 }

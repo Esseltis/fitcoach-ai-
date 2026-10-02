@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Plus, Minus, Droplets, RotateCcw } from "lucide-react";
-import { getWaterForDate, setWaterForDate } from "@/lib/store";
-
-const GOAL_GLASSES = 8;
+import { getWaterForDate, setWaterForDate, getClientProfile } from "@/lib/store";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -13,11 +11,19 @@ export default function HydrationPage() {
   const [email, setEmail] = useState<string>("demo@fitcoach.ai");
   const [ready, setReady] = useState(false);
   const [count, setCount] = useState(0);
+  const [goal, setGoal] = useState(8);
 
   useEffect(() => {
     const storedEmail = window.localStorage.getItem("fitcoach_client_email") ?? "demo@fitcoach.ai";
     setEmail(storedEmail);
     setCount(getWaterForDate(storedEmail, todayISO()));
+    // Cel: ~31 ml/kg masy ciała (szklanka = 250 ml)
+    const kg = parseFloat((getClientProfile(storedEmail)?.weight ?? "").replace(",", "."));
+    setGoal(
+      Number.isFinite(kg) && kg > 0
+        ? Math.max(4, Math.min(15, Math.round((kg * 31) / 250)))
+        : 8
+    );
     setReady(true);
   }, []);
 
@@ -30,8 +36,8 @@ export default function HydrationPage() {
   const removeGlass = () => update(Math.max(count - 1, 0));
 
   const liters = (count * 0.25).toFixed(2).replace(".", ",");
-  const percent = Math.min(100, Math.round((count / GOAL_GLASSES) * 100));
-  const done = count >= GOAL_GLASSES;
+  const percent = Math.min(100, Math.round((count / goal) * 100));
+  const done = count >= goal;
 
   if (!ready) return null;
 
@@ -58,7 +64,7 @@ export default function HydrationPage() {
               <p className="text-3xl font-extrabold text-slate-50">
                 {count}
                 <span className="ml-1 text-sm font-semibold text-slate-400">
-                  / {GOAL_GLASSES} szklanek
+                  / {goal} szklanek
                 </span>
               </p>
               <p className="text-[11px] text-slate-400">
@@ -116,7 +122,7 @@ export default function HydrationPage() {
 
           {/* Szklanki */}
           <div className="flex items-end gap-2">
-            {Array.from({ length: GOAL_GLASSES }).map((_, idx) => (
+            {Array.from({ length: goal }).map((_, idx) => (
               <button
                 key={idx}
                 type="button"
@@ -133,7 +139,8 @@ export default function HydrationPage() {
           </div>
           <p className="text-center text-[11px] text-slate-400">
             Kliknij na szklanki, aby szybko ustawić ich liczbę. Cel to{" "}
-            {GOAL_GLASSES} szklanek (ok. 2 l) dziennie.
+            {goal} szklanek (ok. {(goal * 0.25).toFixed(2).replace(".", ",")}{" "}
+            l) dziennie — policzony z Twojej masy ciała.
           </p>
         </section>
 

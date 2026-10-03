@@ -14,9 +14,11 @@ import {
   saveTrainerReportFields,
   REPORT_FIELDS,
   trainerLogout,
+  resolveGoalRequest,
   type ClientRecord,
   type ReportConfigField,
 } from "@/lib/store";
+import { getAttentionList, type AttentionEntry } from "@/lib/coach";
 import { CLOUD_SYNCED_EVENT, cloudSignOut } from "@/lib/cloud";
 
 export default function TrainerDashboard() {
@@ -27,6 +29,7 @@ export default function TrainerDashboard() {
   );
   const [view, setView] = useState<"clients" | "report">("clients");
   const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [attention, setAttention] = useState<AttentionEntry[]>([]);
   const [reportFields, setReportFields] = useState<ReportConfigField[]>([]);
   const [saved, setSaved] = useState(false);
   const [customLabel, setCustomLabel] = useState("");
@@ -42,6 +45,7 @@ export default function TrainerDashboard() {
     setIdentity(id);
     setClients(getClientsForTrainer(id.id));
     setReportFields(getTrainerReportFields(id.id));
+    setAttention(getAttentionList(id.id));
     setReady(true);
   }, [router]);
 
@@ -51,10 +55,17 @@ export default function TrainerDashboard() {
     const onSynced = () => {
       setClients(getClientsForTrainer(identity.id));
       setReportFields(getTrainerReportFields(identity.id));
+      setAttention(getAttentionList(identity.id));
     };
     window.addEventListener(CLOUD_SYNCED_EVENT, onSynced);
     return () => window.removeEventListener(CLOUD_SYNCED_EVENT, onSynced);
   }, [identity]);
+
+  // Decyzja przy propozycji celu (adaptacyjny cel podopiecznego)
+  const resolveGoal = (clientEmail: string, accept: boolean) => {
+    resolveGoalRequest(clientEmail, accept);
+    if (identity) setAttention(getAttentionList(identity.id));
+  };
 
   const persist = (next: ReportConfigField[]) => {
     if (!identity) return;
@@ -198,6 +209,93 @@ export default function TrainerDashboard() {
         <div className="p-6">
           {view === "clients" && (
             <>
+          {/* 🚩 Do uwagi — czerwone flagi i decyzje celowe */}
+          {attention.length > 0 && (
+            <section className="mb-6 rounded-2xl border border-rose-500/40 bg-rose-500/5 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-400">
+                🚩 Do uwagi ({attention.length})
+              </p>
+              <div className="mt-3 space-y-3">
+                {attention.map((entry) => {
+                  const pending = entry.goalRequest?.status === "pending";
+                  const flags = entry.flags.filter(
+                    (f) => !(pending && f.text.startsWith("Propozycja"))
+                  );
+                  return (
+                    <div
+                      key={entry.email}
+                      className="rounded-xl border border-slate-800 bg-slate-950/60 p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Link
+                          href={`/trainer/client/${encodeURIComponent(entry.email)}`}
+                          className="text-sm font-semibold text-slate-100 hover:text-emerald-400"
+                        >
+                          {entry.name}
+                        </Link>
+                        <span className="text-[11px] text-slate-500">
+                          {entry.email}
+                        </span>
+                      </div>
+                      {flags.length > 0 && (
+                        <ul className="mt-1.5 space-y-1">
+                          {flags.map((f, i) => (
+                            <li
+                              key={i}
+                              className={`text-xs ${
+                                f.severity === "high"
+                                  ? "text-rose-300"
+                                  : f.severity === "med"
+                                    ? "text-amber-300"
+                                    : "text-slate-400"
+                              }`}
+                            >
+                              {f.severity === "high"
+                                ? "🔴"
+                                : f.severity === "med"
+                                  ? "🟠"
+                                  : "🟡"}{" "}
+                              {f.text}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {pending && entry.goalRequest && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2">
+                          <span className="text-xs text-sky-200">
+                            ⚖️ Propozycja celu: {entry.goalRequest.current} →{" "}
+                            {entry.goalRequest.suggested} kcal —{" "}
+                            {entry.goalRequest.reason.slice(0, 80)}
+                          </span>
+                          <div className="ml-auto flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => resolveGoal(entry.email, true)}
+                              className="rounded-md bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400"
+                            >
+                              ✓ Akceptuj
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => resolveGoal(entry.email, false)}
+                              className="rounded-md border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+                            >
+                              ✗ Odrzuć
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {clients.length > 0 && attention.length === 0 && (
+            <p className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+              ✅ Nikt nie wymaga uwagi — wszyscy raportują i trzymają plan.
+            </p>
+          )}
           <p className="mb-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Podopieczni ({clients.length})
           </p>

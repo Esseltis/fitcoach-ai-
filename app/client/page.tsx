@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
+  Sparkles,
   Dumbbell,
   Utensils,
   LineChart,
@@ -59,6 +60,7 @@ import {
   type DishLogEntry,
 } from "@/lib/store";
 import { CLOUD_SYNCED_EVENT, cloudSignOut } from "@/lib/cloud";
+import { buildWeeklyReview } from "@/lib/coach";
 import { fileToDataUrl } from "@/lib/images";
 import MealAddPanel from "@/components/MealAddPanel";
 
@@ -366,6 +368,12 @@ export default function ClientDashboardPage() {
       href: "/client/zakupy",
     },
     {
+      id: "coaching",
+      label: "Coaching AI",
+      icon: Sparkles,
+      href: "/client/coaching",
+    },
+    {
       id: "raport",
       label: "Wyślij raport",
       icon: FileText,
@@ -428,7 +436,8 @@ export default function ClientDashboardPage() {
                   item.id !== "pomiary" &&
                   item.id !== "zdjecia" &&
                   item.id !== "aktywnosci" &&
-                  item.id !== "zakupy";
+                  item.id !== "zakupy" &&
+                  item.id !== "coaching";
                 return (
                   <button
                     key={item.id}
@@ -882,6 +891,16 @@ function DashboardSection({
   const [moodWeek, setMoodWeek] = useState<
     { key: string; label: string; satiety: number; motivation: number }[]
   >([]);
+  const [weekScore, setWeekScore] = useState<{
+    score: number;
+    tip: string;
+  } | null>(null);
+
+  // Podgląd tygodniowego coachingu (wynik + 1 wskazówka) na panelu głównym
+  useEffect(() => {
+    const r = buildWeeklyReview(email);
+    setWeekScore({ score: r.score, tip: r.tips[0] ?? "" });
+  }, [email]);
 
   useEffect(() => {
     const meals = getMealsDoneByDate(email);
@@ -963,6 +982,33 @@ function DashboardSection({
   return (
     <div className="space-y-6">
       <GuidelinesCard g={content.guidelines} />
+
+      {/* 🧠 Coaching AI — podgląd tygodnia */}
+      {weekScore && (
+        <Link
+          href="/client/coaching"
+          className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 transition hover:bg-emerald-500/20"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+              🧠 Coaching AI — Twój tydzień
+            </p>
+            <p className="mt-0.5 truncate text-xs text-slate-600 dark:text-slate-300">
+              {weekScore.tip}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+              {weekScore.score}
+              <span className="text-sm font-medium text-slate-500">/100</span>
+            </span>
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              Szczegóły →
+            </span>
+          </div>
+        </Link>
+      )}
+
       <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
       {/* Karta z BMI i wymiarami */}
       <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 shadow-[0_0_40px_rgba(16,185,129,0.15)]">

@@ -894,6 +894,85 @@ export function removeMeasurement(email: string, id: string): Measurement[] {
   return list;
 }
 
+// ---- Propozycja korekty celu kalorycznego (podopieczny → trener) ----
+// Pętla jak w raporcie: klient proponuje (na podstawie trendu wagi),
+// trener akceptuje jednym kliknięciem → nowy cel ląduje w treści klienta.
+
+export type GoalRequest = {
+  current: number;
+  suggested: number;
+  reason: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;
+  resolvedAt?: string;
+};
+
+const goalReqKey = (email: string) => `fitcoach_goal_request_${email}`;
+
+export function getGoalRequest(email: string): GoalRequest | null {
+  const raw = safeGet(goalReqKey(email));
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as GoalRequest;
+  } catch {
+    return null;
+  }
+}
+
+export function saveGoalRequest(email: string, data: GoalRequest) {
+  safeSet(goalReqKey(email), JSON.stringify(data));
+}
+
+/**
+ * Decyzja trenera. Akceptacja = zapis nowego celu w treści klienta
+ * (kalorie + proporcjonalna korekta kcal z makroskładników).
+ */
+export function resolveGoalRequest(
+  email: string,
+  accept: boolean
+): GoalRequest | null {
+  const req = getGoalRequest(email);
+  if (!req) return null;
+  if (accept && req.suggested > 0 && req.current > 0) {
+    const content = getClientContent(email);
+    const factor = req.suggested / req.current;
+    const round5 = (n: number) => String(Math.round(n / 5) * 5);
+    const round1 = (n: number) => String(Math.round(n));
+    // diet.targetCalories = cel widoczny w bilansie dnia ("Pozostało do
+    // zjedzenia"), nutrition.calories = cel prezentowany przy makro.
+    // Aktualizujemy oba, żeby nie rozjechały się widoki.
+    content.diet.targetCalories = String(req.suggested);
+    content.nutrition.calories = String(req.suggested);
+    content.nutrition.carbsKcal = round5(
+      (Number(content.nutrition.carbsKcal) || 0) * factor
+    );
+    content.nutrition.proteinKcal = round5(
+      (Number(content.nutrition.proteinKcal) || 0) * factor
+    );
+    content.nutrition.fatKcal = round5(
+      (Number(content.nutrition.fatKcal) || 0) * factor
+    );
+    // gramy makro proporcjonalnie, żeby sumy zgadzały się z nowym celem
+    content.nutrition.carbsG = round1(
+      (Number(content.nutrition.carbsG) || 0) * factor
+    );
+    content.nutrition.proteinG = round1(
+      (Number(content.nutrition.proteinG) || 0) * factor
+    );
+    content.nutrition.fatG = round1(
+      (Number(content.nutrition.fatG) || 0) * factor
+    );
+    saveClientContent(email, content);
+  }
+  const next: GoalRequest = {
+    ...req,
+    status: accept ? "accepted" : "rejected",
+    resolvedAt: new Date().toISOString(),
+  };
+  saveGoalRequest(email, next);
+  return next;
+}
+
 // ---- Nawodnienie klienta (szklanki wody na dzień) ----
 
 const waterKey = (email: string) => `fitcoach_water_${email}`;

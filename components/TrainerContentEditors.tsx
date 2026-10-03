@@ -818,11 +818,11 @@ export function DietEditor({
   );
 }
 
-function removeFromClientHelper(
-  meals: { category?: string }[],
+function removeFromClientHelper<T extends { category?: string }>(
+  meals: T[],
   cat: string,
   i: number
-) {
+): T[] {
   let seen = -1;
   return meals.filter((m) => {
     if ((m.category ?? "") !== cat) return true;

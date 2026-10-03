@@ -58,6 +58,7 @@ import {
   removeDishLog,
   type DishLogEntry,
 } from "@/lib/store";
+import { CLOUD_SYNCED_EVENT, cloudSignOut } from "@/lib/cloud";
 import { fileToDataUrl } from "@/lib/images";
 import MealAddPanel from "@/components/MealAddPanel";
 
@@ -222,11 +223,24 @@ export default function ClientDashboardPage() {
     setReady(true);
   }, [router]);
 
-  const handleLogout = () => {
+  // Chmura: odśwież dane z chmury (plan, wytyczne, treść trenera)
+  // po każdej synchronizacji z Supabase.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onSynced = () => {
+      const storedEmail = window.localStorage.getItem("fitcoach_client_email");
+      if (storedEmail) setContent(getClientContent(storedEmail));
+    };
+    window.addEventListener(CLOUD_SYNCED_EVENT, onSynced);
+    return () => window.removeEventListener(CLOUD_SYNCED_EVENT, onSynced);
+  }, []);
+
+  const handleLogout = async () => {
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("fitcoach_client_logged_in");
       window.localStorage.removeItem("fitcoach_client_email");
     }
+    await cloudSignOut();
     router.push("/");
   };
 

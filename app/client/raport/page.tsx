@@ -67,7 +67,7 @@ export default function ClientReportPage() {
     // --- Dane z panelu: podsumowanie dnia + auto-uzupełnienie raportu ---
     const content = getClientContent(storedEmail);
     const today = todayISO();
-    const cats = content.diet.meals.map((m) => m.category ?? "").filter((c) => c !== "");
+    const cats: string[] = content.diet.meals.map((m) => m.category ?? "").filter((c) => c !== "");
     const doneMeals = getDoneMeals(storedEmail, today).filter((c) => cats.includes(c));
     const mealsTotal = new Set(cats).size;
     const glasses = getWaterForDate(storedEmail, today);

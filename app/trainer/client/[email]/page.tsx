@@ -686,7 +686,7 @@ function WykonanieSection({
   const today = new Date().toISOString().slice(0, 10);
 
   // Posiłki
-  const mealCats = content.diet.meals.map((m) => m.category ?? "");
+  const mealCats: string[] = content.diet.meals.map((m) => m.category ?? "");
   const doneMeals = getDoneMeals(email, today).filter((c) =>
     mealCats.includes(c)
   );

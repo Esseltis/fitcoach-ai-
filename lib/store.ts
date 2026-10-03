@@ -206,6 +206,8 @@ function safeGet(key: string): string | null {
   }
 }
 
+import { schedulePush } from "./cloud";
+
 function safeSet(key: string, value: string) {
   if (typeof window === "undefined") return;
   try {
@@ -213,6 +215,8 @@ function safeSet(key: string, value: string) {
   } catch {
     /* ignore */
   }
+  // Tryb hybrydowy: każde zapisane trafia też (z debounce) do chmury.
+  schedulePush(key, value);
 }
 
 // ---- Tożsamość trenera ----

@@ -17,6 +17,7 @@ import {
   type ClientRecord,
   type ReportConfigField,
 } from "@/lib/store";
+import { CLOUD_SYNCED_EVENT, cloudSignOut } from "@/lib/cloud";
 
 export default function TrainerDashboard() {
   const router = useRouter();
@@ -43,6 +44,17 @@ export default function TrainerDashboard() {
     setReportFields(getTrainerReportFields(id.id));
     setReady(true);
   }, [router]);
+
+  // Chmura: odśwież listę podopiecznych po każdej synchronizacji z Supabase.
+  useEffect(() => {
+    if (!identity) return;
+    const onSynced = () => {
+      setClients(getClientsForTrainer(identity.id));
+      setReportFields(getTrainerReportFields(identity.id));
+    };
+    window.addEventListener(CLOUD_SYNCED_EVENT, onSynced);
+    return () => window.removeEventListener(CLOUD_SYNCED_EVENT, onSynced);
+  }, [identity]);
 
   const persist = (next: ReportConfigField[]) => {
     if (!identity) return;
@@ -92,8 +104,9 @@ export default function TrainerDashboard() {
     setCustomType("text");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     trainerLogout();
+    await cloudSignOut();
     router.push("/trainer/login");
   };
 
@@ -174,7 +187,7 @@ export default function TrainerDashboard() {
             Panel trenera
           </p>
           <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-50">
-            {trainer?.name ?? "Trener"}
+            {trainer?.name ?? identity?.email ?? "Trener"}
           </h1>
           <p className="mt-0.5 text-xs text-slate-400">
             {trainer?.title}

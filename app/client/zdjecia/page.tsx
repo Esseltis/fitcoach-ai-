@@ -50,6 +50,10 @@ export default function ZdjeciaPage() {
   const [date, setDate] = useState(todayISO());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // tryb porównania przed / po
+  const [compare, setCompare] = useState(false);
+  const [idA, setIdA] = useState<string | null>(null);
+  const [idB, setIdB] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -90,6 +94,29 @@ export default function ZdjeciaPage() {
   const sorted = [...photos].sort((a, b) =>
     a.date < b.date ? 1 : a.date > b.date ? -1 : 0
   );
+  // Porównanie: slot „przed" zawsze trzyma starsze zdjęcie
+  const pA = sorted.find((p) => p.id === idA) ?? sorted[sorted.length - 1];
+  const pB = sorted.find((p) => p.id === idB) ?? sorted[0];
+  const pickBefore = (nextId: string) => {
+    const p = sorted.find((x) => x.id === nextId);
+    if (!p) return;
+    if (pB && p.date > pB.date) {
+      setIdA(pB.id);
+      setIdB(p.id);
+    } else {
+      setIdA(p.id);
+    }
+  };
+  const pickAfter = (nextId: string) => {
+    const p = sorted.find((x) => x.id === nextId);
+    if (!p) return;
+    if (pA && p.date < pA.date) {
+      setIdB(pA.id);
+      setIdA(p.id);
+    } else {
+      setIdB(p.id);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -139,6 +166,19 @@ export default function ZdjeciaPage() {
             <p className="text-slate-400">
               {photos.length} / {MAX_PROGRESS_PHOTOS} zdjęć
             </p>
+            {photos.length >= 2 && (
+              <button
+                type="button"
+                onClick={() => setCompare((c) => !c)}
+                className={`ml-auto rounded-xl border px-4 py-2.5 font-semibold transition ${
+                  compare
+                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-300"
+                    : "border-slate-700 text-slate-200 hover:border-emerald-400 hover:text-emerald-300"
+                }`}
+              >
+                🔀 {compare ? "Ukryj porównanie" : "Porównaj przed / po"}
+              </button>
+            )}
           </div>
           {error && (
             <p className="mt-3 rounded-xl border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-rose-300">
@@ -146,6 +186,85 @@ export default function ZdjeciaPage() {
             </p>
           )}
         </section>
+
+        {/* Porównanie przed / po */}
+        {compare && sorted.length >= 2 && pA && pB && (
+          <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                🔀 Przed / po
+              </p>
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <label className="flex items-center gap-1.5 text-slate-400">
+                  Przed:
+                  <select
+                    value={pA.id}
+                    onChange={(e) => pickBefore(e.target.value)}
+                    className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-slate-100 focus:border-emerald-500 focus:outline-none"
+                  >
+                    {[...sorted]
+                      .reverse()
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.date}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1.5 text-slate-400">
+                  Po:
+                  <select
+                    value={pB.id}
+                    onChange={(e) => pickAfter(e.target.value)}
+                    className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-slate-100 focus:border-emerald-500 focus:outline-none"
+                  >
+                    {[...sorted]
+                      .reverse()
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.date}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <figure className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/70">
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pA.dataUrl}
+                    alt={`Przed ${pA.date}`}
+                    className="h-80 w-full object-cover"
+                  />
+                  <span className="absolute left-2 top-2 rounded-full bg-slate-950/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-400 ring-1 ring-amber-500/50">
+                    Przed
+                  </span>
+                </div>
+                <figcaption className="px-3 py-2 text-[11px] text-slate-300">
+                  {pA.date}
+                </figcaption>
+              </figure>
+              <figure className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/70">
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pB.dataUrl}
+                    alt={`Po ${pB.date}`}
+                    className="h-80 w-full object-cover"
+                  />
+                  <span className="absolute left-2 top-2 rounded-full bg-slate-950/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-400 ring-1 ring-emerald-500/50">
+                    Po
+                  </span>
+                </div>
+                <figcaption className="px-3 py-2 text-[11px] text-slate-300">
+                  {pB.date}
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+        )}
 
         {/* Galeria */}
         {sorted.length === 0 ? (

@@ -63,6 +63,7 @@ import { CLOUD_SYNCED_EVENT, cloudSignOut } from "@/lib/cloud";
 import { buildWeeklyReview } from "@/lib/coach";
 import { fileToDataUrl } from "@/lib/images";
 import MealAddPanel from "@/components/MealAddPanel";
+import RestTimer from "@/components/RestTimer";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -3065,6 +3066,16 @@ function HydrationSection({ content }: { content: TrainerContent }) {
   );
 }
 
+/** „60 s" → 60, „1:30" → 90, „2 min" → 120 (bez danych → 90 s). */
+function parseRestSec(rest?: string): number {
+  if (!rest) return 90;
+  const mm = rest.match(/(\d+)\s*:\s*(\d+)/);
+  if (mm) return Number(mm[1]) * 60 + Number(mm[2]);
+  const n = parseInt(rest.replace(",", "."), 10);
+  if (!Number.isFinite(n) || n <= 0) return 90;
+  return /min/i.test(rest) ? n * 60 : n;
+}
+
 function TrainingSection({ content }: { content: TrainerContent }) {
   const t = content.training;
   const days = t.days;
@@ -3075,6 +3086,13 @@ function TrainingSection({ content }: { content: TrainerContent }) {
   const [email, setEmail] = useState("demo@fitcoach.ai");
   const [doneIds, setDoneIds] = useState<string[]>([]);
   const [log, setLog] = useState<Record<string, ExerciseLogEntry>>({});
+  // Progresja: ostatni wpis tego samego ćwiczenia z wcześniejszego dnia planu
+  const [prevMap, setPrevMap] = useState<
+    Record<string, { day: number; entry: ExerciseLogEntry } | null>
+  >({});
+  // Pływający timer przerwy
+  const [timerTrigger, setTimerTrigger] = useState(0);
+  const [timerSec, setTimerSec] = useState(90);
 
   useEffect(() => {
     const storedEmail =
@@ -3084,8 +3102,49 @@ function TrainingSection({ content }: { content: TrainerContent }) {
     setLog(getTrainingLog(storedEmail, activeDayNum));
   }, [activeDayNum]);
 
+  // Budujemy mapę „poprzednio" dla wszystkich ćwiczeń aktywnego dnia.
+  // Kolejność przeglądania: wcześniejsze dni → koniec tygodnia (plan jest
+  // cykliczny, więc np. wtorkowe ćwiczenie może „powtórzyć się" w piątek).
+  useEffect(() => {
+    const exs = content.training.dayExercises[activeDayNum] ?? [];
+    const order: number[] = [];
+    for (let d = activeDayNum - 1; d >= 1; d--) order.push(d);
+    for (let d = days.length; d > activeDayNum; d--) order.push(d);
+    const logs: Record<number, Record<string, ExerciseLogEntry>> = {};
+    for (const d of order) logs[d] = getTrainingLog(email, d);
+    const map: Record<string, { day: number; entry: ExerciseLogEntry } | null> =
+      {};
+    for (const ex of exs) {
+      let found: { day: number; entry: ExerciseLogEntry } | null = null;
+      for (const d of order) {
+        const dayExs = content.training.dayExercises[d] ?? [];
+        const idx = dayExs.findIndex((e) => e.name === ex.name);
+        if (idx < 0) continue;
+        const entry = logs[d]?.[String(idx + 1)];
+        if (entry && (entry.kg || entry.reps)) {
+          found = { day: d, entry };
+          break;
+        }
+      }
+      map[ex.name] = found;
+    }
+    setPrevMap(map);
+  }, [email, activeDayNum, days.length, content]);
+
+  const startRest = (sec: number) => {
+    setTimerSec(sec);
+    setTimerTrigger((t) => t + 1);
+  };
+
   const toggleExercise = (exerciseId: string) => {
-    setDoneIds(toggleExerciseDone(email, activeDayNum, exerciseId));
+    const wasDone = doneIds.includes(exerciseId);
+    const next = toggleExerciseDone(email, activeDayNum, exerciseId);
+    setDoneIds(next);
+    // Odhaczenie ćwiczenia = start przerwy z planu (jak w Fitatu)
+    if (!wasDone && next.includes(exerciseId)) {
+      const idx = Number(exerciseId) - 1;
+      startRest(parseRestSec(exercises[idx]?.rest));
+    }
   };
 
   const updateLog = (
@@ -3259,6 +3318,36 @@ function TrainingSection({ content }: { content: TrainerContent }) {
                         <option value="sredni">Średni</option>
                         <option value="meczacy">Męczący</option>
                       </select>
+                      {(() => {
+                        const prev = prevMap[ex.name] ?? null;
+                        if (!prev) return null;
+                        const kgNow = parseFloat(entry.kg.replace(",", "."));
+                        const kgPrev = parseFloat(
+                          String(prev.entry.kg).replace(",", ".")
+                        );
+                        const delta =
+                          Number.isFinite(kgNow) && Number.isFinite(kgPrev)
+                            ? Math.round((kgNow - kgPrev) * 10) / 10
+                            : null;
+                        return (
+                          <span className="w-full text-[10px] text-slate-500">
+                            Poprzednio (dzień {prev.day}):{" "}
+                            {prev.entry.kg ? `${prev.entry.kg} kg` : "—"}
+                            {prev.entry.reps ? ` × ${prev.entry.reps}` : ""}
+                            {delta !== null && delta !== 0 && (
+                              <span
+                                className={
+                                  delta > 0
+                                    ? "ml-1 font-semibold text-emerald-400"
+                                    : "ml-1 font-semibold text-amber-400"
+                                }
+                              >
+                                {delta > 0 ? "▲" : "▼"} {Math.abs(delta)} kg
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -3276,12 +3365,20 @@ function TrainingSection({ content }: { content: TrainerContent }) {
                       {ex.workTime}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRest(parseRestSec(ex.rest));
+                    }}
+                    className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center transition hover:border-emerald-500/50 hover:bg-slate-900"
+                    title="Odpal timer przerwy"
+                  >
                     <p className="text-slate-400">Przerwa</p>
                     <p className="mt-1 text-sm font-semibold text-slate-50">
-                      {ex.rest}
+                      ⏱ {ex.rest}
                     </p>
-                  </div>
+                  </button>
                 </div>
               </article>
             );
@@ -3327,6 +3424,8 @@ function TrainingSection({ content }: { content: TrainerContent }) {
           Przejdź dalej
         </button>
       </div>
+
+      <RestTimer trigger={timerTrigger} seconds={timerSec} />
     </section>
   );
 }

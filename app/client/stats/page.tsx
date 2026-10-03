@@ -8,6 +8,8 @@ import {
   addMeasurement,
   getMeasurements,
   removeMeasurement,
+  getMealsDoneByDate,
+  getWaterAll,
   type Measurement,
 } from "@/lib/store";
 
@@ -15,6 +17,15 @@ const width = 700;
 const height = 260;
 const paddingX = 40;
 const paddingY = 30;
+
+// poziomy intensywności heatmapy (skala slate jest odwrócona w jasnym motywie,
+// więc jeden wystarcza: 700 = jasnoszare tło / w ciemnym motywie czytelne)
+const HEAT_LEVELS = [
+  "bg-slate-700",
+  "bg-emerald-300/70",
+  "bg-emerald-400",
+  "bg-emerald-500",
+];
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -60,6 +71,49 @@ export default function ClientStatsPage() {
   const [ready, setReady] = useState(false);
   const [list, setList] = useState<Measurement[]>([]);
   const [metricKey, setMetricKey] = useState<string>("weight");
+  // Heatmapa aktywności (rok) — posiłki + woda z localStorage
+  const [heat, setHeat] = useState<{ date: string; level: number }[]>([]);
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    const meals = getMealsDoneByDate(email);
+    const water = getWaterAll(email);
+    const isoLocal = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate()
+      ).padStart(2, "0")}`;
+    const levelFor = (iso: string) => {
+      const m = meals[iso]?.length ?? 0;
+      const w = water[iso] ?? 0;
+      if (m <= 0 && w <= 0) return 0;
+      if (m >= 5 || (m >= 3 && w > 0)) return 3;
+      if (m >= 3 || (m > 0 && w > 0)) return 2;
+      return 1;
+    };
+    const now = new Date();
+    // siatka 53 tygodni wyrównana do niedzieli
+    const back = 52 * 7 + now.getDay();
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - back
+    );
+    const cells: { date: string; level: number }[] = [];
+    for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
+      const iso = isoLocal(d);
+      cells.push({ date: iso, level: levelFor(iso) });
+    }
+    setHeat(cells);
+    // aktualna seria kolejnych aktywnych dni
+    let s = 0;
+    const cur = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (levelFor(isoLocal(cur)) === 0) cur.setDate(cur.getDate() - 1);
+    while (levelFor(isoLocal(cur)) > 0 && s < 365) {
+      s++;
+      cur.setDate(cur.getDate() - 1);
+    }
+    setStreak(s);
+  }, [email]);
   const [showForm, setShowForm] = useState(false);
 
   const [form, setForm] = useState<Record<string, string>>({});
@@ -116,6 +170,24 @@ export default function ClientStatsPage() {
       : width / 2;
   const scaleY = (v: number) =>
     height - paddingY - ((v - min) * (height - 2 * paddingY)) / (max - min);
+
+  // Średnia krocząca 7-dniowa (punkt = średnia pomiarów z ostatnich 7 dni)
+  const avg7 =
+    series.length >= 3
+      ? series.map((p, i) => {
+          const from = new Date(Date.parse(p.date) - 6 * 86400000)
+            .toISOString()
+            .slice(0, 10);
+          const win = series.slice(0, i + 1).filter((s) => s.date >= from);
+          if (win.length < 2) return null;
+          return win.reduce((a, b) => a + b.value, 0) / win.length;
+        })
+      : null;
+  const avgPath = (avg7 ?? [])
+    .map((v, i) => (v == null ? null : { x: scaleX(i), y: scaleY(v) }))
+    .filter((p): p is { x: number; y: number } => p !== null)
+    .map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`)
+    .join(" ");
 
   const fmtDate = (iso: string) => {
     const [y, m, d] = iso.split("-");
@@ -294,6 +366,15 @@ export default function ClientStatsPage() {
                     stroke="#10b981"
                     strokeWidth={2}
                   />
+                  {avgPath && (
+                    <path
+                      d={avgPath}
+                      fill="none"
+                      stroke="#38bdf8"
+                      strokeWidth={1.5}
+                      strokeDasharray="5 4"
+                    />
+                  )}
                   {series.map((p, i) => {
                     const x = scaleX(i);
                     const y = scaleY(p.value);
@@ -336,6 +417,18 @@ export default function ClientStatsPage() {
                     );
                   })}
                 </svg>
+                {avgPath && (
+                  <div className="flex flex-wrap items-center gap-4 border-t border-slate-800 px-3 py-2 text-[10px] text-slate-400">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-0.5 w-4 rounded bg-emerald-500" />
+                      pomiar
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="w-4 border-t-2 border-dashed border-sky-400" />
+                      średnia 7-dniowa
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -381,6 +474,59 @@ export default function ClientStatsPage() {
             </section>
           </aside>
         </div>
+
+        {/* 🔥 Heatmapa aktywności — ostatnie 53 tygodnie */}
+        <section className="mt-6 rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-4 lg:px-6 lg:py-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-slate-300">
+              🔥 Aktywność w minionym roku
+            </p>
+            <div className="flex items-center gap-4 text-[11px] text-slate-400">
+              <span>
+                Seria:{" "}
+                <span className="font-semibold text-emerald-400">
+                  {streak} {streak === 1 ? "dzień" : "dni"}
+                </span>
+              </span>
+              <span>
+                Aktywnych:{" "}
+                <span className="font-semibold text-slate-200">
+                  {heat.filter((c) => c.level > 0).length}{" "}
+                  {heat.filter((c) => c.level > 0).length === 1
+                    ? "dzień"
+                    : "dni"}
+                </span>
+              </span>
+            </div>
+          </div>
+          {heat.length === 0 ? (
+            <p className="text-xs text-slate-500">Brak danych aktywności.</p>
+          ) : (
+            <>
+              <div className="overflow-x-auto pb-2">
+                <div className="grid w-max grid-flow-col grid-rows-[repeat(7,minmax(0,1fr))] gap-1">
+                  {heat.map((c) => (
+                    <div
+                      key={c.date}
+                      title={`${c.date}`}
+                      className={`h-3 w-3 rounded-[3px] ${HEAT_LEVELS[c.level]}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] text-slate-500">
+                <span className="mr-1">mniej</span>
+                {HEAT_LEVELS.map((cls) => (
+                  <span
+                    key={cls}
+                    className={`h-2.5 w-2.5 rounded-[3px] ${cls}`}
+                  />
+                ))}
+                <span className="ml-1">więcej</span>
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );

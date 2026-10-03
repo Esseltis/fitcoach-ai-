@@ -1,7 +1,7 @@
 "use client";
 
-// Dodawanie posiłków jak w Fitatu:
-//  - 🧩 składniki: wyszukaj produkty, podaj gramatury, złóż danie (podsumowanie na żywo)
+// Dodawanie posiłków jak w Fitatu (zwarty panel):
+//  - 🧩 składniki: wyszukaj produkty, podaj gramatury, złóż danie (suma na żywo)
 //  - ⭐ moje dania: powtarzaj zapisane dania (liczba porcji)
 //  - ✏️ ręczne: nazwa + kcal/makro, gdy produktu nie ma w bazie
 // Wpis ląduje w kategorii dnia i wchodzi w makro bilansu.
@@ -149,7 +149,9 @@ export default function MealAddPanel({
   };
 
   const loadSavedIntoBuilder = (d: SavedDish) => {
-    setPicked(d.ingredients.map((i) => ({ food: ingredientToFood(i), grams: i.grams })));
+    setPicked(
+      d.ingredients.map((i) => ({ food: ingredientToFood(i), grams: i.grams }))
+    );
     setDishName(d.name);
     setPortions(String(d.portions));
     setServings(String(d.portions));
@@ -237,33 +239,48 @@ export default function MealAddPanel({
   };
 
   const inputCls =
-    "w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
+    "w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
   const gramsInput =
-    "w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-right text-xs text-slate-100 focus:border-sky-500 focus:outline-none";
+    "w-16 rounded-md border border-slate-700 bg-slate-900 px-1.5 py-1 text-right text-[11px] text-slate-100 focus:border-sky-500 focus:outline-none";
   const tabCls = (active: boolean) =>
-    `flex-1 rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide ${
+    `flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide ${
       active
-        ? "bg-sky-500 text-slate-950 shadow-[0_0_18px_rgba(56,189,248,0.5)]"
+        ? "bg-sky-500 text-slate-950 shadow-[0_0_14px_rgba(56,189,248,0.45)]"
         : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
     }`;
 
   return (
-    <div className="space-y-4 rounded-2xl border border-sky-500/40 bg-slate-950/95 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-300">
+    <div className="space-y-3 rounded-2xl border border-sky-500/40 bg-slate-950/95 p-3">
+      {/* Nagłówek + kategoria */}
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">
           ➕ Dodaj posiłek
         </p>
+        <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-400">
+          Kategoria
+          <select
+            value={cat}
+            onChange={(e) => setCat(e.target.value)}
+            className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-1 text-[11px] text-slate-100 focus:border-sky-500 focus:outline-none"
+          >
+            {Object.entries(CAT_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md px-2 py-1 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
+          className="rounded-md px-1.5 py-1 text-slate-500 hover:bg-slate-800 hover:text-slate-300"
         >
-          ✕ Zamknij
+          ✕
         </button>
       </div>
 
       {/* Zakładki */}
-      <div className="flex gap-2">
+      <div className="flex gap-1.5">
         <button
           type="button"
           onClick={() => setTab("skladniki")}
@@ -289,18 +306,18 @@ export default function MealAddPanel({
 
       {/* 🧩 SKŁADNIKI */}
       {tab === "skladniki" && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Szukaj produktu: kurczak, ryż, jajko, twaróg…"
+            placeholder="Szukaj produktu: kurczak, ryż, jajko…"
             className={inputCls}
           />
 
           {results.length > 0 && (
-            <div className="max-h-48 space-y-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-900/60 p-2">
+            <div className="max-h-40 space-y-0.5 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900/60 p-1.5">
               {!query.trim() && (
-                <p className="px-1 pb-1 text-[10px] uppercase tracking-wide text-slate-500">
+                <p className="px-1 pb-0.5 text-[10px] uppercase tracking-wide text-slate-500">
                   Popularne
                 </p>
               )}
@@ -309,36 +326,36 @@ export default function MealAddPanel({
                   key={f.id}
                   type="button"
                   onClick={() => addFood(f)}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800"
+                  className="flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-[11px] text-slate-200 hover:bg-slate-800"
                 >
                   <span className="min-w-0 truncate">
                     {f.name}
-                    <span className="ml-2 text-[10px] text-slate-500">
+                    <span className="ml-1.5 text-[10px] text-slate-500">
                       {FOOD_CATS.find((c) => c.id === f.cat)?.label}
                     </span>
                   </span>
-                  <span className="shrink-0 text-slate-400">
-                    {f.kcal} kcal/100 g <span className="text-sky-400">＋</span>
+                  <span className="shrink-0 text-slate-500">
+                    {f.kcal} kcal/100 g <span className="text-sky-500">＋</span>
                   </span>
                 </button>
               ))}
             </div>
           )}
           {query.trim() && results.length === 0 && (
-            <p className="text-xs text-slate-500">
+            <p className="text-[11px] text-slate-500">
               Brak w bazie — użyj zakładki ✏️ Ręczne, żeby dodać własne wartości.
             </p>
           )}
 
           {ingredients.length > 0 && (
-            <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+            <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-900/60 p-2.5">
               <p className="text-[10px] uppercase tracking-wide text-slate-400">
                 Składniki dania
               </p>
               {ingredients.map((ing, i) => (
                 <div
                   key={`${ing.name}-${i}`}
-                  className="flex items-center gap-2 text-xs"
+                  className="flex items-center gap-2 text-[11px]"
                 >
                   <span className="min-w-0 flex-1 truncate text-slate-200">
                     {ing.name}
@@ -352,14 +369,14 @@ export default function MealAddPanel({
                     }
                     className={gramsInput}
                   />
-                  <span className="w-4 shrink-0 text-slate-500">g</span>
-                  <span className="w-20 shrink-0 text-right font-semibold text-sky-300">
+                  <span className="w-3 shrink-0 text-slate-500">g</span>
+                  <span className="w-16 shrink-0 text-right font-semibold text-slate-100">
                     {ing.kcal} kcal
                   </span>
                   <button
                     type="button"
                     onClick={() => removePicked(i)}
-                    className="shrink-0 rounded px-1.5 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                    className="shrink-0 rounded px-1 text-slate-500 hover:bg-slate-800 hover:text-red-400"
                     title="Usuń składnik"
                   >
                     ✕
@@ -367,7 +384,7 @@ export default function MealAddPanel({
                 </div>
               ))}
 
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-slate-800 pt-1.5 text-[11px]">
                 <span className="text-slate-400">Razem (całe danie):</span>
                 <span className="font-semibold text-slate-100">
                   {total.kcal} kcal · W {total.carbs} · B {total.protein} · T{" "}
@@ -375,8 +392,8 @@ export default function MealAddPanel({
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-xs text-slate-400">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-400">
                   Porcje:
                   <input
                     type="number"
@@ -392,7 +409,7 @@ export default function MealAddPanel({
                     className={gramsInput}
                   />
                 </label>
-                <label className="flex items-center gap-2 text-xs text-slate-400">
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-400">
                   Zjadam:
                   <input
                     type="number"
@@ -404,14 +421,13 @@ export default function MealAddPanel({
                   />
                   <span className="text-[10px]">z {N}</span>
                 </label>
+                <p className="text-[11px] text-slate-400">
+                  do zapisu:{" "}
+                  <span className="rounded bg-emerald-500 px-1.5 py-0.5 font-bold text-slate-950">
+                    {logged.kcal} kcal
+                  </span>
+                </p>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Do zapisu:{" "}
-                <span className="font-semibold text-emerald-300">
-                  {logged.kcal} kcal · W {logged.carbs} · B {logged.protein} · T{" "}
-                  {logged.fat} g
-                </span>
-              </p>
             </div>
           )}
 
@@ -422,14 +438,14 @@ export default function MealAddPanel({
               placeholder="Nazwa dania (np. Kurczak z ryżem)"
               className={inputCls}
             />
-            <label className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-300">
+            <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-1.5 text-[11px] text-slate-300">
               <input
                 type="checkbox"
                 checked={asMine}
                 onChange={(e) => setAsMine(e.target.checked)}
                 className="accent-sky-500"
               />
-              Zachowaj jako „moje danie" (do powtarzania)
+              Zachowaj jako moje danie
             </label>
           </div>
         </div>
@@ -437,12 +453,11 @@ export default function MealAddPanel({
 
       {/* ⭐ MOJE DANIA */}
       {tab === "moje" && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {savedDishes.length === 0 ? (
-            <p className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400">
-              Nie masz jeszcze zapisanych dań. Złóż danie w zakładce 🧩
-              Składniki i odhacz „Zachowaj jako moje danie" — potem dodasz je
-              jednym kliknięciem.
+            <p className="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5 text-[11px] text-slate-400">
+              Brak zapisanych dań — złóż danie w 🧩 Składniki (checkbox
+              „Zachowaj jako moje danie"), potem dodasz je jednym kliknięciem.
             </p>
           ) : (
             savedDishes.map((d) => {
@@ -454,22 +469,21 @@ export default function MealAddPanel({
               return (
                 <div
                   key={d.id}
-                  className="rounded-xl border border-slate-800 bg-slate-900/60 p-3"
+                  className="rounded-lg border border-slate-800 bg-slate-900/60 p-2.5"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-100">
+                      <p className="truncate text-xs font-semibold text-slate-100">
                         {d.name}
                       </p>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[10px] text-slate-400">
                         {d.ingredients.length > 0
                           ? `${d.ingredients.length} składn. · `
                           : ""}
-                        {d.kcal} kcal całe · {Math.round(d.kcal / N2)}{" "}
-                        kcal/porcja
+                        {d.kcal} kcal całe · {Math.round(d.kcal / N2)} kcal/porcja
                       </p>
                       {d.ingredients.length > 0 && (
-                        <p className="mt-0.5 truncate text-[10px] text-slate-500">
+                        <p className="truncate text-[10px] text-slate-500">
                           {d.ingredients
                             .map((i) => `${i.name.split(" (")[0]} ${i.grams} g`)
                             .join(" · ")}
@@ -478,18 +492,16 @@ export default function MealAddPanel({
                     </div>
                     <button
                       type="button"
-                      onClick={() =>
-                        setSavedDishes(removeSavedDish(email, d.id))
-                      }
-                      className="shrink-0 rounded px-1.5 text-slate-500 hover:bg-slate-800 hover:text-red-400"
+                      onClick={() => setSavedDishes(removeSavedDish(email, d.id))}
+                      className="shrink-0 rounded px-1 text-slate-500 hover:bg-slate-800 hover:text-red-400"
                       title="Usuń danie z listy"
                     >
                       ✕
                     </button>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                      Porcje (z {N2}):
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1 text-[10px] text-slate-400">
+                      porcje (z {N2}):
                       <input
                         type="number"
                         min={0.5}
@@ -521,14 +533,14 @@ export default function MealAddPanel({
                           source: "zapisane",
                         });
                       }}
-                      className="rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold uppercase text-slate-950 hover:bg-emerald-400"
+                      className="rounded-full bg-emerald-500 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-950 hover:bg-emerald-400"
                     >
                       ➕ Dodaj do dnia
                     </button>
                     <button
                       type="button"
                       onClick={() => loadSavedIntoBuilder(d)}
-                      className="rounded-full border border-slate-700 px-3 py-1.5 text-[11px] text-slate-300 hover:border-sky-500 hover:text-sky-300"
+                      className="rounded-full border border-slate-700 px-2.5 py-1 text-[10px] text-slate-300 hover:border-sky-500 hover:text-sky-300"
                     >
                       Edytuj składniki
                     </button>
@@ -542,8 +554,8 @@ export default function MealAddPanel({
 
       {/* ✏️ RĘCZNE */}
       {tab === "reczne" && (
-        <div className="space-y-3">
-          <p className="text-xs text-slate-400">
+        <div className="space-y-2">
+          <p className="text-[11px] text-slate-400">
             Produktu nie ma w bazie? Wpisz wartości z opakowania (na porcję,
             którą jesz).
           </p>
@@ -560,7 +572,7 @@ export default function MealAddPanel({
               { k: "c" as const, label: "Węgle (g)" },
               { k: "f" as const, label: "Tłuszcze (g)" },
             ].map((f) => (
-              <label key={f.k} className="text-[11px] text-slate-400">
+              <label key={f.k} className="text-[10px] text-slate-400">
                 {f.label}
                 <input
                   type="number"
@@ -569,92 +581,71 @@ export default function MealAddPanel({
                   onChange={(e) =>
                     setManual({ ...manual, [f.k]: e.target.value })
                   }
-                  className={`${inputCls} mt-1`}
+                  className={`${inputCls} mt-0.5`}
                 />
               </label>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-xs text-slate-300">
+          <label className="flex items-center gap-2 text-[11px] text-slate-300">
             <input
               type="checkbox"
               checked={asMine}
               onChange={(e) => setAsMine(e.target.checked)}
               className="accent-sky-500"
             />
-            Zachowaj jako „moje danie" (do powtarzania)
+            Zachowaj jako moje danie
           </label>
         </div>
       )}
 
-      {/* Wspólne: kategoria + zamiast/dodatkowo + zapis */}
-      <div className="space-y-3 border-t border-slate-800 pt-3">
-        <label className="text-xs text-slate-400">
-          Kategoria:{" "}
-          <select
-            value={cat}
-            onChange={(e) => setCat(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 focus:border-sky-500 focus:outline-none"
-          >
-            {Object.entries(CAT_LABELS).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="flex flex-wrap gap-3 text-xs">
-          <label
-            className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 ${
+      {/* Wspólne: tryb + zapis */}
+      <div className="space-y-2 border-t border-slate-800 pt-2.5">
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          <button
+            type="button"
+            onClick={() => setExtra(false)}
+            className={`rounded-lg border px-3 py-1.5 font-semibold transition ${
               !extra
-                ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
-                : "border-slate-700 text-slate-400"
+                ? "border-emerald-500 bg-emerald-500 text-slate-950"
+                : "border-slate-700 text-slate-400 hover:border-slate-500"
             }`}
           >
-            <input
-              type="radio"
-              name="dishMode"
-              checked={!extra}
-              onChange={() => setExtra(false)}
-              className="accent-emerald-500"
-            />
-            Zamiast planowanego ({CAT_LABELS[cat]})
-          </label>
-          <label
-            className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 ${
+            Zamiast planu
+          </button>
+          <button
+            type="button"
+            onClick={() => setExtra(true)}
+            className={`rounded-lg border px-3 py-1.5 font-semibold transition ${
               extra
-                ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
-                : "border-slate-700 text-slate-400"
+                ? "border-amber-500 bg-amber-500 text-slate-950"
+                : "border-slate-700 text-slate-400 hover:border-slate-500"
             }`}
           >
-            <input
-              type="radio"
-              name="dishMode"
-              checked={extra}
-              onChange={() => setExtra(true)}
-              className="accent-amber-500"
-            />
-            Dodatkowo (np. przekąska)
-          </label>
+            Dodatkowo
+          </button>
+          <span className="ml-auto self-center text-[10px] text-slate-500">
+            {extra
+              ? "doliczy do dnia"
+              : `zamiast: ${CAT_LABELS[cat] ?? cat}`}
+          </span>
         </div>
 
-        {err && <p className="text-[11px] text-red-400">{err}</p>}
+        {err && <p className="text-[11px] text-red-500">{err}</p>}
 
-        {tab !== "moje" && (
+        {tab !== "moje" ? (
           <button
             type="button"
             onClick={handleSave}
-            className="w-full rounded-xl bg-sky-500 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-sky-400"
+            className="w-full rounded-xl bg-sky-500 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-sky-400"
           >
             ✓ Dodaj do dnia — {CAT_LABELS[cat]}
             {tab === "skladniki" && ingredients.length > 0
               ? ` · ${logged.kcal} kcal`
               : ""}
           </button>
-        )}
-        {tab === "moje" && (
-          <p className="text-center text-[11px] text-slate-500">
-            Wybierz porcję i kliknij „➕ Dodaj do dnia" przy daniu.
+        ) : (
+          <p className="text-center text-[10px] text-slate-500">
+            Wybierz liczbę porcji i kliknij „➕ Dodaj do dnia" przy daniu.
           </p>
         )}
       </div>

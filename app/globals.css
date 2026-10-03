@@ -57,3 +57,58 @@ body {
 body, aside, header, main, nav, section, article, div, button, input {
   transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
 }
+
+/* ===== Czytelność akcentów w motywie JASNYM =====
+   Kolory akcentów (sky/emerald/amber/…) są projektowane pod ciemne tło —
+   jasne odcienie (100–400) używane jako TEKST znikają na białym tle.
+   Przyciemniamy je TYLKO jako kolor tekstu i TYLKO w jasnym motywie
+   (reguły bez warstwy wygrywają z utility Tailwinda); tła i ciemny motyw
+   zostają bez zmian. */
+:root:not(.dark) .text-sky-100,
+:root:not(.dark) .text-sky-200,
+:root:not(.dark) .text-sky-300 { color: #0369a1; }
+
+:root:not(.dark) .text-sky-400 { color: #0284c7; }
+
+:root:not(.dark) .text-emerald-100,
+:root:not(.dark) .text-emerald-200,
+:root:not(.dark) .text-emerald-300 { color: #047857; }
+
+:root:not(.dark) .text-emerald-400 { color: #059669; }
+
+:root:not(.dark) .text-amber-100,
+:root:not(.dark) .text-amber-200,
+:root:not(.dark) .text-amber-300 { color: #b45309; }
+
+:root:not(.dark) .text-amber-400 { color: #d97706; }
+
+:root:not(.dark) .text-red-200,
+:root:not(.dark) .text-red-300,
+:root:not(.dark) .text-red-400 { color: #dc2626; }
+
+:root:not(.dark) .text-rose-300,
+:root:not(.dark) .text-rose-400 { color: #e11d48; }
+
+:root:not(.dark) .text-orange-300,
+:root:not(.dark) .text-orange-400 { color: #c2410c; }
+
+/* Warianty z kryciem (np. text-amber-300/80) — ten sam mechanizm */
+:root:not(.dark) [class*="text-sky-100/"],
+:root:not(.dark) [class*="text-sky-200/"],
+:root:not(.dark) [class*="text-sky-300/"] { color: #0369a1; }
+
+:root:not(.dark) [class*="text-emerald-50/"],
+:root:not(.dark) [class*="text-emerald-100/"],
+:root:not(.dark) [class*="text-emerald-200/"],
+:root:not(.dark) [class*="text-emerald-300/"] { color: #047857; }
+
+:root:not(.dark) [class*="text-amber-50/"],
+:root:not(.dark) [class*="text-amber-100/"],
+:root:not(.dark) [class*="text-amber-200/"],
+:root:not(.dark) [class*="text-amber-300/"] { color: #b45309; }
+
+/* Na pełnym, kolorowym tle (hover) tekst musi być ciemny — inaczej
+   przyciemniony akcent zniknąłby na jednolitym zielonym/niebieskim. */
+:root:not(.dark) .hover\:bg-emerald-500:hover { color: #020617; }
+:root:not(.dark) .hover\:bg-sky-500:hover { color: #020617; }
+:root:not(.dark) .hover\:bg-amber-500:hover { color: #020617; }

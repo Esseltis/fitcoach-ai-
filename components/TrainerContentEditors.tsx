@@ -260,6 +260,78 @@ export function TipsEditor({
   );
 }
 
+// ⚡ Gotowe szablony wytycznych — jeden klik wypełnia cele, zasady i liczby.
+const GUIDELINE_TEMPLATES: {
+  name: string;
+  goal: string;
+  focus: string;
+  rules: string[];
+  trainings: string;
+  water: string;
+  hour: string;
+}[] = [
+  {
+    name: "🔥 Redukcja",
+    goal: "Redukcja: −4 kg w 8 tygodni",
+    focus: "Ten tydzień: 4 treningi, zero słodyczy, sen 7+ h.",
+    rules: [
+      "Raport dnia do godziny 20:00",
+      "Waga rano na czczo, po toalecie",
+      "Posiłek potreningowy do 30 min po treningu",
+      "Warzywa do każdego posiłku",
+      "Słodycze max 1× w tygodniu",
+    ],
+    trainings: "4",
+    water: "",
+    hour: "20",
+  },
+  {
+    name: "💪 Masa",
+    goal: "Budowa masy: +3 kg w 12 tygodni",
+    focus: "Ten tydzień: progresja obciążenia, surplus +300 kcal",
+    rules: [
+      "Raport dnia do godziny 20:00",
+      "Białko min. 2 g/kg masy ciała",
+      "Posiłek potreningowy do 45 min po treningu",
+      "Sen 7–8 h — bez niego brak progresji",
+      "Zwiększaj ciężar, gdy robisz wszystkie serie",
+    ],
+    trainings: "4",
+    water: "8",
+    hour: "20",
+  },
+  {
+    name: "🏃 Wytrzymałość",
+    goal: "Forma: życiówka na 10 km w 10 tygodni",
+    focus: "Ten tydzień: 2 jednostki biegowe + 1 interwały",
+    rules: [
+      "Raport dnia do godziny 20:00",
+      "Długie bieganie w niedzielę, tempo umiarkowane",
+      "Węgle przed i po biegu powyżej 8 km",
+      "Rozciąganie 10 min po każdym treningu",
+      "Biegania ogólnie poniżej 150 bpm",
+    ],
+    trainings: "5",
+    water: "10",
+    hour: "21",
+  },
+  {
+    name: "😴 Regeneracja",
+    goal: "Reset: sen 7+ h i stabilność przez 4 tygodnie",
+    focus: "Ten tydzień: bez treningów siłowych, spacer 30 min dziennie",
+    rules: [
+      "Raport dnia do godziny 20:00",
+      "Spanie do 22:30, bez ekranów po 22:00",
+      "Kofeina tylko do 14:00",
+      "3 stałe posiłki + 1 przekąska",
+      "2 dni przerwy od siłowni w tygodniu",
+    ],
+    trainings: "3",
+    water: "",
+    hour: "20",
+  },
+];
+
 export function GuidelinesEditor({
   c,
   set,
@@ -272,6 +344,15 @@ export function GuidelinesEditor({
     set({ ...c, guidelines: { ...g, ...patch } });
   const tasks = c.tasks;
   const updTasks = (list: string[]) => set({ ...c, tasks: list });
+  const applyTemplate = (t: (typeof GUIDELINE_TEMPLATES)[number]) =>
+    upd({
+      periodGoal: t.goal,
+      weeklyFocus: t.focus,
+      rules: t.rules,
+      trainingsPerWeek: t.trainings,
+      waterGlasses: t.water,
+      reportHour: t.hour,
+    });
   return (
     <div className="space-y-4">
       <Card>
@@ -282,6 +363,22 @@ export function GuidelinesEditor({
           Podopieczny zobaczy te wytyczne na górze swojego panelu, a wartości
           liczbowe na dole sterują aplikacją (cel wody, przypomnienia).
         </p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-slate-500">
+            ⚡ Szybkie szablony:
+          </span>
+          {GUIDELINE_TEMPLATES.map((t) => (
+            <button
+              key={t.name}
+              type="button"
+              onClick={() => applyTemplate(t)}
+              title="Podmienia cele, zasady i liczby — pamiętaj o zapisaniu sekcji"
+              className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-200 transition hover:bg-emerald-500/20"
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
             label="Cel okresu (np. −4 kg w 8 tygodni)"

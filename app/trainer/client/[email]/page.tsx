@@ -30,6 +30,9 @@ import {
   getTasksDone,
   getPhotoMeals,
   getDishLog,
+  getDishLogByDate,
+  getMeasurements,
+  getClientsForTrainer,
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
@@ -117,6 +120,7 @@ export default function TrainerClientPage({
     updatedAt: "",
   });
   const [saved, setSaved] = useState(false);
+  const [massMsg, setMassMsg] = useState<string | null>(null);
   const [ownRecipes, setOwnRecipes] = useState<Recipe[]>([]);
   const [ownWorkouts, setOwnWorkouts] = useState<Workout[]>([]);
 
@@ -245,6 +249,78 @@ export default function TrainerClientPage({
     ? getTrainerReportFields(trainerId)
     : [];
 
+  // 📊 Eksport CSV: pomiary ciała + dziennik żywienia (jeden plik, dwie sekcje)
+  const exportCsv = () => {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines: string[] = [];
+    lines.push(`FitCoach AI — eksport danych;${esc(email)};${esc(clientName)}`);
+    lines.push("");
+    lines.push("POMIARY CIAŁA");
+    lines.push("data;waga;pas;brzuch;biceps;klatka;uda;lydki");
+    for (const m of getMeasurements(email)) {
+      lines.push(
+        [
+          m.date,
+          m.values.weight ?? "",
+          m.values.pas ?? "",
+          m.values.brzuch ?? "",
+          m.values.biceps ?? "",
+          m.values.klatka ?? "",
+          m.values.uda ?? "",
+          m.values.lydki ?? "",
+        ]
+          .map(esc)
+          .join(";")
+      );
+    }
+    lines.push("");
+    lines.push("DZIENNIK ŻYWIENIA");
+    lines.push("data;kategoria;nazwa;kcal;białko;węgle;tłuszcze");
+    const byDate = getDishLogByDate(email);
+    for (const date of Object.keys(byDate).sort()) {
+      for (const e of byDate[date]) {
+        lines.push(
+          [date, e.category, e.name, e.kcal, e.protein, e.carbs, e.fat]
+            .map(esc)
+            .join(";")
+        );
+      }
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fitcoach_${email.replace(/[@.]/g, "_")}_export.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  // 📣 Masowe wytyczne: kopia bieżących wytycznych i zadań do wszystkich
+  // podopiecznych trenera (poza tym otwartym)
+  const applyGuidelinesToAll = () => {
+    if (!trainerId) return;
+    const others = getClientsForTrainer(trainerId).filter(
+      (c) => c.email !== email
+    );
+    for (const c of others) {
+      const target = getClientContent(c.email);
+      saveClientContent(c.email, {
+        ...target,
+        guidelines: content.guidelines,
+        tasks: content.tasks,
+      });
+    }
+    setMassMsg(
+      `✓ Zastosowano wytyczne i zadania u ${others.length} podopiecznych${
+        others.length === 0 ? " (brak innych podopiecznych)" : ""
+      }.`
+    );
+  };
+
   // Raport nowszy niż ostatnia odpowiedź trenera → wymaga reakcji
   const reportIsNew =
     !!report &&
@@ -259,7 +335,8 @@ export default function TrainerClientPage({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <>
+    <div className="min-h-screen bg-slate-950 text-slate-100 print:hidden">
       <header className="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/trainer" className="text-xs text-slate-400 hover:text-slate-200">
@@ -312,6 +389,24 @@ export default function TrainerClientPage({
 
       <main className="mx-auto max-w-5xl p-6">
         <div className="mb-4 flex items-center justify-end gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={exportCsv}
+              title="Pomiary ciała + dziennik żywienia (CSV)"
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:border-emerald-500 hover:text-emerald-300"
+            >
+              📊 CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              title="Drukuj / zapisz podsumowanie jako PDF"
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:border-emerald-500 hover:text-emerald-300"
+            >
+              🖨 PDF
+            </button>
+          </div>
           {saved && <span className="text-xs text-emerald-300">Zapisano ✓</span>}
           {tab !== "report" && tab !== "wykonanie" && (
             <button
@@ -538,7 +633,37 @@ export default function TrainerClientPage({
         )}
         {tab === "catering" && <CateringEditor c={content} set={setContent} />}
         {tab === "guidelines" && (
-          <GuidelinesEditor c={content} set={setContent} />
+          <div className="space-y-4">
+            {/* 📣 Masowe wytyczne — jednym kliknięciem do wszystkich */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3">
+              <div>
+                <p className="text-xs font-semibold text-emerald-200">
+                  📣 Masowe wytyczne
+                </p>
+                <p className="text-[11px] text-emerald-300/80">
+                  Podmiej te zasady, cele i zadania u wszystkich swoich
+                  podopiecznych naraz (po zapisaniu zmian w polach poniżej).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={applyGuidelinesToAll}
+                className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
+              >
+                Zastosuj u wszystkich (
+                {trainerId
+                  ? getClientsForTrainer(trainerId).filter(
+                      (c) => c.email !== email
+                    ).length
+                  : 0}
+                )
+              </button>
+            </div>
+            {massMsg && (
+              <p className="text-xs font-medium text-emerald-300">{massMsg}</p>
+            )}
+            <GuidelinesEditor c={content} set={setContent} />
+          </div>
         )}
 
         {tab === "plan" && (
@@ -612,6 +737,17 @@ export default function TrainerClientPage({
         )}
       </main>
     </div>
+
+    {/* Wydruk / PDF — widoczne tylko przy drukowaniu (przycisk 🖨 PDF) */}
+    <PrintSummary
+      clientName={clientName}
+      email={email}
+      content={content}
+      profile={profile}
+      report={report}
+      fields={reportFieldDefs}
+    />
+    </>
   );
 }
 
@@ -674,6 +810,15 @@ function StatBar({
   );
 }
 
+// Poziomy aktywności w kalendarzu (skala slate jest odwrócona w jasnym
+// motywie — jeden zestaw klas działa w obu motywach, jak na dashboardzie)
+const CAL_LEVELS = [
+  "bg-slate-700",
+  "bg-emerald-300/70",
+  "bg-emerald-400",
+  "bg-emerald-500",
+];
+
 function WykonanieSection({
   email,
   content,
@@ -684,6 +829,26 @@ function WykonanieSection({
   report: ClientReport | null;
 }) {
   const today = new Date().toISOString().slice(0, 10);
+
+  // 📅 Kalendarz: nawigacja po miesiącach + wybrany dzień
+  const [monthOff, setMonthOff] = useState(0);
+  const [calDay, setCalDay] = useState<string | null>(null);
+  const calBase = new Date();
+  calBase.setDate(1);
+  calBase.setMonth(calBase.getMonth() + monthOff);
+  const calYear = calBase.getFullYear();
+  const calMonth = calBase.getMonth();
+  const calLabel = calBase.toLocaleDateString("pl-PL", {
+    month: "long",
+    year: "numeric",
+  });
+  const calDays = new Date(calYear, calMonth + 1, 0).getDate();
+  const calPad = (new Date(calYear, calMonth, 1).getDay() + 6) % 7; // pon=0
+  const calCells: (number | null)[] = [
+    ...Array.from({ length: calPad }, () => null),
+    ...Array.from({ length: calDays }, (_, i) => i + 1),
+  ];
+  while (calCells.length % 7 !== 0) calCells.push(null);
 
   // Posiłki
   const mealCats: string[] = content.diet.meals.map((m) => m.category ?? "");
@@ -843,7 +1008,10 @@ function WykonanieSection({
             label="Aktywności"
             value={acts.length > 0 ? `${acts.length} · ${actKcal} kcal` : "0"}
           />
-          <StatBar label="Seria dni 🔥" value={`${streak} dni`} />
+          <StatBar
+            label="Seria dni 🔥"
+            value={`${streak} ${streak === 1 ? "dzień" : "dni"}`}
+          />
           <StatBar
             label="Samopoczucie"
             value={
@@ -883,6 +1051,119 @@ function WykonanieSection({
                   </li>
                 );
               })}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      {/* 📅 Kalendarz aktywności — ostatnie miesiące podopiecznego */}
+      <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+            📅 Kalendarz aktywności
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMonthOff((m) => m - 1);
+                setCalDay(null);
+              }}
+              className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:border-emerald-500 hover:text-emerald-300"
+              aria-label="Poprzedni miesiąc"
+            >
+              ←
+            </button>
+            <span className="min-w-[150px] text-center text-xs font-semibold text-slate-100">
+              {calLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setMonthOff((m) => Math.min(0, m + 1));
+                setCalDay(null);
+              }}
+              disabled={monthOff >= 0}
+              className="rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-40"
+              aria-label="Następny miesiąc"
+            >
+              →
+            </button>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-400">
+          Kolor = odhaczone posiłki (im ciemniej, tym więcej), niebieska kropka
+          = picie wody. Klik w dzień pokaże szczegóły.
+        </p>
+
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase text-slate-500">
+          {["pon", "wt", "śr", "czw", "pt", "sob", "nd"].map((d) => (
+            <span key={d}>{d}</span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {calCells.map((d, i) => {
+            if (d === null) return <span key={`e${i}`} />;
+            const isoDay = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+            const m = mealsAll[isoDay]?.length ?? 0;
+            const w = waterAll[isoDay] ?? 0;
+            const lvl = m === 0 && w === 0 ? 0 : m >= 5 || (m >= 3 && w > 0) ? 3 : m >= 3 || (m > 0 && w > 0) ? 2 : 1;
+            const isToday = isoDay === today;
+            const hasReport = report?.submittedAt?.slice(0, 10) === isoDay;
+            return (
+              <div
+                key={isoDay}
+                title={`${isoDay}: posiłki ${m}, woda ${w} szkl.${hasReport ? ", raport ✓" : ""}`}
+                onClick={() => setCalDay(isoDay === calDay ? null : isoDay)}
+                className={`relative flex h-9 cursor-pointer items-start justify-end rounded-md p-1 text-[10px] font-medium transition ${CAL_LEVELS[lvl]} ${
+                  isToday ? "ring-2 ring-sky-400" : ""
+                } ${calDay === isoDay ? "outline outline-2 outline-emerald-400" : ""} ${
+                  lvl === 0 ? "text-slate-500" : "text-slate-950"
+                }`}
+              >
+                {d}
+                {w > 0 && (
+                  <span className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full bg-sky-600" />
+                )}
+                {hasReport && (
+                  <span className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {calDay && (
+          <div className="rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-xs text-slate-300">
+            <p className="font-semibold text-slate-100">{calDay}</p>
+            <ul className="mt-1 space-y-0.5">
+              <li>
+                Posiłki odhaczone:{" "}
+                <span className="font-semibold text-emerald-300">
+                  {mealsAll[calDay]?.length ?? 0}
+                </span>
+                {(mealsAll[calDay]?.length ?? 0) > 0 && (
+                  <span className="text-slate-500">
+                    {" "}
+                    ({(mealsAll[calDay] ?? []).join(", ")})
+                  </span>
+                )}
+              </li>
+              <li>
+                Woda:{" "}
+                <span className="font-semibold text-sky-300">
+                  {waterAll[calDay] ?? 0} szkl.
+                </span>
+              </li>
+              <li>
+                Raport:{" "}
+                {report?.submittedAt?.slice(0, 10) === calDay ? (
+                  <span className="text-emerald-300">wysłany ✓</span>
+                ) : (
+                  <span className="text-slate-500">brak</span>
+                )}
+              </li>
             </ul>
           </div>
         )}
@@ -1027,6 +1308,145 @@ function WykonanieSection({
           </p>
         </section>
       )}
+    </div>
+  );
+}
+
+/** Podsumowanie do druku / zapisu jako PDF (widoczne tylko w @media print
+ *  — przycisk 🖨 PDF w pasku akcji wywołuje window.print()). */
+function PrintSummary({
+  clientName,
+  email,
+  content,
+  profile,
+  report,
+  fields,
+}: {
+  clientName: string;
+  email: string;
+  content: TrainerContent;
+  profile: ClientProfile | null;
+  report: ClientReport | null;
+  fields: { key: string; label: string }[];
+}) {
+  const ms = getMeasurements(email);
+  const dateStr = new Date().toLocaleDateString("pl-PL", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const rules = content.guidelines.rules.filter((r) => r.trim());
+  const labelOf = (k: string) => fields.find((f) => f.key === k)?.label ?? k;
+  const cols = ["data", "waga", "pas", "brzuch", "biceps", "klatka", "uda", "lydki"];
+
+  return (
+    <div className="hidden print:block bg-white p-8 text-black">
+      <div className="flex items-baseline justify-between border-b-2 border-black pb-2">
+        <h1 className="text-xl font-bold">FitCoach AI — {clientName}</h1>
+        <p className="text-xs">
+          {dateStr} · {email}
+        </p>
+      </div>
+
+      <section className="mt-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide">Wytyczne</h2>
+        <p className="mt-1 text-xs">
+          <b>Cel okresu:</b> {content.guidelines.periodGoal || "—"} ·{" "}
+          <b>Priorytet tygodnia:</b> {content.guidelines.weeklyFocus || "—"}
+        </p>
+        {rules.length > 0 && (
+          <ul className="mt-1 list-disc pl-5 text-xs">
+            {rules.map((r, i) => (
+              <li key={i}>{r}</li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-1 text-xs">
+          Woda: {content.guidelines.waterGlasses || "auto z wagi"} szkl./dzień ·
+          Raport: godz. {content.guidelines.reportHour || "18"} · Treningi:{" "}
+          {content.guidelines.trainingsPerWeek || "—"} / tydz.
+        </p>
+      </section>
+
+      {profile && (
+        <section className="mt-4">
+          <h2 className="text-sm font-bold uppercase tracking-wide">Profil</h2>
+          <p className="text-xs">
+            {profile.goal} · {profile.gender} · {profile.age} lat ·{" "}
+            {profile.weight} kg · {profile.height} cm · aktywność:{" "}
+            {profile.activity} · {profile.trainingFrequency} treningów/tydz. ·{" "}
+            {profile.mealsPerDay} posiłków/dzień
+          </p>
+          {profile.preferences && (
+            <p className="mt-1 text-xs">Preferencje: {profile.preferences}</p>
+          )}
+          {profile.healthNotes && (
+            <p className="mt-1 text-xs">Zdrowie: {profile.healthNotes}</p>
+          )}
+        </section>
+      )}
+
+      <section className="mt-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide">
+          Ostatni raport dzienny
+        </h2>
+        {report ? (
+          <ul className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs">
+            {Object.entries(report.values).map(([k, v]) => (
+              <li key={k}>
+                {labelOf(k)}: <b>{String(v)}</b>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs">Brak raportów.</p>
+        )}
+      </section>
+
+      <section className="mt-4">
+        <h2 className="text-sm font-bold uppercase tracking-wide">
+          Pomiary ciała ({ms.length})
+        </h2>
+        {ms.length === 0 ? (
+          <p className="text-xs">Brak pomiarów.</p>
+        ) : (
+          <table className="mt-1 w-full border-collapse text-[11px]">
+            <thead>
+              <tr>
+                {cols.map((h) => (
+                  <th
+                    key={h}
+                    className="border border-gray-400 px-1.5 py-0.5 text-left"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ms.slice(0, 20).map((m) => (
+                <tr key={m.id}>
+                  <td className="border border-gray-400 px-1.5 py-0.5">
+                    {m.date}
+                  </td>
+                  {cols.slice(1).map((c) => (
+                    <td
+                      key={c}
+                      className="border border-gray-400 px-1.5 py-0.5"
+                    >
+                      {m.values[c] || "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <p className="mt-6 text-[10px] text-gray-600">
+        Wygenerowano z FitCoach AI — {new Date().toLocaleString("pl-PL")}
+      </p>
     </div>
   );
 }

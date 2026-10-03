@@ -236,8 +236,8 @@ function FemaleDashboardSection() {
         <div className="flex flex-col gap-4 lg:flex-row">
           {/* Panel boczny */}
           <div className="flex w-full flex-col gap-3 lg:w-40">
-            <div className="rounded-2xl border border-pink-500/40 bg-gradient-to-b from-pink-950/70 via-slate-950/80 to-slate-950/90 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-pink-200">
+            <div className="rounded-2xl border border-pink-500/40 bg-pink-500/10 p-3 dark:bg-transparent dark:bg-gradient-to-b dark:from-pink-950/70 dark:via-slate-950/80 dark:to-slate-950/90">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-pink-700 dark:text-pink-200">
                 Tryb
               </p>
               <p className="mt-1 text-xs text-slate-200">

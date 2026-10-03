@@ -92,6 +92,29 @@ body, aside, header, main, nav, section, article, div, button, input {
 :root:not(.dark) .text-orange-300,
 :root:not(.dark) .text-orange-400 { color: #c2410c; }
 
+:root:not(.dark) .text-pink-100,
+:root:not(.dark) .text-pink-200,
+:root:not(.dark) .text-pink-300 { color: #be185d; }
+
+:root:not(.dark) .text-pink-400 { color: #db2777; }
+
+:root:not(.dark) .text-violet-100,
+:root:not(.dark) .text-violet-200,
+:root:not(.dark) .text-violet-300 { color: #6d28d9; }
+
+:root:not(.dark) .text-violet-400 { color: #7c3aed; }
+
+:root:not(.dark) .text-blue-200,
+:root:not(.dark) .text-blue-300 { color: #1d4ed8; }
+
+:root:not(.dark) .text-blue-400 { color: #2563eb; }
+
+:root:not(.dark) .text-cyan-100,
+:root:not(.dark) .text-cyan-200,
+:root:not(.dark) .text-cyan-300 { color: #0e7490; }
+
+:root:not(.dark) .text-cyan-400 { color: #0891b2; }
+
 /* Warianty z kryciem (np. text-amber-300/80) — ten sam mechanizm */
 :root:not(.dark) [class*="text-sky-100/"],
 :root:not(.dark) [class*="text-sky-200/"],

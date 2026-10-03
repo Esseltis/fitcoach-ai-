@@ -955,8 +955,8 @@ function DashboardSection({
         <div className="flex flex-col gap-4 lg:flex-row">
           {/* Tryb i sekcje */}
           <div className="flex w-full flex-col gap-3 lg:w-40">
-            <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-b from-emerald-950/70 to-slate-950/80 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-300">
+            <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3 dark:bg-transparent dark:bg-gradient-to-b dark:from-emerald-950/70 dark:to-slate-950/80">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
                 Tryb
               </p>
               <p className="mt-1 text-xs text-slate-200">
@@ -1364,10 +1364,10 @@ function GuidelinesCard({
     g.reportHour;
   if (!hasAny) return null;
   return (
-    <div className="rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/70 via-slate-950/95 to-slate-950/95 p-4 shadow-[0_0_30px_rgba(16,185,129,0.15)]">
+    <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 shadow-[0_0_30px_rgba(16,185,129,0.15)] dark:bg-transparent dark:bg-gradient-to-r dark:from-emerald-950/70 dark:via-slate-950/95 dark:to-slate-950/95">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
             🎯 Wytyczne trenera
           </p>
           {g.periodGoal && (
@@ -1376,7 +1376,7 @@ function GuidelinesCard({
             </p>
           )}
           {g.weeklyFocus && (
-            <p className="mt-0.5 text-xs text-amber-200/90">
+            <p className="mt-0.5 text-xs font-medium text-amber-800 dark:text-amber-200/90">
               📌 {g.weeklyFocus}
             </p>
           )}
@@ -1423,11 +1423,15 @@ function TrainerTipsBanner({ content }: { content: TrainerContent }) {
   const hasFb = Boolean(fb?.text.trim());
   if (!focus && !hasFb) return null;
   return (
-    <div className="space-y-1.5 rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/60 to-slate-950/80 p-4 shadow-[0_0_25px_rgba(16,185,129,0.12)]">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+    <div className="space-y-1.5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4 shadow-[0_0_25px_rgba(16,185,129,0.12)] dark:bg-transparent dark:bg-gradient-to-r dark:from-emerald-950/60 dark:to-slate-950/80">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
         🎯 Wskazówki trenera
       </p>
-      {focus && <p className="text-sm font-medium text-amber-200">{focus}</p>}
+      {focus && (
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+          {focus}
+        </p>
+      )}
       {hasFb && (
         <p className="max-h-24 overflow-hidden whitespace-pre-line text-xs leading-relaxed text-slate-300">
           {fb!.text}

@@ -6,7 +6,7 @@
 //  - ✏️ ręczne: nazwa + kcal/makro, gdy produktu nie ma w bazie
 // Wpis ląduje w kategorii dnia i wchodzi w makro bilansu.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   searchFoods,
   scaleFood,
@@ -50,6 +50,9 @@ const POPULAR_IDS = [
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
+/** Produkt z OpenFoodFacts — wartości NA 100 g. */
+type OffProduct = { name: string; kcal: number; p: number; c: number; f: number };
+
 const num = (v: string) => {
   const n = Number(String(v).replace(",", "."));
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -69,7 +72,9 @@ export default function MealAddPanel({
   onClose,
   onSaved,
 }: Props) {
-  const [tab, setTab] = useState<"skladniki" | "moje" | "reczne">("skladniki");
+  const [tab, setTab] = useState<
+    "skladniki" | "moje" | "reczne" | "kod"
+  >("skladniki");
   const [cat, setCat] = useState(category);
   const [extra, setExtra] = useState(false);
   const [err, setErr] = useState("");
@@ -96,6 +101,17 @@ export default function MealAddPanel({
     c: "",
     f: "",
   });
+
+  // 📷 skaner kodów — BarcodeDetector (Chromium) + baza OpenFoodFacts
+  const [barcode, setBarcode] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [prodLoading, setProdLoading] = useState(false);
+  const [prodErr, setProdErr] = useState("");
+  const [prod, setProd] = useState<OffProduct | null>(null);
+  const [scanG, setScanG] = useState("100");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     setSavedDishes(getSavedDishes(email));
@@ -238,12 +254,172 @@ export default function MealAddPanel({
     saveEntry(entry);
   };
 
+  // ——— skaner kodów: kamera, rozpoznawanie, wyszukiwanie ———
+  const stopScan = () => {
+    if (tickRef.current) {
+      clearInterval(tickRef.current);
+      tickRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setScanning(false);
+  };
+
+  // Zamknięcie panelu = zgaszenie kamery
+  useEffect(() => {
+    return () => stopScan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const lookupProduct = async (code: string) => {
+    const clean = code.trim();
+    setProd(null);
+    if (!clean) {
+      setProdErr("Podaj kod kreskowy.");
+      return;
+    }
+    setProdErr("");
+    setProdLoading(true);
+    try {
+      const r = await fetch(
+        `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(
+          clean
+        )}.json?fields=product_name,product_name_pl,nutriments`
+      );
+      const j = await r.json();
+      if (!j?.status || !j.product) {
+        setProdErr("Nie znaleziono produktu w bazie OpenFoodFacts.");
+        return;
+      }
+      const n = j.product.nutriments ?? {};
+      const kcal =
+        Number(n["energy-kcal_100g"]) || (Number(n["energy_100g"]) || 0) / 4.184;
+      const found: OffProduct = {
+        name: String(
+          j.product.product_name_pl || j.product.product_name || "Produkt"
+        ).trim(),
+        kcal: Math.round(kcal),
+        p: r1(Number(n["proteins_100g"]) || 0),
+        c: r1(Number(n["carbohydrates_100g"]) || 0),
+        f: r1(Number(n["fat_100g"]) || 0),
+      };
+      if (found.kcal <= 0) {
+        setProdErr("Baza nie ma danych kalorycznych dla tego produktu.");
+        return;
+      }
+      setProd(found);
+    } catch {
+      setProdErr(
+        "Brak połączenia z OpenFoodFacts — wpisz wartości w zakładce ✏️ Ręczne."
+      );
+    } finally {
+      setProdLoading(false);
+    }
+  };
+
+  const startScan = async () => {
+    setProdErr("");
+    if (typeof window === "undefined" || !("BarcodeDetector" in window)) {
+      setProdErr(
+        "Przeglądarka nie obsługuje skanera (wymagany Chrome/Edge) — wpisz kod poniżej."
+      );
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setProdErr("Ta przeglądarka nie daje dostępu do kamery.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+      streamRef.current = stream;
+      setScanning(true);
+    } catch {
+      setProdErr("Odmówiono dostępu do kamery — wpisz kod ręcznie poniżej.");
+    }
+  };
+
+  // Pętla rozpoznawania kodu na żywym podglądzie kamery
+  useEffect(() => {
+    if (!scanning) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    video.srcObject = stream;
+    video.play().catch(() => {});
+    const Detector = (
+      window as unknown as {
+        BarcodeDetector?: new (o: {
+          formats: string[];
+        }) => { detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
+      }
+    ).BarcodeDetector;
+    if (!Detector) return;
+    const detector = new Detector({
+      formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"],
+    });
+    tickRef.current = setInterval(() => {
+      detector
+        .detect(video)
+        .then((codes) => {
+          if (codes.length > 0) {
+            const value = codes[0].rawValue;
+            setBarcode(value);
+            stopScan();
+            void lookupProduct(value);
+          }
+        })
+        .catch(() => {
+          /* klatka niedostępna — próbujemy dalej */
+        });
+    }, 400);
+    return () => {
+      if (tickRef.current) {
+        clearInterval(tickRef.current);
+        tickRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning]);
+
+  // Porcja z zeskanowanego produktu (wg podanej gramatury)
+  const scanPortion = prod
+    ? (() => {
+        const g = Math.max(1, Number(scanG) || 100) / 100;
+        return {
+          kcal: Math.round(prod.kcal * g),
+          p: r1(prod.p * g),
+          c: r1(prod.c * g),
+          f: r1(prod.f * g),
+        };
+      })()
+    : null;
+
+  const addScanned = () => {
+    if (!prod || !scanPortion) return;
+    saveEntry({
+      name: prod.name,
+      kcal: scanPortion.kcal,
+      protein: scanPortion.p,
+      carbs: scanPortion.c,
+      fat: scanPortion.f,
+      ingredients: [],
+      portions: 1,
+      servings: 1,
+      replacePlan: !extra,
+      source: "reczne",
+    });
+  };
+
   const inputCls =
     "w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
   const gramsInput =
     "w-16 rounded-md border border-slate-700 bg-slate-900 px-1.5 py-1 text-right text-[11px] text-slate-100 focus:border-sky-500 focus:outline-none";
   const tabCls = (active: boolean) =>
-    `flex-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide ${
+    `flex-1 min-w-[78px] rounded-lg px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide ${
       active
         ? "bg-sky-500 text-slate-950 shadow-[0_0_14px_rgba(56,189,248,0.45)]"
         : "bg-slate-950/70 text-slate-300 hover:bg-slate-900"
@@ -280,7 +456,7 @@ export default function MealAddPanel({
       </div>
 
       {/* Zakładki */}
-      <div className="flex gap-1.5">
+      <div className="flex flex-wrap gap-1.5">
         <button
           type="button"
           onClick={() => setTab("skladniki")}
@@ -301,6 +477,13 @@ export default function MealAddPanel({
           className={tabCls(tab === "reczne")}
         >
           ✏️ Ręczne
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("kod")}
+          className={tabCls(tab === "kod")}
+        >
+          📷 Kod
         </button>
       </div>
 
@@ -598,6 +781,118 @@ export default function MealAddPanel({
         </div>
       )}
 
+      {/* 📷 KOD KRESKOWY */}
+      {tab === "kod" && (
+        <div className="space-y-2.5">
+          {!scanning ? (
+            <button
+              type="button"
+              onClick={startScan}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-emerald-200 transition hover:bg-emerald-500/20"
+            >
+              📷 Uruchom skaner kodów
+            </button>
+          ) : (
+            <div className="relative overflow-hidden rounded-xl border border-slate-700">
+              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+              <video
+                ref={videoRef}
+                playsInline
+                muted
+                className="h-44 w-full bg-slate-950 object-cover"
+              />
+              <button
+                type="button"
+                onClick={stopScan}
+                className="absolute right-2 top-2 rounded-md bg-slate-950/80 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-900"
+              >
+                ✕ Zatrzymaj
+              </button>
+              <p className="absolute inset-x-0 bottom-0 bg-slate-950/75 p-1.5 text-center text-[10px] font-medium text-emerald-300">
+                Skieruj kamerę na kod kreskowy produktu…
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void lookupProduct(barcode);
+              }}
+              placeholder="lub wpisz kod (np. 3017620422003)"
+              inputMode="numeric"
+              className={inputCls}
+            />
+            <button
+              type="button"
+              onClick={() => void lookupProduct(barcode)}
+              disabled={prodLoading}
+              className="shrink-0 rounded-lg border border-slate-700 px-3 text-[11px] font-semibold text-slate-200 transition hover:border-sky-500 hover:text-sky-300 disabled:opacity-50"
+            >
+              {prodLoading ? "Szukam…" : "Szukaj"}
+            </button>
+          </div>
+
+          {prodErr && <p className="text-[11px] text-amber-400">{prodErr}</p>}
+
+          {prod && scanPortion && (
+            <div className="space-y-2 rounded-xl border border-slate-700 bg-slate-900 p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-100">
+                  {prod.name}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProd(null);
+                    setBarcode("");
+                  }}
+                  className="rounded px-1.5 text-slate-500 hover:text-red-400"
+                  title="Odrzuć produkt"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                na 100 g: {prod.kcal} kcal · W {prod.c} · B {prod.p} · T{" "}
+                {prod.f} g
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                  Ile jesz (g)
+                  <input
+                    type="number"
+                    min={1}
+                    value={scanG}
+                    onChange={(e) => setScanG(e.target.value)}
+                    className={`${gramsInput} w-20`}
+                  />
+                </label>
+                <p className="text-[11px] text-slate-300">
+                  ={" "}
+                  <span className="text-sm font-bold text-sky-300">
+                    {scanPortion.kcal}
+                  </span>{" "}
+                  kcal · W {scanPortion.c} · B {scanPortion.p} · T{" "}
+                  {scanPortion.f} g
+                </p>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Dane: OpenFoodFacts · źródło{" "}
+                {extra ? "dodatkowo" : "zamiast planu"} (ustawiasz niżej)
+              </p>
+            </div>
+          )}
+
+          <p className="text-[10px] text-slate-500">
+            Skaner działa w Chrome/Edge (BarcodeDetector). Bez kamery wpisz kod
+            i naciśnij „Szukaj" — produkt dojdzie z bazy OpenFoodFacts.
+          </p>
+        </div>
+      )}
+
       {/* Wspólne: tryb + zapis */}
       <div className="space-y-2 border-t border-slate-800 pt-2.5">
         <div className="flex flex-wrap gap-2 text-[11px]">
@@ -635,10 +930,15 @@ export default function MealAddPanel({
         {tab !== "moje" ? (
           <button
             type="button"
-            onClick={handleSave}
-            className="w-full rounded-xl bg-sky-500 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-sky-400"
+            onClick={tab === "kod" ? addScanned : handleSave}
+            disabled={tab === "kod" && (!prod || !scanPortion)}
+            className="w-full rounded-xl bg-sky-500 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            ✓ Dodaj do dnia — {CAT_LABELS[cat]}
+            {tab === "kod"
+              ? prod && scanPortion
+                ? `✓ Dodaj ${scanPortion.kcal} kcal — ${CAT_LABELS[cat]}`
+                : "Najpierw zeskanuj lub znajdź produkt"
+              : `✓ Dodaj do dnia — ${CAT_LABELS[cat]}`}
             {tab === "skladniki" && ingredients.length > 0
               ? ` · ${logged.kcal} kcal`
               : ""}

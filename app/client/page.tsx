@@ -56,6 +56,8 @@ import {
   MAX_PHOTO_MEALS_PER_DAY,
   type PhotoMeal,
   getDishLog,
+  getDishLogByDate,
+  addDishLog,
   removeDishLog,
   type DishLogEntry,
 } from "@/lib/store";
@@ -64,6 +66,7 @@ import { buildWeeklyReview } from "@/lib/coach";
 import { fileToDataUrl } from "@/lib/images";
 import MealAddPanel from "@/components/MealAddPanel";
 import RestTimer from "@/components/RestTimer";
+import PwaRegister from "@/components/PwaRegister";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -197,6 +200,27 @@ const trainers = [
     reviews: 52,
   },
 ];
+
+/** Data z przesunięciem (0 = dziś, −1 = wczoraj) — jak todayISO(). */
+const dayOffsetISO = (offset: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Najczęściej powtarzane danie z historii wpisów (do szybkiego dodania). */
+type TopDish = {
+  name: string;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  ingredients: DishLogEntry["ingredients"];
+  portions: number;
+  servings: number;
+  replacePlan: boolean;
+  count: number;
+};
 
 export default function ClientDashboardPage() {
   const router = useRouter();
@@ -673,6 +697,9 @@ export default function ClientDashboardPage() {
           }}
         />
       )}
+
+      {/* PWA: rejestracja service workera + prośba o powiadomienia */}
+      <PwaRegister />
     </div>
   );
 }
@@ -2008,9 +2035,12 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
   const [analysis, setAnalysis] = useState<AnalyzeOk | null>(null);
   const [photoError, setPhotoError] = useState("");
 
-  // Wpisy z panelu „Dodaj posiłek" (składniki / moje dania / ręczne)
+  // Wpisy z panelu „Dodaj posiłek" (składniki / moje dania / ręczne / kod)
   const [dishLogs, setDishLogs] = useState<DishLogEntry[]>([]);
   const [showAddMeal, setShowAddMeal] = useState(false);
+  // Powielanie z wczoraj + top-5 najczęściej jadanych dań
+  const [yesterLogs, setYesterLogs] = useState<DishLogEntry[]>([]);
+  const [topDishes, setTopDishes] = useState<TopDish[]>([]);
 
   useEffect(() => {
     const storedEmail =
@@ -2023,6 +2053,33 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
     );
     setPhotoMeals(getPhotoMeals(storedEmail, todayISO()));
     setDishLogs(getDishLog(storedEmail, todayISO()));
+    setYesterLogs(getDishLog(storedEmail, dayOffsetISO(-1)));
+    // Top-5 dań z całej historii wpisów (po nazwie, najczęściej na górze)
+    const agg = new Map<string, TopDish>();
+    for (const entries of Object.values(getDishLogByDate(storedEmail))) {
+      for (const e of entries) {
+        const cur = agg.get(e.name);
+        if (cur) {
+          cur.count += 1;
+        } else {
+          agg.set(e.name, {
+            name: e.name,
+            kcal: e.kcal,
+            protein: e.protein,
+            carbs: e.carbs,
+            fat: e.fat,
+            ingredients: e.ingredients,
+            portions: e.portions,
+            servings: e.servings,
+            replacePlan: e.replacePlan,
+            count: 1,
+          });
+        }
+      }
+    }
+    setTopDishes(
+      [...agg.values()].sort((a, b) => b.count - a.count).slice(0, 5)
+    );
   }, []);
 
   const pickVariant = (idx: number) => {
@@ -2121,14 +2178,16 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
 
   const catPhotos = photoMeals.filter((p) => p.category === group?.cat);
   const catLogs = dishLogs.filter((l) => l.category === group?.cat);
+  const yesterForCat = group
+    ? yesterLogs.filter((l) => l.category === group.cat)
+    : [];
 
   const deleteLog = (id: string) => {
     setDishLogs(removeDishLog(email, todayISO(), id));
   };
 
-  const handleDishSaved = (list: DishLogEntry[]) => {
+  const afterLogAdded = (list: DishLogEntry[]) => {
     setDishLogs(list);
-    // Wpis „zamiast planu" = posiłek zjedzony — odhacz kategorię
     if (
       group &&
       list.some((e) => e.category === group.cat && e.replacePlan) &&
@@ -2136,7 +2195,56 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
     ) {
       setDoneMeals(toggleMealDone(email, todayISO(), group.cat));
     }
+  };
+
+  const handleDishSaved = (list: DishLogEntry[]) => {
+    afterLogAdded(list);
     setShowAddMeal(false);
+  };
+
+  // 🔁 Powiel wczorajsze wpisy do obecnej kategorii
+  const repeatYesterday = () => {
+    if (!group) return;
+    const src = yesterLogs.filter((e) => e.category === group.cat);
+    if (!src.length) return;
+    let next: DishLogEntry[] = getDishLog(email, todayISO());
+    for (const e of src) {
+      next = addDishLog(email, {
+        date: todayISO(),
+        category: e.category,
+        name: e.name,
+        kcal: e.kcal,
+        protein: e.protein,
+        carbs: e.carbs,
+        fat: e.fat,
+        ingredients: e.ingredients,
+        portions: e.portions,
+        servings: e.servings,
+        replacePlan: e.replacePlan,
+        source: e.source,
+      });
+    }
+    afterLogAdded(next);
+  };
+
+  // ⭐ Dodaj często powtarzane danie jednym kliknięciem
+  const addTopDish = (d: TopDish) => {
+    if (!group) return;
+    const next = addDishLog(email, {
+      date: todayISO(),
+      category: group.cat,
+      name: d.name,
+      kcal: d.kcal,
+      protein: d.protein,
+      carbs: d.carbs,
+      fat: d.fat,
+      ingredients: d.ingredients,
+      portions: d.portions,
+      servings: d.servings,
+      replacePlan: d.replacePlan,
+      source: "zapisane",
+    });
+    afterLogAdded(next);
   };
 
   const doneCount = groups.filter((g) => doneMeals.includes(g.cat)).length;
@@ -2584,6 +2692,52 @@ function MealsVariantsSection({ content }: { content: TrainerContent }) {
               Wpisy „zamiast planu" zastępują planowany wariant w bilansie dnia,
               „dodatkowo" są doliczane osobno.
             </p>
+          </div>
+        )}
+
+        {/* Szybkie powielanie wczoraj + top-5 z historii */}
+        {!showUpload && !showAddMeal && (yesterForCat.length > 0 || topDishes.length > 0) && (
+          <div className="space-y-2">
+            {yesterForCat.length > 0 && (
+              <button
+                type="button"
+                onClick={repeatYesterday}
+                className="flex w-full items-center gap-2 overflow-hidden rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-500/20"
+                title={yesterForCat.map((e) => e.name).join(" · ")}
+              >
+                <span className="shrink-0">🔁 Powiel z wczoraj</span>
+                <span className="min-w-0 truncate text-[11px] font-normal text-emerald-300/90">
+                  {yesterForCat.map((e) => e.name).join(" · ")}
+                </span>
+                <span className="ml-auto shrink-0 text-[11px] text-emerald-400">
+                  +{yesterForCat.reduce((s, e) => s + e.kcal, 0)} kcal
+                </span>
+              </button>
+            )}
+            {topDishes.length > 0 && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  ⭐ Często jadłeś — dodaj jednym kliknięciem
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {topDishes.map((d) => (
+                    <button
+                      key={d.name}
+                      type="button"
+                      onClick={() => addTopDish(d)}
+                      className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] text-slate-200 transition hover:border-emerald-500 hover:text-emerald-300"
+                      title={`Wpisz: ${d.name} — ${d.kcal} kcal`}
+                    >
+                      {d.name}{" "}
+                      <span className="text-slate-500">
+                        · {d.kcal} kcal
+                        {d.count > 1 ? ` ×${d.count}` : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

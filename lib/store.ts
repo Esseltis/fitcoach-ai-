@@ -327,7 +327,21 @@ export function getReport(email: string): ClientReport | null {
   const raw = safeGet(reportKey(email));
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ClientReport;
+    const parsed = JSON.parse(raw) as Partial<ClientReport> | null;
+    if (!parsed || typeof parsed !== "object") return null;
+    // Stare raporty (zapisane przed obecnym formatem) mogą nie mieć pola
+    // `values` — normalizuj, żeby odczyty (coach, karta tygodnia,
+    // raport) nie wywalały strony wyjątkiem `report.values.*`.
+    return {
+      values:
+        parsed.values && typeof parsed.values === "object"
+          ? parsed.values
+          : {},
+      submittedAt:
+        typeof parsed.submittedAt === "string"
+          ? parsed.submittedAt
+          : new Date(0).toISOString(),
+    };
   } catch {
     return null;
   }

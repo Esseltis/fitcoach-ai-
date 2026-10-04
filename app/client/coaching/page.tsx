@@ -238,11 +238,12 @@ export default function CoachingPage() {
               i zmierz się, a tutaj pojawi się pełna analiza.
             </p>
           )}
-          {!review.empty && review.activeDays < 3 && !review.report && (
+          {!review.empty && review.activeDays < 3 && !review.hasTrace && (
             <p className="mt-3 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-300">
               Tydzień dopiero się rozkręca ({review.activeDays}{" "}
               {review.activeDays === 1 ? "aktywny dzień" : "aktywne dni"}) —
-              punktacja nabiera mocy od 3 aktywnych dni i wysłanego raportu.
+              punktacja nabiera mocy od 3 aktywnych dni i codziennego śladu w
+              panelu.
             </p>
           )}
 

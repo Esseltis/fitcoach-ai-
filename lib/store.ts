@@ -37,20 +37,20 @@ export const REPORT_FIELDS: ReportFieldDef[] = [
   { key: "stress", label: "Poziom stresu (1–5)", type: "range", min: 1, max: 5, defaultValue: 3 },
   { key: "appetite", label: "Apetyt", type: "select", options: ["Mały", "Normalny", "Duży"], defaultValue: "Normalny" },
   { key: "hunger", label: "Głód między posiłkami (1–5, 5 = silny)", type: "range", min: 1, max: 5, defaultValue: 3 },
-  { key: "alcoholSweets", label: "Alkohol / słodycze w ciągu dnia", type: "boolean", defaultValue: false },
+  { key: "alcoholSweets", label: "Alkohol / słodycze w tym tygodniu", type: "boolean", defaultValue: false },
   // Realizacja planu
-  { key: "trainingDone", label: "Zrealizowałem trening", type: "boolean", defaultValue: false },
-  { key: "mealsDone", label: "Zrealizowałem wszystkie posiłki", type: "boolean", defaultValue: false },
+  { key: "trainingDone", label: "Zrealizowałem treningi w tym tygodniu", type: "boolean", defaultValue: false },
+  { key: "mealsDone", label: "Trzymałem plan żywieniowy przez tydzień", type: "boolean", defaultValue: false },
   { key: "adherence", label: "Przestrzeganie planu (%)", type: "range", min: 0, max: 100, step: 5, defaultValue: 100 },
-  { key: "steps", label: "Kroki", type: "number", step: 500, defaultValue: "", placeholder: "np. 10000" },
-  { key: "activeMinutes", label: "Aktywność dodatkowa (min)", type: "number", step: 5, defaultValue: "", placeholder: "np. 30" },
-  { key: "waterIntake", label: "Woda (litry)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 2.0" },
+  { key: "steps", label: "Kroki (średnio dziennie)", type: "number", step: 500, defaultValue: "", placeholder: "np. 10000" },
+  { key: "activeMinutes", label: "Aktywność dodatkowa (min/tydz.)", type: "number", step: 5, defaultValue: "", placeholder: "np. 120" },
+  { key: "waterIntake", label: "Woda (średnio litry/dzień)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 2.0" },
   { key: "weight", label: "Waga (kg)", type: "number", step: 0.1, defaultValue: "", placeholder: "np. 78" },
   // Uwagi i pytania
-  { key: "pain", label: "Ból / dyskomfort", type: "text", defaultValue: "", placeholder: "np. kolano, plecy..." },
-  { key: "problem", label: "Największy problem dnia", type: "text", defaultValue: "", placeholder: "np. wieczorny głód, brak czasu na trening..." },
+  { key: "pain", label: "Ból / dyskomfort w tym tygodniu", type: "text", defaultValue: "", placeholder: "np. kolano, plecy..." },
+  { key: "problem", label: "Największy problem tygodnia", type: "text", defaultValue: "", placeholder: "np. wieczorny głód, brak czasu na trening..." },
   { key: "questions", label: "Pytania do trenera", type: "text", defaultValue: "", placeholder: "np. czy mogę zamienić ćwiczenie X na Y?" },
-  { key: "tomorrow", label: "Mój plan na jutro", type: "text", defaultValue: "", placeholder: "np. trening rano, posiłki jak w planie" },
+  { key: "tomorrow", label: "Plan na przyszły tydzień", type: "text", defaultValue: "", placeholder: "np. trening rano, posiłki jak w planie" },
   { key: "notes", label: "Notatka dla trenera", type: "text", defaultValue: "", placeholder: "Jak się czułeś, co było trudne..." },
 ];
 
@@ -96,6 +96,15 @@ function mergeNewReportDefaults(
 }
 
 export function getTrainerReportFields(trainerId: string): ReportConfigField[] {
+  // odśwież metadane pól wbudowanych (etykiety zmieniły się przy raporcie
+  // tygodniowym) — własne pola trenera zachowują swój opis
+  const refresh = (fields: ReportConfigField[]) =>
+    fields.map((f) => {
+      if (f.custom || !f.key) return f;
+      const def = REPORT_FIELDS.find((d) => d.key === f.key);
+      return def ? { ...def, custom: false } : f;
+    });
+
   const raw = safeGet(trainerReportFieldsKey(trainerId));
   if (!raw) return REPORT_FIELDS.map((f) => ({ ...f, custom: false }));
   try {
@@ -120,9 +129,9 @@ export function getTrainerReportFields(trainerId: string): ReportConfigField[] {
           seen.add(f.key);
           return true;
         });
-        return mergeNewReportDefaults(trainerId, deduped);
+        return mergeNewReportDefaults(trainerId, refresh(deduped));
       }
-      return mergeNewReportDefaults(trainerId, arr as ReportConfigField[]);
+      return mergeNewReportDefaults(trainerId, refresh(arr as ReportConfigField[]));
     }
   } catch {
     /* ignore */
@@ -1006,7 +1015,7 @@ export const DEFAULT_CONTENT: TrainerContent = {
     periodGoal: "Redukcja: −4 kg w 8 tygodni",
     weeklyFocus: "Ten tydzień: 4 treningi, zero słodyczy, sen 7+ h.",
     rules: [
-      "Raport dnia do godziny 20:00",
+      "Raport tygodniowy (pomiary + zdjęcia) co 7 dni",
       "Waga rano na czczo, po toalecie",
       "Posiłek potreningowy do 30 min po treningu",
     ],
@@ -1018,7 +1027,7 @@ export const DEFAULT_CONTENT: TrainerContent = {
     "Zrealizuj trening zgodnie z planem dnia",
     "Odhacz wszystkie posiłki w Diecie",
     "Wypij minimum 8 szklanek wody",
-    "Wypełnij raport dnia i wyślij do trenera",
+    "Wyślij raport tygodniowy do trenera",
   ],
   feedback: { text: "", at: "" },
   updatedAt: "",
@@ -1036,9 +1045,27 @@ export function getClientContent(email: string): TrainerContent {
       ...base,
       ...parsed,
       // treści zapisane przed dodaniem wytycznych — uzupełnij brakujące pola
-      guidelines: { ...base.guidelines, ...(parsed.guidelines ?? {}) },
+      guidelines: {
+        ...base.guidelines,
+        ...(parsed.guidelines ?? {}),
+        // migracja: wytyczna „raportu dnia" → raport tygodniowy
+        rules: Array.isArray(parsed.guidelines?.rules)
+          ? parsed.guidelines.rules.map((r) =>
+              r === "Raport dnia do godziny 20:00"
+                ? "Raport tygodniowy (pomiary + zdjęcia) co 7 dni"
+                : r
+            )
+          : base.guidelines.rules,
+      },
       feedback: { ...base.feedback, ...(parsed.feedback ?? {}) },
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : base.tasks,
+      tasks: Array.isArray(parsed.tasks)
+        ? // migracja: stary punkt „raportu dnia” zamień na tygodniowy
+          parsed.tasks.map((t) =>
+            t === "Wypełnij raport dnia i wyślij do trenera"
+              ? "Wyślij raport tygodniowy do trenera"
+              : t
+          )
+        : base.tasks,
     };
   } catch {
     return structuredClone(DEFAULT_CONTENT);

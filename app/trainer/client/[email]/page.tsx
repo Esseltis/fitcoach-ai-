@@ -6,9 +6,9 @@ import Link from "next/link";
 import {
   getTrainerIdentity,
   getClientByEmail,
-  getReport,
   getWeeklyReport,
   getWeeklyReportStatus,
+  getDailyLogs,
   getProgressPhotos,
   getPlan,
   getClientProfile,
@@ -42,7 +42,7 @@ import {
   decideSessionRequest,
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
-  type ClientReport,
+  type DailyLogEntry,
   type WeeklyReport,
   type ClientProfile,
   type TrainerPlan,
@@ -89,7 +89,7 @@ type TabKey =
   | "calendar";
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "report", label: "Raport" },
+  { key: "report", label: "Raporty" },
   { key: "wykonanie", label: "Wykonanie" },
   { key: "records", label: "Rekordy" },
   { key: "profile", label: "Profil" },
@@ -126,7 +126,7 @@ export default function TrainerClientPage({
   const [ready, setReady] = useState(false);
   const [trainerId, setTrainerId] = useState<string | null>(null);
   const [clientName, setClientName] = useState(email);
-  const [report, setReport] = useState<ClientReport | null>(null);
+  const [dailyLogs, setDailyLogs] = useState<Record<string, DailyLogEntry>>({});
   const [weekly, setWeekly] = useState<WeeklyReport | null>(null);
   const [weeklyOverdue, setWeeklyOverdue] = useState(0);
   const [profile, setProfile] = useState<ClientProfile | null>(null);
@@ -158,7 +158,7 @@ export default function TrainerClientPage({
     setOwnWorkouts(getTrainerWorkouts(id.id));
     const client = getClientByEmail(email);
     if (client) setClientName(client.name);
-    setReport(getReport(email));
+    setDailyLogs(getDailyLogs(email));
     setWeekly(getWeeklyReport(email));
     setWeeklyOverdue(getWeeklyReportStatus(email).overdueDays);
     setProfile(getClientProfile(email));
@@ -346,10 +346,10 @@ export default function TrainerClientPage({
     );
   };
 
-  // Raport nowszy niż ostatnia odpowiedź trenera → wymaga reakcji
+  // Raport tygodniowy nowszy niż ostatnia odpowiedź trenera → wymaga reakcji
   const reportIsNew =
-    !!report &&
-    (!content.feedback?.at || report.submittedAt > content.feedback.at);
+    !!weekly &&
+    (!content.feedback?.at || weekly.submittedAt > content.feedback.at);
 
   if (!ready) {
     return (
@@ -446,50 +446,109 @@ export default function TrainerClientPage({
 
         {tab === "report" && (
           <>
+          {/* 📝 Dziennik codzienny — klient zapisuje w panelu, sam przechodzi do trenera */}
           <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-                Raport klienta
+                📝 Dziennik klienta (7 dni)
+              </h2>
+              <span className="text-[10px] text-slate-500">
+                zapisywany codziennie w panelu
+              </span>
+            </div>
+            {(() => {
+              const moods = getMoodByDate(email);
+              const days: { key: string; label: string }[] = [];
+              for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const key = d.toISOString().slice(0, 10);
+                days.push({
+                  key,
+                  label:
+                    i === 0
+                      ? "Dziś"
+                      : d.toLocaleDateString("pl-PL", {
+                          day: "2-digit",
+                          month: "2-digit",
+                        }),
+                });
+              }
+              const rows = days.map((d) => {
+                const log = dailyLogs[d.key];
+                const mood = moods[d.key];
+                const meals = getDoneMeals(email, d.key).length;
+                const water = getWaterForDate(email, d.key);
+                const acts = getActivities(email, d.key);
+                const kcal = acts.reduce((s, a) => s + (a.kcal || 0), 0);
+                const sleep = Number(log?.values?.sleepHours);
+                const steps = Number(log?.values?.steps);
+                const well =
+                  mood && (mood.satiety > 0 || mood.motivation > 0)
+                    ? Math.round((mood.satiety + mood.motivation) / 2)
+                    : 0;
+                const touched =
+                  Boolean(log) || meals > 0 || water > 0 || acts.length > 0 || well > 0;
+                return { ...d, sleep, steps, meals, water, kcal, well, touched };
+              });
+              if (!rows.some((r) => r.touched)) {
+                return (
+                  <p className="text-sm text-slate-400">
+                    Klient nie zapisał jeszcze żadnego dnia w panelu — diety,
+                    woda, samopoczucie i sen pojawią się tutaj automatycznie.
+                  </p>
+                );
+              }
+              return (
+                <div className="space-y-2 text-sm">
+                  <p className="text-[11px] text-slate-500">
+                    Posiłki, woda, samopoczucie, sen, kroki i aktywności —
+                    bez czekania na raport tygodniowy.
+                  </p>
+                  {rows.map((r) => (
+                    <div
+                      key={r.key}
+                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-800/60 pb-2"
+                    >
+                      <span className="w-14 shrink-0 text-slate-400">
+                        {r.label}
+                      </span>
+                      <span className="flex flex-wrap gap-3 text-xs">
+                        <span className="text-emerald-300">
+                          🍽 {r.meals}
+                        </span>
+                        <span className="text-sky-300">💧 {r.water} szkl.</span>
+                        <span className="text-amber-300">
+                          😊 {r.well > 0 ? `${r.well}/5` : "—"}
+                        </span>
+                        <span className="text-slate-300">
+                          😴 {Number.isFinite(r.sleep) && r.sleep > 0 ? `${r.sleep} h` : "—"}
+                        </span>
+                        <span className="text-slate-300">
+                          👟 {Number.isFinite(r.steps) && r.steps > 0 ? Math.round(r.steps) : "—"}
+                        </span>
+                        <span className="text-teal-300">
+                          🔥 {r.kcal > 0 ? `${r.kcal} kcal` : "—"}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </section>
+
+          {/* 📋 Raport tygodniowy — jedyny „duży" raport klienta (co 7 dni) */}
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+                📋 Raport tygodniowy (pomiary + zdjęcia + rubryki)
               </h2>
               {reportIsNew ? (
                 <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-semibold text-red-300">
                   NOWY — brak Twojej odpowiedzi
                 </span>
-              ) : report ? (
-                <span className="text-[10px] text-slate-500">
-                  Odpowiedź wysłana ✓
-                </span>
-              ) : null}
-            </div>
-            {!report?.values ? (
-              <p className="text-sm text-slate-400">
-                Klient jeszcze nie wysłał raportu.
-              </p>
-            ) : (
-              <div className="space-y-3 text-sm">
-                {reportFieldDefs
-                  .filter((f) => f.key in report.values)
-                  .map((f) => (
-                    <Row
-                      key={f.key}
-                      label={f.label}
-                      value={formatReportValue(f.key, report.values[f.key])}
-                    />
-                  ))}
-                <p className="text-[11px] text-slate-500">
-                  Wysłano: {new Date(report.submittedAt).toLocaleString("pl-PL")}
-                </p>
-              </div>
-            )}
-          </section>
-
-          {/* 📋 Raport tygodniowy — pomiary + zdjęcia sylwetki (co 7 dni) */}
-          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-                📋 Raport tygodniowy (pomiary + zdjęcia)
-              </h2>
-              {weeklyOverdue > 0 ? (
+              ) : weeklyOverdue > 0 ? (
                 <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-semibold text-red-300">
                   {weeklyOverdue > 1
                     ? `ZALEGŁY od ${weeklyOverdue} dni`
@@ -508,36 +567,124 @@ export default function TrainerClientPage({
               </p>
             ) : (
               <div className="space-y-3 text-sm">
+                {/* Auto-podsumowanie z codziennego śladu klienta w panelu */}
+                {(() => {
+                  const v = weekly.values;
+                  const chips: { l: string; val: string }[] = [];
+                  if ("daysLogged" in v)
+                    chips.push({ l: "Dni z aktywnością", val: `${String(v.daysLogged)}/7` });
+                  if ("mealsDays" in v)
+                    chips.push({ l: "Dni z posiłkami", val: `${String(v.mealsDays)}/7` });
+                  if ("avgWater" in v)
+                    chips.push({ l: "Woda (śr.)", val: `${String(v.avgWater)} szkl.` });
+                  if ("avgSleep" in v)
+                    chips.push({ l: "Sen (śr.)", val: `${String(v.avgSleep)} h` });
+                  if ("avgSteps" in v)
+                    chips.push({ l: "Kroki (śr.)", val: String(v.avgSteps) });
+                  if ("kcalWeek" in v)
+                    chips.push({ l: "Aktywności", val: `${String(v.kcalWeek)} kcal` });
+                  if ("weight" in v)
+                    chips.push({
+                      l: "Waga",
+                      val: `${String(v.weight)} kg${
+                        "weightDelta" in v && String(v.weightDelta).trim()
+                          ? ` (${Number(v.weightDelta) > 0 ? "+" : ""}${String(v.weightDelta)})`
+                          : ""
+                      }`,
+                    });
+                  if ("trainings" in v)
+                    chips.push({ l: "Treningi", val: String(v.trainings) });
+                  if ("avgAdherence" in v)
+                    chips.push({ l: "Przestrzeganie planu", val: `${String(v.avgAdherence)}%` });
+                  if (Number(v.avgWellbeing) > 0)
+                    chips.push({ l: "Samopoczucie", val: `${String(v.avgWellbeing)}/5` });
+                  if (chips.length === 0) return null;
+                  return (
+                    <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                      {chips.map((c) => (
+                        <div
+                          key={c.l}
+                          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2"
+                        >
+                          <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                            {c.l}
+                          </p>
+                          <p className="mt-0.5 font-semibold text-slate-100">{c.val}</p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
                 <Row
                   label="Pomiary sylwetki"
                   value={String(weekly.values.measurements ?? "—")}
                 />
-                <Row
-                  label="Dni z codziennym wpisem"
-                  value={`${String(weekly.values.daysLogged ?? 0)}/7`}
-                />
-                <Row
-                  label="Treningi (z wpisów)"
-                  value={String(weekly.values.trainings ?? 0)}
-                />
-                <Row
-                  label="Średnie samopoczucie"
-                  value={
-                    Number(weekly.values.avgWellbeing) > 0
-                      ? `${String(weekly.values.avgWellbeing)}/5`
-                      : "—"
-                  }
-                />
-                {String(weekly.values.notes ?? "").trim() && (
-                  <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
+
+                {/* Rubryki wymagane przez trenera (konfigurowane w panelu) */}
+                {reportFieldDefs.filter((f) => f.key in weekly.values).length >
+                  0 && (
+                  <div>
                     <p className="text-[10px] uppercase tracking-wide text-slate-500">
-                      Uwagi klienta
+                      Rubryki od trenera
+                    </p>
+                    <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+                      {reportFieldDefs
+                        .filter((f) => f.key in weekly.values)
+                        .map((f) => (
+                          <Row
+                            key={f.key}
+                            label={f.label}
+                            value={formatReportValue(f.key, weekly.values[f.key])}
+                          />
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Rozbudowane uwagi klienta */}
+                {String(weekly.values.weekGood ?? "").trim() && (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-emerald-400">
+                      ✅ Co poszło dobrze
                     </p>
                     <p className="mt-1 whitespace-pre-line text-xs text-slate-200">
-                      {String(weekly.values.notes)}
+                      {String(weekly.values.weekGood)}
                     </p>
                   </div>
                 )}
+                {String(weekly.values.weekImproved ?? "").trim() && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-amber-400">
+                      ⚠️ Co wymaga poprawy
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-xs text-slate-200">
+                      {String(weekly.values.weekImproved)}
+                    </p>
+                  </div>
+                )}
+                {String(weekly.values.weekQuestions ?? "").trim() && (
+                  <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-sky-400">
+                      ❓ Pytania do trenera
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-xs text-slate-200">
+                      {String(weekly.values.weekQuestions)}
+                    </p>
+                  </div>
+                )}
+                {/* raporty sprzed przebudowy — jeden blok „Uwagi klienta" */}
+                {!("weekGood" in weekly.values) &&
+                  String(weekly.values.notes ?? "").trim() && (
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                        Uwagi klienta
+                      </p>
+                      <p className="mt-1 whitespace-pre-line text-xs text-slate-200">
+                        {String(weekly.values.notes)}
+                      </p>
+                    </div>
+                  )}
                 {(() => {
                   const ids = new Set(weekly.photoIds);
                   const shots = getProgressPhotos(email).filter((p) =>
@@ -681,7 +828,11 @@ export default function TrainerClientPage({
         )}
 
         {tab === "wykonanie" && (
-          <WykonanieSection email={email} content={content} report={report} />
+          <WykonanieSection
+            email={email}
+            content={content}
+            dailyLogs={dailyLogs}
+          />
         )}
 
         {tab === "records" && <RecordsView email={email} content={content} />}
@@ -854,7 +1005,7 @@ export default function TrainerClientPage({
       email={email}
       content={content}
       profile={profile}
-      report={report}
+      weekly={weekly}
       fields={reportFieldDefs}
     />
     </>
@@ -932,11 +1083,11 @@ const CAL_LEVELS = [
 function WykonanieSection({
   email,
   content,
-  report,
+  dailyLogs,
 }: {
   email: string;
   content: TrainerContent;
-  report: ClientReport | null;
+  dailyLogs: Record<string, DailyLogEntry>;
 }) {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -1038,7 +1189,8 @@ function WykonanieSection({
   }
 
   const mood = getMoodByDate(email)[today];
-  const reportToday = report?.submittedAt?.slice(0, 10) === today;
+  // codzienny ślad = wpis klienta w panelu (dziennik dnia)
+  const diaryToday = Boolean(dailyLogs[today]);
 
   // Log treningowy (wpisy kg × powtórzenia)
   const logRows: {
@@ -1131,8 +1283,8 @@ function WykonanieSection({
             }
           />
           <StatBar
-            label="Raport dzienny"
-            value={reportToday ? "Wysłany ✓" : "Nie wysłany"}
+            label="Dziennik dnia"
+            value={diaryToday ? "Zapisany ✓" : "Brak wpisu"}
           />
         </div>
 
@@ -1220,11 +1372,11 @@ function WykonanieSection({
             const w = waterAll[isoDay] ?? 0;
             const lvl = m === 0 && w === 0 ? 0 : m >= 5 || (m >= 3 && w > 0) ? 3 : m >= 3 || (m > 0 && w > 0) ? 2 : 1;
             const isToday = isoDay === today;
-            const hasReport = report?.submittedAt?.slice(0, 10) === isoDay;
+            const hasDiary = Boolean(dailyLogs[isoDay]);
             return (
               <div
                 key={isoDay}
-                title={`${isoDay}: posiłki ${m}, woda ${w} szkl.${hasReport ? ", raport ✓" : ""}`}
+                title={`${isoDay}: posiłki ${m}, woda ${w} szkl.${hasDiary ? ", dziennik ✓" : ""}`}
                 onClick={() => setCalDay(isoDay === calDay ? null : isoDay)}
                 className={`relative flex h-9 cursor-pointer items-start justify-end rounded-md p-1 text-[10px] font-medium transition ${CAL_LEVELS[lvl]} ${
                   isToday ? "ring-2 ring-sky-400" : ""
@@ -1236,7 +1388,7 @@ function WykonanieSection({
                 {w > 0 && (
                   <span className="absolute bottom-1 left-1 h-1.5 w-1.5 rounded-full bg-sky-600" />
                 )}
-                {hasReport && (
+                {hasDiary && (
                   <span className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-amber-500" />
                 )}
               </div>
@@ -1267,9 +1419,9 @@ function WykonanieSection({
                 </span>
               </li>
               <li>
-                Raport:{" "}
-                {report?.submittedAt?.slice(0, 10) === calDay ? (
-                  <span className="text-emerald-300">wysłany ✓</span>
+                Dziennik:{" "}
+                {dailyLogs[calDay] ? (
+                  <span className="text-emerald-300">wpis ✓</span>
                 ) : (
                   <span className="text-slate-500">brak</span>
                 )}
@@ -1429,14 +1581,14 @@ function PrintSummary({
   email,
   content,
   profile,
-  report,
+  weekly,
   fields,
 }: {
   clientName: string;
   email: string;
   content: TrainerContent;
   profile: ClientProfile | null;
-  report: ClientReport | null;
+  weekly: WeeklyReport | null;
   fields: { key: string; label: string }[];
 }) {
   const ms = getMeasurements(email);
@@ -1447,6 +1599,26 @@ function PrintSummary({
   });
   const rules = content.guidelines.rules.filter((r) => r.trim());
   const labelOf = (k: string) => fields.find((f) => f.key === k)?.label ?? k;
+  // Auto-dane raportu tygodniowego mają własne etykiety (klucze systemowe)
+  const AUTO_LABELS: Record<string, string> = {
+    weight: "Waga (kg)",
+    weightDelta: "Δ wagi vs sprzed tyg.",
+    measurements: "Pomiary sylwetki",
+    daysLogged: "Dni z aktywnością",
+    mealsDays: "Dni z posiłkami",
+    avgWater: "Śr. woda (szkl./dzień)",
+    avgSleep: "Śr. sen (h)",
+    avgSteps: "Śr. kroki",
+    avgWellbeing: "Śr. samopoczucie (1–5)",
+    kcalWeek: "Aktywności (kcal)",
+    trainings: "Treningi",
+    avgAdherence: "Przestrzeganie planu (%)",
+    weekGood: "✅ Co poszło dobrze",
+    weekImproved: "⚠️ Co wymaga poprawy",
+    weekQuestions: "❓ Pytania do trenera",
+    notes: "Uwagi klienta",
+  };
+  const pretty = (k: string) => AUTO_LABELS[k] ?? labelOf(k);
   const cols = ["data", "waga", "pas", "brzuch", "biceps", "klatka", "uda", "lydki"];
 
   return (
@@ -1498,18 +1670,27 @@ function PrintSummary({
 
       <section className="mt-4">
         <h2 className="text-sm font-bold uppercase tracking-wide">
-          Ostatni raport dzienny
+          Raport tygodniowy
         </h2>
-        {report ? (
-          <ul className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs">
-            {Object.entries(report.values).map(([k, v]) => (
-              <li key={k}>
-                {labelOf(k)}: <b>{String(v)}</b>
-              </li>
-            ))}
-          </ul>
+        {weekly ? (
+          <>
+            <ul className="mt-1 grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs">
+              {Object.entries(weekly.values)
+                .filter(
+                  ([, v]) => v !== "" && v !== null && v !== undefined
+                )
+                .map(([k, v]) => (
+                  <li key={k}>
+                    {pretty(k)}: <b>{String(v)}</b>
+                  </li>
+                ))}
+            </ul>
+            <p className="mt-1 text-[10px]">
+              Wysłano: {new Date(weekly.submittedAt).toLocaleString("pl-PL")}
+            </p>
+          </>
         ) : (
-          <p className="text-xs">Brak raportów.</p>
+          <p className="text-xs">Brak raportu tygodniowego.</p>
         )}
       </section>
 
@@ -1567,7 +1748,7 @@ const QUICK_REPLIES = [
   "Dobra robota, tak trzymaj! 💪",
   "Pilnuj RIR 2 w seriach głównych.",
   "Wyślij mi zdjęcie posiłku 📸",
-  "Pamiętaj o raporcie dnia do 20:00.",
+  "Pamiętaj o raporcie tygodniowym — pomiary i zdjęcia co 7 dni.",
   "Jak samopoczucie po ostatnim treningu?",
 ];
 

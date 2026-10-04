@@ -56,7 +56,6 @@ import {
   getLastDrinkTs,
   getBodyWeightKg,
   getActivities,
-  getReport,
   getWeeklyReportStatus,
   setMoodForDate,
   getMoodByDate,
@@ -462,7 +461,7 @@ export default function ClientDashboardPage() {
     },
     {
       id: "raport",
-      label: "Wyślij raport",
+      label: "Raport tygodniowy",
       icon: FileText,
       href: "/client/raport",
     },
@@ -884,11 +883,11 @@ function ReminderHost({
         return;
       }
 
-      // 3) raport — wieczór (godzina od trenera) i niewysłany dziś
+      // 3) raport tygodniowy — wieczorem (godzina od trenera), gdy termin minął
       if (
         canReport &&
         nowD.getHours() >= reportHour &&
-        getReport(email)?.submittedAt?.slice(0, 10) !== todayISO()
+        getWeeklyReportStatus(email).due
       ) {
         setKind("report");
         return;
@@ -927,8 +926,8 @@ function ReminderHost({
       : kind === "report"
       ? {
           icon: "📝",
-          title: "Raport czeka na wysłanie",
-          body: "Trener czeka na Twoje podsumowanie dnia.",
+          title: "Raport tygodniowy do wysłania",
+          body: "Minęło 7 dni — złóż raport z pomiarami, zdjęciami i rubrykami.",
           primary: "Wyślij raport",
           action: "report" as const,
           border: "border-emerald-500/40",
@@ -1112,7 +1111,7 @@ function DashboardSection({
   // Zadania od trenera — odhaczane per dzień
   useEffect(() => {
     setTasksDone(getTasksDone(email, todayISO()));
-    setReportAt(getReport(email)?.submittedAt ?? null);
+    setReportAt(getWeeklyReportStatus(email).last?.submittedAt ?? null);
     const dv = getDailyLogs(email)[todayISO()]?.values ?? {};
     setQuick({
       sleep: dv.sleepHours != null ? String(dv.sleepHours) : "",
@@ -1397,7 +1396,8 @@ function DashboardSection({
                 </label>
               </div>
               <p className="mt-1.5 text-[10px] text-slate-500">
-                Trener widzi te wartości w raporcie dziennym.
+                Trener widzi te wartości w swoim panelu — zapisują się
+                automatycznie.
               </p>
             </div>
           </div>
@@ -1706,7 +1706,7 @@ function GuidelinesCard({
           )}
           {g.reportHour && (
             <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-amber-300">
-              📝 raport do {g.reportHour}:00
+              📝 przypomnienie o raporcie {g.reportHour}:00
             </span>
           )}
         </div>

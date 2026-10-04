@@ -7,7 +7,7 @@ import {
   getTrainerById,
   getTrainerIdentity,
   getClientsForTrainer,
-  getReport,
+  getDailyLogs,
   getPlan,
   getClientProfile,
   getClientContent,
@@ -145,11 +145,11 @@ export default function TrainerDashboard() {
   for (const c of clients) {
     const weekly = getWeeklyReportStatus(c.email);
     const cc = getClientContent(c.email);
-    const rep = getReport(c.email);
     statusByEmail[c.email] = {
       weeklyDue: weekly.due,
       reportNew:
-        !!rep && (!cc.feedback?.at || rep.submittedAt > cc.feedback.at),
+        !!weekly.last &&
+        (!cc.feedback?.at || weekly.last.submittedAt > cc.feedback.at),
       trainingNow: !!getWorkoutSession(c.email),
     };
   }
@@ -436,7 +436,9 @@ export default function TrainerDashboard() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visible.map((c) => {
-                const report = getReport(c.email);
+                const diaryToday = Boolean(
+                  getDailyLogs(c.email)[new Date().toISOString().slice(0, 10)]
+                );
                 const profile = getClientProfile(c.email);
                 const plan = identity ? getPlan(identity.id, c.email) : null;
                 const st = statusByEmail[c.email];
@@ -493,11 +495,11 @@ export default function TrainerDashboard() {
                       <div className="flex items-center gap-1.5">
                         <span
                           className={`h-1.5 w-1.5 rounded-full ${
-                            report ? "bg-emerald-400" : "bg-slate-600"
+                            diaryToday ? "bg-emerald-400" : "bg-slate-600"
                           }`}
                         />
                         <p className="text-[11px] text-slate-500">
-                          Raport dzienny: {report ? "wysłany" : "brak"}
+                          Dziennik dziś: {diaryToday ? "wpis ✓" : "brak wpisu"}
                         </p>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -529,8 +531,9 @@ export default function TrainerDashboard() {
                 Konfiguracja raportu podopiecznych
               </p>
               <p className="mt-0.5 text-xs text-slate-400">
-                Zaznacz, które pola podopieczny ma wypełniać w raporcie dziennym.
-                Działa dla wszystkich Twoich klientów.
+                Zaznacz, które pola podopieczny ma obowiązkowo uzupełnić w
+                raporcie tygodniowym (składanym co 7 dni). Działa dla wszystkich
+                Twoich klientów.
               </p>
             </div>
             {saved && <span className="text-xs text-emerald-300">Zapisano ✓</span>}

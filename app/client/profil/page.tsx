@@ -239,7 +239,7 @@ export default function ClientProfilePage() {
               href="/client/raport"
               className="inline-block rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
             >
-              Wyślij raport dzienny
+              Przejdź do raportu tygodniowego
             </Link>
             <Link
               href="/client"

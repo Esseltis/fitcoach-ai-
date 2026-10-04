@@ -4,9 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  getReport,
-  saveReport,
-  saveDailyLog,
   getDailyLogs,
   getWeeklyReportStatus,
   saveWeeklyReport,
@@ -23,11 +20,15 @@ import {
   getMeasurements,
   getBodyWeightKg,
   getActivities,
-  getDoneExerciseIds,
   type ReportConfigField,
-  type DailyLogEntry,
   type ProgressPhoto,
 } from "@/lib/store";
+
+// Raport TYGODNIOWY — jedyny formularz raportowy.
+// Codzienny ślad klienta zbiera panel (posiłki, woda, samopoczucie, sen,
+// kroki, aktywności, trening) i sam przechodzi do trenera; tutaj klient
+// raz na 7 dni składa rozbudowany raport: auto-podsumowanie tygodnia,
+// pomiary sylwetki, zdjęcia, rubryki wymagane przez trenera i uwagi.
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const DAY_MS = 86_400_000;
@@ -70,30 +71,32 @@ function resizeImage(file: File): Promise<string> {
   });
 }
 
-type PanelSummary = {
-  mealsDone: number;
-  mealsTotal: number;
-  glasses: number;
-  waterGoal: number;
-  moodSatiety: number;
-  moodMotivation: number;
-  weight: number;
-  actCount: number;
-  actKcal: number;
-  actMinutes: number;
-  trainDone: number;
-  trainTotal: number;
+// Statystyki tygodnia liczone z codziennego śladu w panelu
+type WeekStats = {
+  daysLogged: number; // dni z czymkolwiek w panelu
+  mealsDays: number; // dni z odhaczonymi posiłkami
+  avgWater: number; // śr. szklanek / dzień
+  avgSleep: number; // śr. godzin snu
+  avgSteps: number; // śr. kroków
+  avgWellbeing: number; // śr. samopoczucia 1–5
+  kcalWeek: number; // kcal z aktywności w tygodniu
+  weight: number; // ostatnia waga (kg)
+  weightDelta: number | null; // różnica vs sprzed ~7 dni
 };
+
+const avg = (nums: number[]) =>
+  nums.length
+    ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10
+    : 0;
 
 export default function ClientReportPage() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [saved, setSaved] = useState<null | "daily" | "weekly">(null);
-  const [tab, setTab] = useState<"daily" | "weekly">("daily");
+  const [saved, setSaved] = useState(false);
   const [fields, setFields] = useState<ReportConfigField[]>([]);
-  const [values, setValues] = useState<Record<string, string | number | boolean>>({});
-  const [summary, setSummary] = useState<PanelSummary | null>(null);
+  const [fValues, setFValues] = useState<Record<string, string | number | boolean>>({});
+  const [stats, setStats] = useState<WeekStats | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; at: string }>({
     text: "",
     at: "",
@@ -105,11 +108,16 @@ export default function ClientReportPage() {
   const [nextDueAt, setNextDueAt] = useState<string | null>(null);
   const [lastWeeklyAt, setLastWeeklyAt] = useState<string | null>(null);
   const [mValues, setMValues] = useState<Record<string, string>>({});
-  const [weekNotes, setWeekNotes] = useState("");
+  const [weekGood, setWeekGood] = useState("");
+  const [weekImproved, setWeekImproved] = useState("");
+  const [weekQuestions, setWeekQuestions] = useState("");
   const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
   const [photoErr, setPhotoErr] = useState("");
   const [weeklyErr, setWeeklyErr] = useState("");
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const weekDates = lastNDates(7);
+  const weekStart = weekDates[0];
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -121,68 +129,73 @@ export default function ClientReportPage() {
     }
     setEmail(storedEmail);
     const trainerId = getClientTrainerId();
-    const defs = trainerId
-      ? getTrainerReportFields(trainerId)
-      : [];
+    const defs = trainerId ? getTrainerReportFields(trainerId) : [];
     setFields(defs);
 
-    // zakładka z deep-linka (?tab=weekly — z bannera w panelu)
-    const wanted = new URLSearchParams(window.location.search).get("tab");
-    setTab(wanted === "weekly" ? "weekly" : "daily");
-
-    // --- Dane z panelu: podsumowanie dnia + auto-uzupełnienie raportu ---
     const content = getClientContent(storedEmail);
-    const today = todayISO();
     const cats: string[] = content.diet.meals.map((m) => m.category ?? "").filter((c) => c !== "");
-    const doneMeals = getDoneMeals(storedEmail, today).filter((c) => cats.includes(c));
-    const mealsTotal = new Set(cats).size;
-    const glasses = getWaterForDate(storedEmail, today);
-    const kg = getBodyWeightKg(storedEmail, content.nutrition.weight);
-    const override = Number(content.guidelines?.waterGlasses);
-    const waterGoal =
-      Number.isFinite(override) && override > 0
-        ? Math.min(20, Math.round(override))
-        : kg
-        ? Math.max(4, Math.min(15, Math.round((kg * 31) / 250)))
-        : 8;
-    const mood = getMoodByDate(storedEmail)[today];
+    const logs = getDailyLogs(storedEmail);
+    const moods = getMoodByDate(storedEmail);
+
+    // --- Codzienny ślad z panelu → statystyki tygodnia ---
+    let mealsDays = 0;
+    let activeDays = 0;
+    const waters: number[] = [];
+    const sleeps: number[] = [];
+    const steps: number[] = [];
+    const wellbeings: number[] = [];
+    let kcalWeek = 0;
+    let logged = 0;
+    for (const d of weekDates) {
+      const done = getDoneMeals(storedEmail, d).filter((c) => cats.includes(c));
+      const w = getWaterForDate(storedEmail, d);
+      const mood = moods[d];
+      const log = logs[d];
+      const acts = getActivities(storedEmail, d);
+      const kcal = acts.reduce((s, a) => s + (a.kcal || 0), 0);
+      kcalWeek += kcal;
+      if (done.length > 0) mealsDays++;
+      if (w > 0) waters.push(w);
+      if (log || done.length > 0 || w > 0 || mood || acts.length > 0) logged++;
+      if (done.length > 0 || w > 0 || mood || acts.length > 0 || log) activeDays++;
+      const sl = Number(log?.values?.sleepHours);
+      if (Number.isFinite(sl) && sl > 0) sleeps.push(sl);
+      const st = Number(log?.values?.steps);
+      if (Number.isFinite(st) && st > 0) steps.push(st);
+      if (mood && (mood.satiety > 0 || mood.motivation > 0)) {
+        wellbeings.push(
+          Math.max(1, Math.min(5, Math.round((mood.satiety + mood.motivation) / 2) || 3))
+        );
+      }
+    }
+
+    // Waga: ostatni pomiar + pomiar sprzed tygodnia (delta)
     const ms = getMeasurements(storedEmail);
     let weight = 0;
+    let prev = 0;
     for (let i = ms.length - 1; i >= 0; i--) {
       const w = parseFloat(String(ms[i].values?.weight ?? "").replace(",", "."));
-      if (Number.isFinite(w) && w > 0) {
-        weight = w;
+      if (!Number.isFinite(w) || w <= 0) continue;
+      if (!weight) weight = w;
+      if (ms[i].date < weekStart) {
+        prev = w;
         break;
       }
     }
-    if (!weight) weight = kg;
-    const acts = getActivities(storedEmail, today);
-    const actKcal = acts.reduce((s, a) => s + (a.kcal || 0), 0);
-    const actMinutes = acts.reduce((s, a) => s + (a.minutes || 0), 0);
-    let trainDone = 0;
-    let trainTotal = 0;
-    content.training.days.forEach((_, i) => {
-      const dayId = i + 1;
-      const total = (content.training.dayExercises[dayId] ?? []).length;
-      trainTotal += total;
-      trainDone += getDoneExerciseIds(storedEmail, dayId).filter(
-        (id) => Number(id) >= 1 && Number(id) <= total
-      ).length;
-    });
-    setSummary({
-      mealsDone: doneMeals.length,
-      mealsTotal,
-      glasses,
-      waterGoal,
-      moodSatiety: mood?.satiety ?? 0,
-      moodMotivation: mood?.motivation ?? 0,
+    if (!weight) weight = getBodyWeightKg(storedEmail, content.nutrition.weight);
+
+    setStats({
+      daysLogged: logged,
+      mealsDays,
+      avgWater: avg(waters),
+      avgSleep: avg(sleeps),
+      avgSteps: avg(steps),
+      avgWellbeing: avg(wellbeings),
+      kcalWeek,
       weight,
-      actCount: acts.length,
-      actKcal,
-      actMinutes,
-      trainDone,
-      trainTotal,
+      weightDelta: weight && prev ? Math.round((weight - prev) * 10) / 10 : null,
     });
+
     setFeedback(content.feedback ?? { text: "", at: "" });
 
     // status raportu tygodniowego + zdjęcia sylwetki
@@ -193,77 +206,28 @@ export default function ClientReportPage() {
     setLastWeeklyAt(st.last?.submittedAt ?? null);
     setPhotos(getProgressPhotos(storedEmail));
 
+    // Rubryki trenera — domyślne wartości + dane z ostatniego raportu
     const init: Record<string, string | number | boolean> = {};
     for (const f of defs) init[f.key] = f.defaultValue;
-
-    // Fakty z panelu zawsze wygrywają ze starym raportem
-    const autoKeys = new Set(["waterIntake", "mealsDone", "activeMinutes"]);
-    init.waterIntake = Number((glasses * 0.25).toFixed(2));
-    if (mealsTotal > 0) init.mealsDone = doneMeals.length >= mealsTotal;
-    if (weight > 0) {
-      init.weight = weight;
-      autoKeys.add("weight");
-    }
-    if (actMinutes > 0) init.activeMinutes = actMinutes;
-    if (mood && (mood.satiety > 0 || mood.motivation > 0)) {
-      init.wellbeing = Math.max(
-        1,
-        Math.min(5, Math.round((mood.satiety + mood.motivation) / 2) || 3)
-      );
-      autoKeys.add("wellbeing");
-    }
-
-    const existing = getReport(storedEmail);
-    if (existing?.values) {
-      for (const k of Object.keys(existing.values)) {
-        if (k in init && !autoKeys.has(k)) init[k] = existing.values[k];
+    const last = st.last;
+    if (last?.values) {
+      for (const f of defs) {
+        if (f.key in last.values && typeof last.values[f.key] !== "undefined") {
+          init[f.key] = last.values[f.key];
+        }
       }
+      setWeekGood(String(last.values.weekGood ?? ""));
+      setWeekImproved(String(last.values.weekImproved ?? ""));
+      setWeekQuestions(String(last.values.weekQuestions ?? ""));
     }
-    setValues(init);
+    setFValues(init);
     setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-    const iso = new Date().toISOString();
-    // historia po dniach — zasila podsumowanie tygodniowe
-    saveDailyLog(email, todayISO(), values);
-    // ostatni wpis — coaching i panel trenera czytają go co dzień
-    saveReport(email, {
-      values,
-      submittedAt: iso,
-    });
-    setSaved("daily");
-  };
-
-  const weekDates = lastNDates(7);
-  const logs = email ? getDailyLogs(email) : {};
-  const weekEntries: DailyLogEntry[] = weekDates
-    .map((d) => logs[d])
-    .filter((e): e is DailyLogEntry => Boolean(e));
-  const weekTrainings = weekEntries.filter(
-    (e) => e.values.trainingDone === true
-  ).length;
-  const wellbeingList = weekEntries
-    .map((e) => Number(e.values.wellbeing))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  const weekWellbeing = wellbeingList.length
-    ? Math.round(
-        (wellbeingList.reduce((a, b) => a + b, 0) / wellbeingList.length) * 10
-      ) / 10
-    : 0;
-  const adherenceList = weekEntries
-    .map((e) => Number(e.values.adherence))
-    .filter((n) => Number.isFinite(n));
-  const weekAdherence = adherenceList.length
-    ? Math.round(
-        adherenceList.reduce((a, b) => a + b, 0) / adherenceList.length
-      )
-    : 0;
-  const weekStart = weekDates[0];
-  const photosThisWeek = photos.filter((p) => p.date >= weekStart);
-  const weightNow = summary?.weight ?? 0;
+  const weekEntries = email
+    ? weekDates.filter((d) => Boolean(getDailyLogs(email)[d]))
+    : [];
 
   const handlePhoto = async (file: File) => {
     if (!email) return;
@@ -283,7 +247,7 @@ export default function ClientReportPage() {
 
   const handleWeeklySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !stats) return;
     const w = parseFloat(String(mValues.weight ?? "").replace(",", "."));
     if (!Number.isFinite(w) || w <= 0) {
       setWeeklyErr("Podaj wagę — pomiary są obowiązkową częścią raportu tygodniowego.");
@@ -299,17 +263,29 @@ export default function ClientReportPage() {
     if (Object.keys(mv).length > 0) {
       addMeasurement(email, { date: todayISO(), values: mv });
     }
+    const photosThisWeek = photos.filter((p) => p.date >= weekStart);
     saveWeeklyReport(email, {
       values: {
-        daysLogged: weekEntries.length,
-        trainings: weekTrainings,
-        avgWellbeing: weekWellbeing,
-        avgAdherence: weekAdherence,
+        // rubryki wymagane przez trenera (pod spodem — ich klucze nie
+        // kolidują z auto-danymi, ale pomiary zawsze wygrywają)
+        ...fValues,
+        // auto-podsumowanie z codziennego śladu w panelu
+        daysLogged: stats.daysLogged,
+        mealsDays: stats.mealsDays,
+        avgWater: stats.avgWater,
+        avgSleep: stats.avgSleep,
+        avgSteps: stats.avgSteps,
+        avgWellbeing: stats.avgWellbeing,
+        kcalWeek: stats.kcalWeek,
         weight: w,
+        weightDelta: stats.weightDelta ?? "",
         measurements: MEASUREMENT_METRICS.map(
           (m) => `${m.label}: ${mValues[m.key] ? `${mValues[m.key]} ${m.unit}` : "—"}`
         ).join(", "),
-        notes: weekNotes,
+        // rozbudowane uwagi klienta
+        weekGood: weekGood.trim(),
+        weekImproved: weekImproved.trim(),
+        weekQuestions: weekQuestions.trim(),
       },
       photoIds: photosThisWeek.map((p) => p.id),
     });
@@ -317,7 +293,7 @@ export default function ClientReportPage() {
     setNextDueAt(new Date(Date.now() + 7 * DAY_MS).toISOString());
     setWeeklyDue(false);
     setOverdueDays(0);
-    setSaved("weekly");
+    setSaved(true);
   };
 
   if (!ready) {
@@ -331,11 +307,13 @@ export default function ClientReportPage() {
   const inputCls =
     "w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400";
   const labelText = "text-[11px] font-medium text-slate-300";
+  const secTitle = "text-[11px] font-semibold uppercase tracking-wide text-emerald-400";
+
+  const setF = (key: string, val: string | number | boolean) =>
+    setFValues((s) => ({ ...s, [key]: val }));
 
   const renderField = (f: ReportConfigField) => {
-    const v = values[f.key] ?? f.defaultValue;
-    const set = (val: string | number | boolean) =>
-      setValues((s) => ({ ...s, [f.key]: val }));
+    const v = fValues[f.key] ?? f.defaultValue;
 
     if (f.type === "range") {
       return (
@@ -346,7 +324,7 @@ export default function ClientReportPage() {
             min={f.min}
             max={f.max}
             value={Number(v)}
-            onChange={(e) => set(Number(e.target.value))}
+            onChange={(e) => setF(f.key, Number(e.target.value))}
             className="w-full accent-emerald-500"
           />
           <div className="text-center text-sm text-slate-100">{v} / {f.max}</div>
@@ -359,7 +337,7 @@ export default function ClientReportPage() {
           <input
             type="checkbox"
             checked={Boolean(v)}
-            onChange={(e) => set(e.target.checked)}
+            onChange={(e) => setF(f.key, e.target.checked)}
             className="accent-emerald-500"
           />
           {f.label}
@@ -373,7 +351,7 @@ export default function ClientReportPage() {
           <select
             className={inputCls}
             value={String(v)}
-            onChange={(e) => set(e.target.value)}
+            onChange={(e) => setF(f.key, e.target.value)}
           >
             {(f.options ?? []).map((o) => (
               <option key={o} value={o}>
@@ -393,7 +371,7 @@ export default function ClientReportPage() {
             type="number"
             step={f.step}
             value={String(v)}
-            onChange={(e) => set(e.target.value)}
+            onChange={(e) => setF(f.key, e.target.value)}
             placeholder={f.placeholder}
           />
         </label>
@@ -406,59 +384,27 @@ export default function ClientReportPage() {
           className={inputCls}
           rows={3}
           value={String(v)}
-          onChange={(e) => set(e.target.value)}
+          onChange={(e) => setF(f.key, e.target.value)}
           placeholder={f.placeholder}
         />
       </label>
     );
   };
 
-  if (saved === "daily") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
-        <div className="w-full max-w-md space-y-5 rounded-2xl border border-emerald-500/40 bg-slate-900/80 p-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-2xl">
-            ✓
-          </div>
-          <h1 className="text-lg font-semibold text-slate-50">Wpis dnia zapisany!</h1>
-          <p className="text-sm text-slate-400">
-            Samopoczucie, jedzenie i trening zapisane w historii. Możesz
-            uzupełnić wpis ponownie w ciągu dnia — zawsze nadpisuje dzisiejszy.
-          </p>
-          <p className="text-xs text-emerald-300">
-            Co 7 dni wyślij raport tygodniowy z pomiarami i zdjęciami sylwetki.
-          </p>
-          <div className="flex flex-col gap-2">
-            <Link
-              href="/client"
-              className="inline-block rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
-            >
-              Wróć do panelu
-            </Link>
-            <button
-              type="button"
-              onClick={() => setSaved(null)}
-              className="rounded-full border border-slate-700 px-6 py-2 text-sm text-slate-300 hover:bg-slate-800"
-            >
-              Edytuj dzisiejszy wpis
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (saved === "weekly") {
+  if (saved) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
         <div className="w-full max-w-md space-y-5 rounded-2xl border border-emerald-500/40 bg-slate-900/80 p-8 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-2xl">
             📋
           </div>
-          <h1 className="text-lg font-semibold text-slate-50">Raport tygodniowy wysłany!</h1>
+          <h1 className="text-lg font-semibold text-slate-50">
+            Raport tygodniowy wysłany!
+          </h1>
           <p className="text-sm text-slate-400">
             Pomiary trafiły do wykresów, zdjęcia do dokumentacji sylwetki, a
-            trener dostał kompletne podsumowanie tygodnia.
+            trener dostał kompletne podsumowanie tygodnia wraz z Twoimi
+            rubrykami i uwagami.
           </p>
           <p className="text-xs text-emerald-300">
             {nextDueAt
@@ -476,10 +422,10 @@ export default function ClientReportPage() {
             </Link>
             <button
               type="button"
-              onClick={() => setSaved(null)}
+              onClick={() => setSaved(false)}
               className="rounded-full border border-slate-700 px-6 py-2 text-sm text-slate-300 hover:bg-slate-800"
             >
-              Wróć do raportów
+              Wróć do raportu
             </button>
           </div>
         </div>
@@ -487,23 +433,23 @@ export default function ClientReportPage() {
     );
   }
 
-  const report = email ? getReport(email) : null;
   const awaitingReply =
-    !!report && (!feedback.at || feedback.at < report.submittedAt);
+    lastWeeklyAt && (!feedback.at || feedback.at < lastWeeklyAt);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <main className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-10">
         <header className="space-y-2 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-400">
-            Krok 2 · Raporty
+            Krok 2 · Raport tygodniowy
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-slate-50 md:text-3xl">
-            Raporty do trenera
+            Raport tygodniowy do trenera
           </h1>
           <p className="mx-auto max-w-md text-sm text-slate-400">
-            Samopoczucie, jedzenie i trening wpisuj codziennie. Raz na 7 dni
-            wyślij raport tygodniowy z pomiarami sylwetki i zdjęciami.
+            Codziennie zapisuj w panelu, co zrobiłeś — posiłki, wodę,
+            samopoczucie, sen i trening. Raz na 7 dni złóż tutaj raport:
+            pomiary sylwetki, zdjęcia i rubryki wymagane przez trenera.
           </p>
         </header>
 
@@ -514,20 +460,13 @@ export default function ClientReportPage() {
               ⚠️ Raport tygodniowy {overdueDays > 1 ? `— zaległy od ${overdueDays} dni` : "do wysłania"}
             </p>
             <p className="text-sm text-slate-200">
-              Co tydzień prześlij trenerowi <b>pomiary sylwetki</b> i{" "}
-              <b>zdjęcia</b>.{" "}
+              Co tydzień prześlij trenerowi <b>pomiary sylwetki</b>,{" "}
+              <b>zdjęcia</b> i <b>rubryki</b>.{" "}
               {lastWeeklyAt
                 ? `Ostatni raport: ${new Date(lastWeeklyAt).toLocaleDateString("pl-PL")} —`
                 : "Pierwszy raport jeszcze nie był wysłany —"}{" "}
               uzupełnij go teraz.
             </p>
-            <button
-              type="button"
-              onClick={() => setTab("weekly")}
-              className="rounded-full bg-red-500 px-5 py-2 text-sm font-semibold text-white hover:bg-red-400 transition"
-            >
-              Otwórz raport tygodniowy →
-            </button>
           </section>
         ) : nextDueAt ? (
           <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-center text-xs text-emerald-200">
@@ -536,337 +475,259 @@ export default function ClientReportPage() {
           </p>
         ) : null}
 
-        {/* ===== Zakładki ===== */}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setTab("daily")}
-            className={`relative rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-              tab === "daily"
-                ? "bg-slate-800 text-slate-50 shadow-[0_0_0_1px_rgba(148,163,184,0.4)]"
-                : "text-slate-400 hover:bg-slate-900"
-            }`}
-          >
-            📝 Codzienny wpis
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("weekly")}
-            className={`relative rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-              tab === "weekly"
-                ? "bg-slate-800 text-slate-50 shadow-[0_0_0_1px_rgba(148,163,184,0.4)]"
-                : "text-slate-400 hover:bg-slate-900"
-            }`}
-          >
-            📋 Raport tygodniowy
-            {weeklyDue && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
-                !
-              </span>
-            )}
-          </button>
-        </div>
-
-        {tab === "daily" ? (
-          <>
-            {/* Dane z panelu — uzupełnione automatycznie */}
-            {summary && (
-              <section className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-                    Dane z Twojego panelu
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    Uzupełnione automatycznie na dziś — trafią do raportu bez
-                    przepisywania.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                  <SummaryChip
-                    label="Posiłki"
-                    value={`${summary.mealsDone}/${summary.mealsTotal}`}
-                  />
-                  <SummaryChip
-                    label="Woda"
-                    value={`${summary.glasses}/${summary.waterGoal} szkl.`}
-                  />
-                  <SummaryChip
-                    label="Waga"
-                    value={summary.weight > 0 ? `${summary.weight} kg` : "—"}
-                  />
-                  <SummaryChip
-                    label="Samopoczucie"
-                    value={
-                      summary.moodSatiety > 0
-                        ? `S ${summary.moodSatiety}/5 · M ${summary.moodMotivation}/5`
-                        : "—"
-                    }
-                  />
-                  <SummaryChip
-                    label="Aktywności"
-                    value={
-                      summary.actCount > 0
-                        ? `${summary.actCount} · ${summary.actKcal} kcal`
-                        : "0"
-                    }
-                  />
-                  <SummaryChip
-                    label="Trening (plan)"
-                    value={
-                      summary.trainTotal > 0
-                        ? `${summary.trainDone}/${summary.trainTotal} ćw.`
-                        : "—"
-                    }
-                  />
-                </div>
-              </section>
-            )}
-
-            {/* Odpowiedź trenera */}
-            <section className="space-y-2 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-                💬 Odpowiedź trenera
+        {/* ===== Codzienny ślad w panelu ===== */}
+        <section className="space-y-2 rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className={secTitle}>Twój codzienny ślad w panelu</p>
+              <p className="text-xs text-slate-400">
+                Zbierane automatycznie każdego dnia — trener widzi je na
+                bieżąco, bez czekania na raport.
               </p>
-              {feedback.text ? (
-                <>
-                  <p className="whitespace-pre-line text-sm text-slate-200">
-                    {feedback.text}
-                  </p>
-                  <p className="text-[11px] text-slate-500">
-                    {feedback.at &&
-                      new Date(feedback.at).toLocaleString("pl-PL")}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-slate-400">
-                  {report
-                    ? "Trener widzi Twój raport — konkretne wytyczne pojawią się tutaj."
-                    : "Wyślij wpis, a trener odpowie z konkretnymi wskazówkami."}
-                </p>
-              )}
-              {awaitingReply && (
-                <p className="rounded-xl border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-[11px] text-amber-200">
-                  ⏳ Trener jeszcze nie odpowiedział na raport
-                  {report ? ` z ${new Date(report.submittedAt).toLocaleString("pl-PL")}` : ""}.
-                </p>
-              )}
-            </section>
-
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-6"
+            </div>
+            <Link
+              href="/client"
+              className="shrink-0 rounded-full border border-slate-700 px-3 py-1.5 text-[11px] text-slate-300 hover:bg-slate-800"
             >
-              <div>
-                <p className="text-sm font-semibold text-slate-100">
-                  Wpis z dnia {new Date().toLocaleDateString("pl-PL")}
-                </p>
-                <p className="text-xs text-slate-400">
-                  Uzupełniaj codziennie: samopoczucie, co zjadłeś oraz trening i
-                  ciężary. Wpisy zbierają się w raport tygodniowy.
-                </p>
-              </div>
-              {fields.length === 0 ? (
-                <p className="text-sm text-slate-400">
-                  Trener nie skonfigurował jeszcze pól raportu. Zostaw notatkę lub
-                  wróć do panelu.
-                </p>
-              ) : (
-                fields.map((f) => (
-                  <div key={f.key}>{renderField(f)}</div>
-                ))
-              )}
+              Panel →
+            </Link>
+          </div>
+          {stats && (
+            <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+              <SummaryChip label="Dni z aktywnością" value={`${stats.daysLogged}/7`} />
+              <SummaryChip label="Dni z posiłkami" value={`${stats.mealsDays}/7`} />
+              <SummaryChip label="Woda (śr.)" value={`${stats.avgWater} szkl.`} />
+              <SummaryChip label="Sen (śr.)" value={stats.avgSleep > 0 ? `${stats.avgSleep} h` : "—"} />
+              <SummaryChip label="Kroki (śr.)" value={stats.avgSteps > 0 ? `${Math.round(stats.avgSteps)}` : "—"} />
+              <SummaryChip label="Samopoczucie" value={stats.avgWellbeing > 0 ? `${stats.avgWellbeing}/5` : "—"} />
+              <SummaryChip label="Aktywności" value={`${stats.kcalWeek} kcal`} />
+              <SummaryChip
+                label="Waga"
+                value={
+                  stats.weight > 0
+                    ? `${stats.weight} kg${
+                        stats.weightDelta !== null
+                          ? ` (${stats.weightDelta > 0 ? "+" : ""}${stats.weightDelta})`
+                          : ""
+                      }`
+                    : "—"
+                }
+              />
+            </div>
+          )}
+          <p className="text-[11px] text-slate-500">
+            Zakres: {new Date(weekStart).toLocaleDateString("pl-PL")} – dziś ·
+            wpisów w dzienniku: {weekEntries.length}/7
+          </p>
+        </section>
 
-              <div className="flex flex-wrap gap-3 pt-1">
-                <button
-                  type="submit"
-                  className="rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
-                >
-                  Zapisz wpis dnia
-                </button>
-                <Link
-                  href="/client"
-                  className="rounded-full border border-slate-700 px-6 py-2 text-sm text-slate-300 hover:bg-slate-800"
-                >
-                  Wróć do panelu
-                </Link>
-              </div>
-            </form>
-          </>
-        ) : (
-          /* ================= RAPORT TYGODNIOWY ================= */
-          <form
-            onSubmit={handleWeeklySubmit}
-            className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-6"
-          >
-            {/* Auto-podsumowanie tygodnia */}
-            <section className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-                Podsumowanie tygodnia (automatyczne)
+        {/* Odpowiedź trenera */}
+        <section className="space-y-2 rounded-2xl border border-emerald-500/40 bg-emerald-950/40 p-5">
+          <p className={secTitle}>💬 Odpowiedź trenera</p>
+          {feedback.text ? (
+            <>
+              <p className="whitespace-pre-line text-sm text-slate-200">
+                {feedback.text}
               </p>
-              <p className="text-xs text-slate-400">
-                Zbrane z Twoich codziennych wpisów i panelu —{" "}
-                {new Date(weekStart).toLocaleDateString("pl-PL")} – dziś.
+              <p className="text-[11px] text-slate-500">
+                {feedback.at && new Date(feedback.at).toLocaleString("pl-PL")}
               </p>
-              <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-                <SummaryChip
-                  label="Dni z wpisem"
-                  value={`${weekEntries.length}/7`}
-                />
-                <SummaryChip
-                  label="Treningi wykonane"
-                  value={`${weekTrainings}`}
-                />
-                <SummaryChip
-                  label="Śr. samopoczucie"
-                  value={weekWellbeing > 0 ? `${weekWellbeing}/5` : "—"}
-                />
-                <SummaryChip
-                  label="Przestrzeganie planu"
-                  value={weekAdherence > 0 ? `${weekAdherence}%` : "—"}
-                />
-                <SummaryChip
-                  label="Trening (ćwiczenia)"
-                  value={
-                    summary && summary.trainTotal > 0
-                      ? `${summary.trainDone}/${summary.trainTotal}`
-                      : "—"
-                  }
-                />
-                <SummaryChip
-                  label="Waga"
-                  value={weightNow > 0 ? `${weightNow} kg` : "—"}
-                />
-              </div>
-            </section>
+            </>
+          ) : (
+            <p className="text-sm text-slate-400">
+              {lastWeeklyAt
+                ? "Trener widzi Twój raport — konkretne wytyczne pojawią się tutaj."
+                : "Wyślij raport tygodniowy, a trener odpowie z konkretnymi wskazówkami."}
+            </p>
+          )}
+          {awaitingReply && (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-[11px] text-amber-200">
+              ⏳ Trener jeszcze nie odpowiedział na raport z{" "}
+              {new Date(lastWeeklyAt as string).toLocaleString("pl-PL")}.
+            </p>
+          )}
+        </section>
 
-            {/* Pomiary sylwetki */}
-            <section className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-                Pomiary sylwetki *{" "}
-                <span className="normal-case text-slate-500">
-                  (waga wymagana)
-                </span>
-              </p>
-              <p className="text-xs text-slate-400">
-                Raz w tygodniu zmierz obwody — trafią do wykresów i trendu wagi.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                {MEASUREMENT_METRICS.map((m) => (
-                  <label key={m.key} className="block space-y-1">
-                    <span className={labelText}>
-                      {m.label} {m.unit}
-                      {m.key === "weight" && (
-                        <span className="text-red-400"> *</span>
-                      )}
-                    </span>
-                    <input
-                      className={inputCls}
-                      type="number"
-                      inputMode="decimal"
-                      step="0.1"
-                      value={mValues[m.key] ?? ""}
-                      onChange={(e) =>
-                        setMValues((s) => ({ ...s, [m.key]: e.target.value }))
-                      }
-                      placeholder={m.key === "weight" ? "np. 78.5" : "—"}
-                    />
-                  </label>
+        {/* ================= FORMULARZ RAPORTU TYGODNIOWEGO ================= */}
+        <form
+          onSubmit={handleWeeklySubmit}
+          className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900/60 p-6"
+        >
+          <div>
+            <p className="text-sm font-semibold text-slate-100">
+              Raport za tydzień {new Date(weekStart).toLocaleDateString("pl-PL")} –{" "}
+              {new Date().toLocaleDateString("pl-PL")}
+            </p>
+            <p className="text-xs text-slate-400">
+              Kompletny raport: pomiary, zdjęcia, rubryki trenera i podsumowanie
+              tygodnia.
+            </p>
+          </div>
+
+          {/* 1. Pomiary sylwetki */}
+          <section className="space-y-2">
+            <p className={secTitle}>
+              1 · Pomiary sylwetki *{" "}
+              <span className="normal-case text-slate-500">(waga wymagana)</span>
+            </p>
+            <p className="text-xs text-slate-400">
+              Raz w tygodniu zmierz obwody — trafią do wykresów i trendu wagi.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {MEASUREMENT_METRICS.map((m) => (
+                <label key={m.key} className="block space-y-1">
+                  <span className={labelText}>
+                    {m.label} {m.unit}
+                    {m.key === "weight" && <span className="text-red-400"> *</span>}
+                  </span>
+                  <input
+                    className={inputCls}
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    value={mValues[m.key] ?? ""}
+                    onChange={(e) =>
+                      setMValues((s) => ({ ...s, [m.key]: e.target.value }))
+                    }
+                    placeholder={m.key === "weight" ? "np. 78.5" : "—"}
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {/* 2. Zdjęcia sylwetki */}
+          <section className="space-y-2">
+            <p className={secTitle}>
+              2 · Zdjęcia sylwetki ({photos.filter((p) => p.date >= weekStart).length} w tym tygodniu)
+            </p>
+            <p className="text-xs text-slate-400">
+              Dodaj aktualne zdjęcie — trener porównuje je z poprzednimi
+              tygodniami (max 15 zdjęć w dokumentacji).
+            </p>
+            {photos.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {photos.slice(0, 4).map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={p.id}
+                    src={p.dataUrl}
+                    alt={`Sylwetka ${p.date}`}
+                    className={`h-20 w-16 rounded-lg object-cover ${
+                      p.date >= weekStart ? "ring-2 ring-emerald-400" : "opacity-70"
+                    }`}
+                  />
                 ))}
               </div>
-            </section>
-
-            {/* Zdjęcia sylwetki */}
-            <section className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-                Zdjęcia sylwetki ({photosThisWeek.length} w tym tygodniu)
-              </p>
-              <p className="text-xs text-slate-400">
-                Dodaj aktualne zdjęcie — trener porównuje je z poprzednimi
-                tygodniami (max {15} zdjęć w dokumentacji).
-              </p>
-              {photos.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {photos.slice(0, 4).map((p) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      key={p.id}
-                      src={p.dataUrl}
-                      alt={`Sylwetka ${p.date}`}
-                      className={`h-20 w-16 rounded-lg object-cover ${
-                        p.date >= weekStart
-                          ? "ring-2 ring-emerald-400"
-                          : "opacity-70"
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handlePhoto(f);
-                  e.target.value = "";
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full rounded-xl border border-dashed border-slate-600 px-4 py-3 text-sm text-slate-300 hover:border-emerald-400 hover:text-emerald-300 transition"
-              >
-                📷 Dodaj zdjęcie sylwetki
-              </button>
-              {photosThisWeek.length === 0 && (
-                <p className="rounded-xl border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-[11px] text-amber-200">
-                  ⚠️ Nie masz zdjęcia z ostatnich 7 dni — dołącz je, żeby raport
-                  był kompletny.
-                </p>
-              )}
-              {photoErr && (
-                <p className="text-[11px] text-red-400">{photoErr}</p>
-              )}
-            </section>
-
-            {/* Uwagi tygodniowe */}
-            <label className="block space-y-1">
-              <span className={labelText}>
-                Uwagi i pytania do trenera (tydzień w skrócie)
-              </span>
-              <textarea
-                className={inputCls}
-                rows={3}
-                value={weekNotes}
-                onChange={(e) => setWeekNotes(e.target.value)}
-                placeholder="np. Tydzień trudny dietetycznie, brak snu w czwartek — czy zmniejszyć kalorie?"
-              />
-            </label>
-
-            {weeklyErr && (
-              <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-                {weeklyErr}
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handlePhoto(f);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="w-full rounded-xl border border-dashed border-slate-600 px-4 py-3 text-sm text-slate-300 hover:border-emerald-400 hover:text-emerald-300 transition"
+            >
+              📷 Dodaj zdjęcie sylwetki
+            </button>
+            {!photos.some((p) => p.date >= weekStart) && (
+              <p className="rounded-xl border border-amber-500/40 bg-amber-900/30 px-3 py-2 text-[11px] text-amber-200">
+                ⚠️ Nie masz zdjęcia z ostatnich 7 dni — dołącz je, żeby raport
+                był kompletny.
               </p>
             )}
+            {photoErr && <p className="text-[11px] text-red-400">{photoErr}</p>}
+          </section>
 
-            <div className="flex flex-wrap gap-3 pt-1">
-              <button
-                type="submit"
-                className="rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
-              >
-                📋 Wyślij raport tygodniowy
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("daily")}
-                className="rounded-full border border-slate-700 px-6 py-2 text-sm text-slate-300 hover:bg-slate-800"
-              >
-                Codzienny wpis
-              </button>
-            </div>
-          </form>
-        )}
+          {/* 3. Rubryki wymagane przez trenera */}
+          <section className="space-y-3">
+            <p className={secTitle}>3 · Wymagane przez trenera</p>
+            {fields.length === 0 ? (
+              <p className="text-sm text-slate-400">
+                Trener nie skonfigurował jeszcze rubryk raportu — uzupełnij
+                pomiary i uwagi poniżej.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-slate-400">
+                  Rubryki ustalone przez trenera — wypełnij je za cały tydzień.
+                </p>
+                <div className="space-y-4">
+                  {/* waga jest już w pomiarach (sekcja 1) — nie dublujemy */}
+                  {fields
+                    .filter((f) => f.key !== "weight")
+                    .map((f) => (
+                      <div key={f.key}>{renderField(f)}</div>
+                    ))}
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* 4. Rozbudowane uwagi */}
+          <section className="space-y-3">
+            <p className={secTitle}>4 · Podsumowanie tygodnia od siebie</p>
+            <label className="block space-y-1">
+              <span className={labelText}>✅ Co poszło dobrze?</span>
+              <textarea
+                className={inputCls}
+                rows={2}
+                value={weekGood}
+                onChange={(e) => setWeekGood(e.target.value)}
+                placeholder="np. 4/4 treningi, trzymałem dietę, lepszy sen od środy…"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className={labelText}>⚠️ Co wymaga poprawy / z czym było trudno?</span>
+              <textarea
+                className={inputCls}
+                rows={2}
+                value={weekImproved}
+                onChange={(e) => setWeekImproved(e.target.value)}
+                placeholder="np. dwa wieczory z jedzeniem na mieście, mało snu w piątek…"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className={labelText}>❓ Pytania do trenera</span>
+              <textarea
+                className={inputCls}
+                rows={2}
+                value={weekQuestions}
+                onChange={(e) => setWeekQuestions(e.target.value)}
+                placeholder="np. czy zwiększyć kardio w przyszłym tygodniu? co z zamianą ćwiczenia na kolano?"
+              />
+            </label>
+          </section>
+
+          {weeklyErr && (
+            <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+              {weeklyErr}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-3 pt-1">
+            <button
+              type="submit"
+              className="rounded-full bg-emerald-500 px-6 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+            >
+              📋 Wyślij raport tygodniowy
+            </button>
+            <Link
+              href="/client"
+              className="rounded-full border border-slate-700 px-6 py-2 text-sm text-slate-300 hover:bg-slate-800"
+            >
+              Wróć do panelu
+            </Link>
+          </div>
+        </form>
       </main>
     </div>
   );

@@ -14,6 +14,9 @@
 import {
   getMeasurements,
   getReport,
+  getDailyLogs,
+  getWeeklyReport,
+  getMoodByDate,
   getClientContent,
   getClientProfile,
   getDoneMeals,
@@ -36,6 +39,91 @@ function lastNDates(n: number): string[] {
     out.push(new Date(now - i * DAY_MS).toISOString().slice(0, 10));
   }
   return out;
+}
+
+// ---- Dzienny ślad klienta (panel) + raport tygodniowy ----
+// Klient codziennie zapisuje w panelu sen/kroki (dziennik dnia), posiłki,
+// wodę i samopoczucie — to jego „raport dzienny". A raz na 7 dni składa
+// rozbudowany raport tygodniowy z rubrykami trenera. Ten agregat zastępuje
+// stary ClientReport jako źródło prawdy dla coachingu.
+
+export type DayTrace = {
+  hasTrace: boolean; // czy w ostatnich 7 dniach został jakikolwiek ślad
+  ageH: number | null; // godziny od najnowszego śladu
+  sleepAvg: number | null; // śr. sen z dziennika (h)
+  wellbeingAvg: number | null; // śr. samopoczucie 1–5 (z check-inu)
+  stress: number | null; // stres 1–5 z rubryk raportu
+  trainingDone: boolean | null; // czy trening zaliczony (rubryki/raport)
+  adherence: number | null; // przestrzeganie planu 0–100 (%)
+};
+
+const clamp100 = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+
+function getDayTrace(email: string): DayTrace {
+  const dates = lastNDates(7);
+  const logs = getDailyLogs(email);
+  const moods = getMoodByDate(email);
+  const weekly = getWeeklyReport(email);
+  const legacy = getReport(email); // stary raport dzienny (archiwum)
+
+  // --- najnowszy ślad (wpisy w dzienniku mają tylko datę → koniec dnia) ---
+  let lastAt = -Infinity;
+  const sleeps: number[] = [];
+  const wellbeing: number[] = [];
+  for (const d of dates) {
+    const log = logs[d];
+    if (log) {
+      lastAt = Math.max(lastAt, Date.parse(`${d}T23:00:00`));
+      const s = Number(log.values.sleepHours);
+      if (Number.isFinite(s) && s > 0) sleeps.push(s);
+    }
+    const mood = moods[d];
+    if (mood && (mood.satiety > 0 || mood.motivation > 0)) {
+      wellbeing.push(
+        Math.max(
+          1,
+          Math.min(5, Math.round((mood.satiety + mood.motivation) / 2) || 3)
+        )
+      );
+    }
+  }
+  if (weekly) lastAt = Math.max(lastAt, Date.parse(weekly.submittedAt));
+  if (legacy) lastAt = Math.max(lastAt, Date.parse(legacy.submittedAt));
+
+  const hasTrace = Number.isFinite(lastAt);
+  const ageH = hasTrace
+    ? Math.max(0, Math.round((Date.now() - lastAt) / 3_600_000))
+    : null;
+
+  const num = (v: unknown): number | null =>
+    v !== "" && v !== null && typeof v !== "undefined" && Number.isFinite(Number(v))
+      ? Number(v)
+      : null;
+
+  // rubryki trenera żyją w raporcie tygodniowym (starszy zapis: raport dzienny)
+  const stress = num(weekly?.values.stress) ?? num(legacy?.values.stress);
+  const adherence = num(weekly?.values.adherence) ?? num(legacy?.values.adherence);
+  const tDone =
+    typeof weekly?.values.trainingDone === "boolean"
+      ? weekly.values.trainingDone
+      : typeof legacy?.values.trainingDone === "boolean"
+      ? legacy.values.trainingDone
+      : null;
+
+  const avgOf = (arr: number[]) =>
+    arr.length
+      ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10
+      : null;
+
+  return {
+    hasTrace,
+    ageH,
+    sleepAvg: avgOf(sleeps),
+    wellbeingAvg: avgOf(wellbeing),
+    stress,
+    trainingDone: tDone,
+    adherence: adherence !== null ? clamp100(adherence) : null,
+  };
 }
 
 // ---- Nawodnienie: cel (jak na raporcie: wytyczne lub wzrost z masy) ----
@@ -115,6 +203,7 @@ export type WeeklyReview = {
   water: { avg: number; goal: number; pct: number };
   weight: WeightTrend;
   report: ClientReport | null;
+  hasTrace: boolean; // czy w tygodniu został dzienny ślad w panelu / raport
   reportAgeH: number | null;
   adherence: number | null;
   good: ReviewItem[];
@@ -149,32 +238,37 @@ export function buildWeeklyReview(email: string): WeeklyReview {
   const avgWater = waterDays ? Math.round((waterSum / waterDays) * 10) / 10 : 0;
   const waterPct = Math.min(100, Math.round((avgWater / goal) * 100));
 
-  const report = getReport(email);
-  const reportAgeH = report
-    ? Math.round((Date.now() - Date.parse(report.submittedAt)) / 3_600_000)
-    : null;
-  const adherence =
-    report && Number.isFinite(Number(report.values.adherence))
-      ? Math.max(0, Math.min(100, Number(report.values.adherence)))
-      : null;
+  const report = getReport(email); // archiwalny raport dzienny
+  const trace = getDayTrace(email);
+  const reportAgeH = trace.ageH;
+  const adherence = trace.adherence;
   const weight = getWeightTrend(email);
 
-  const empty = activeDays === 0 && !report;
+  const empty = activeDays === 0 && !trace.hasTrace;
 
   // ---- Punktacja (0–100) ----
   let score = 0;
   score += Math.round(mealsPct * 0.35); // 35
   score += Math.round(Math.min(1, avgWater / goal) * 15); // 15
-  score += report ? (reportAgeH !== null && reportAgeH <= 48 ? 15 : 6) : 0; // 15
-  score += report ? (report.values.trainingDone === true ? 20 : 8) : 0; // 20
-  if (report) {
-    const sleep = Number(report.values.sleepHours);
-    const stress = Number(report.values.stress);
-    const wb = Number(report.values.wellbeing);
-    score += (sleep >= 7 ? 5 : sleep >= 6 ? 3 : sleep > 0 ? 1 : 0); // 5
-    score += (stress <= 2 ? 5 : stress === 3 ? 3 : stress >= 4 ? 1 : 0); // 5
-    score += (wb >= 4 ? 5 : wb === 3 ? 3 : wb > 0 && wb <= 2 ? 1 : 0); // 5
-  }
+  score += trace.hasTrace
+    ? reportAgeH !== null && reportAgeH <= 48
+      ? 15
+      : 6
+    : 0; // 15
+  score += trace.trainingDone === true ? 20 : trace.hasTrace ? 8 : 0; // 20
+  if (trace.sleepAvg !== null)
+    score += trace.sleepAvg >= 7 ? 5 : trace.sleepAvg >= 6 ? 3 : 1; // 5
+  if (trace.stress !== null)
+    score += trace.stress <= 2 ? 5 : trace.stress === 3 ? 3 : trace.stress >= 4 ? 1 : 0; // 5
+  if (trace.wellbeingAvg !== null)
+    score +=
+      trace.wellbeingAvg >= 4
+        ? 5
+        : trace.wellbeingAvg === 3
+        ? 3
+        : trace.wellbeingAvg > 0 && trace.wellbeingAvg <= 2
+        ? 1
+        : 0; // 5
   score = Math.max(0, Math.min(100, score));
 
   // ---- Bloki: co poszło dobrze / do poprawy ----
@@ -199,14 +293,20 @@ export function buildWeeklyReview(email: string): WeeklyReview {
       text: `Woda: średnio ${avgWater} z ${goal} szkl. dziennie.`,
     });
 
-  if (report && reportAgeH !== null && reportAgeH <= 24)
-    good.push({ tone: "good", text: "Raport wysłany na bieżąco — trener ma pełny obraz." });
-  else if (!report || (reportAgeH !== null && reportAgeH > 48))
-    improve.push({ tone: "bad", text: "Brak świeżego raportu — regeneracja i stres bez echa." });
+  if (trace.hasTrace && reportAgeH !== null && reportAgeH <= 24)
+    good.push({
+      tone: "good",
+      text: "Dzienny ślad na bieżąco — trener ma pełny obraz tygodnia.",
+    });
+  else if (!trace.hasTrace || (reportAgeH !== null && reportAgeH > 48))
+    improve.push({
+      tone: "bad",
+      text: "Brak świeżego śladu w panelu — regeneracja i stres bez echa.",
+    });
 
-  if (report?.values.trainingDone === true)
+  if (trace.trainingDone === true)
     good.push({ tone: "good", text: "Trening zaliczony zgodnie z planem." });
-  else if (report?.values.trainingDone === false)
+  else if (trace.trainingDone === false)
     improve.push({ tone: "warn", text: "Pominięty trening — odrobienie go to priorytet." });
 
   if (adherence !== null) {
@@ -215,16 +315,19 @@ export function buildWeeklyReview(email: string): WeeklyReview {
     else if (adherence < 85) improve.push({ tone: "warn", text: `Realizacja planu ${adherence}% — jest nad czym pracować.` });
   }
 
-  if (report) {
-    const sleep = Number(report.values.sleepHours);
-    const stress = Number(report.values.stress);
-    if (sleep > 0 && sleep < 6.5)
-      improve.push({ tone: "warn", text: `Sen: ${sleep} h — poniżej minimum regeneracji.` });
-    else if (sleep >= 7) good.push({ tone: "good", text: `Sen ${sleep} h — trzymasz regenerację.` });
-    if (stress >= 4) improve.push({ tone: "warn", text: `Stres ${stress}/5 — wrzuć 10 min oddechu lub spaceru.` });
-    if (report.values.alcoholSweets === true)
-      improve.push({ tone: "warn", text: "Alkohol/słodycze w dniu raportu — jednorazowo, bez paniki." });
+  if (trace.sleepAvg !== null) {
+    if (trace.sleepAvg < 6.5)
+      improve.push({
+        tone: "warn",
+        text: `Sen: śr. ${trace.sleepAvg} h — poniżej minimum regeneracji.`,
+      });
+    else if (trace.sleepAvg >= 7)
+      good.push({ tone: "good", text: `Sen ${trace.sleepAvg} h — trzymasz regenerację.` });
   }
+  if (trace.stress !== null && trace.stress >= 4)
+    improve.push({ tone: "warn", text: `Stres ${trace.stress}/5 — wrzuć 10 min oddechu lub spaceru.` });
+  if (report?.values.alcoholSweets === true)
+    improve.push({ tone: "warn", text: "Alkohol/słodycze w dniu raportu — jednorazowo, bez paniki." });
 
   if (weight.verdict === "stoi" && weight.days >= 8)
     improve.push({ tone: "warn", text: `Waga stoi (${weight.days} dni) — rozważ korektę celu.` });
@@ -245,20 +348,18 @@ export function buildWeeklyReview(email: string): WeeklyReview {
   const addTip = (t: string) => {
     if (tips.length < 3 && !tips.includes(t)) tips.push(t);
   };
-  if (!report || (reportAgeH !== null && reportAgeH > 48))
-    addTip("Wyślij raport — bez niego nie widzę snu, stresu i regeneracji.");
+  if (!trace.hasTrace || (reportAgeH !== null && reportAgeH > 48))
+    addTip("Zapisuj dzień w panelu (sen, woda, samopoczucie) — bez tego nie widzę regeneracji.");
   if (mealsPct < 70)
     addTip("Ustal 2 posiłki na stałe (np. śniadanie i obiad) — resztę dokładasz po fakcie.");
   if (waterPct < 70) addTip(`Postaw butelkę 1 l przy biurku — cel to ${goal} szkl. wody dziennie.`);
-  if (report) {
-    const sleep = Number(report.values.sleepHours);
-    const stress = Number(report.values.stress);
-    if (sleep > 0 && sleep < 6.5) addTip("Sen: godzina snu do przodu przez 3 noce — regeneracja wraca najpierw.");
-    if (stress >= 4) addTip("10 minut oddechu albo spacer bez telefonu — stres 4+ zjada apetyt i sen.");
-  }
+  if (trace.sleepAvg !== null && trace.sleepAvg < 6.5)
+    addTip("Sen: godzina snu do przodu przez 3 noce — regeneracja wraca najpierw.");
+  if (trace.stress !== null && trace.stress >= 4)
+    addTip("10 minut oddechu albo spacer bez telefonu — stres 4+ zjada apetyt i sen.");
   if (weight.verdict === "stoi" && weight.days >= 8)
     addTip("Waga stoi 8+ dni — zaproponuj trenerowi korektę celu w sekcji „Adaptacyjny cel”.");
-  if (report?.values.trainingDone === false) addTip("Odrobienie pominiętego treningu — wpisz je w kalendarz na najbliższe 48 h.");
+  if (trace.trainingDone === false) addTip("Odrobienie pominiętego treningu — wpisz je w kalendarz na najbliższe 48 h.");
   if (tips.length === 0) addTip("Utrzymaj tempo: ten sam plan, ta sama pora, zero kombinowania.");
   if (tips.length < 2) addTip("Zmierz się i zważ jutro rano — dane bez pomiarów nie robią roboty.");
 
@@ -271,6 +372,7 @@ export function buildWeeklyReview(email: string): WeeklyReview {
     water: { avg: avgWater, goal, pct: waterPct },
     weight,
     report,
+    hasTrace: trace.hasTrace,
     reportAgeH,
     adherence,
     good: good.slice(0, 4),
@@ -315,11 +417,7 @@ export function getCalorieSuggestion(email: string): CalorieSuggestion {
     goalLabel,
   };
 
-  const report = getReport(email);
-  const adherence =
-    report && Number.isFinite(Number(report.values.adherence))
-      ? Number(report.values.adherence)
-      : 100;
+  const adherence = getDayTrace(email).adherence ?? 100;
   const trend = getWeightTrend(email);
 
   if (trend.points.length < 3 || trend.days < 8) {
@@ -403,37 +501,44 @@ export type RedFlag = { severity: "high" | "med" | "low"; text: string };
 
 export function getClientRedFlags(email: string): RedFlag[] {
   const flags: RedFlag[] = [];
-  const report = getReport(email);
+  const trace = getDayTrace(email);
+  const report = getReport(email); // archiwalny raport dzienny
 
-  if (!report) {
-    flags.push({ severity: "high", text: "Brak raportu — podopieczny jeszcze nigdy nie raportował." });
+  if (!trace.hasTrace) {
+    flags.push({
+      severity: "high",
+      text: "Brak śladów — podopieczny nic nie zapisuje w panelu ani nie raportuje.",
+    });
   } else {
-    const ageH = (Date.now() - Date.parse(report.submittedAt)) / 3_600_000;
+    const ageH = trace.ageH ?? 0;
     if (ageH > 72)
-      flags.push({ severity: "high", text: `Brak raportu od ${Math.floor(ageH / 24)} dni.` });
+      flags.push({
+        severity: "high",
+        text: `Brak wpisów od ${Math.floor(ageH / 24)} dni.`,
+      });
     else if (ageH > 36)
-      flags.push({ severity: "med", text: "Dziś jeszcze nie raportował (wczorajszy raport)." });
+      flags.push({ severity: "med", text: "Dziś jeszcze nie zapisał dnia w panelu." });
 
-    const adherence = Number(report.values.adherence);
-    if (Number.isFinite(adherence)) {
+    const adherence = trace.adherence;
+    if (adherence !== null) {
       if (adherence < 60)
         flags.push({ severity: "high", text: `Realizacja planu ${adherence}% — pilna interwencja.` });
       else if (adherence < 80)
         flags.push({ severity: "med", text: `Realizacja planu ${adherence}%.` });
     }
-    if (report.values.trainingDone === false)
+    if (trace.trainingDone === false)
       flags.push({ severity: "med", text: "Zaznaczył pominięty trening w raporcie." });
-    if (report.values.alcoholSweets === true)
+    if (report?.values.alcoholSweets === true)
       flags.push({ severity: "low", text: "Alkohol / słodycze w dniu raportu." });
 
-    const sleep = Number(report.values.sleepHours);
-    if (Number.isFinite(sleep) && sleep > 0 && sleep < 6)
-      flags.push({ severity: "med", text: `Sen tylko ${sleep} h.` });
-    const stress = Number(report.values.stress);
-    if (Number.isFinite(stress) && stress >= 4)
+    const sleep = trace.sleepAvg;
+    if (sleep !== null && sleep < 6)
+      flags.push({ severity: "med", text: `Sen tylko ${sleep} h (średnia z tygodnia).` });
+    const stress = trace.stress;
+    if (stress !== null && stress >= 4)
       flags.push({ severity: "low", text: `Wysoki stres (${stress}/5).` });
-    const wb = Number(report.values.wellbeing);
-    if (Number.isFinite(wb) && wb > 0 && wb <= 2)
+    const wb = trace.wellbeingAvg;
+    if (wb !== null && wb <= 2)
       flags.push({ severity: "med", text: `Słabe samopoczucie (${wb}/5).` });
   }
 

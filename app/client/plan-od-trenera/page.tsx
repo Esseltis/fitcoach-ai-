@@ -93,7 +93,8 @@ export default function PlanOdTreneraPage() {
             </div>
           ) : !plan ? (
             <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-sm text-slate-400">
-              Trener jeszcze nie przypisał Ci planu. Wypełnij raport, a trener
+              Trener jeszcze nie przypisał Ci planu. Wyślij raport tygodniowy,
+              a trener
               ustali dietę, trening, nawodnienie i suplementację.
             </div>
           ) : (

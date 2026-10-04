@@ -275,7 +275,7 @@ const GUIDELINE_TEMPLATES: {
     goal: "Redukcja: −4 kg w 8 tygodni",
     focus: "Ten tydzień: 4 treningi, zero słodyczy, sen 7+ h.",
     rules: [
-      "Raport dnia do godziny 20:00",
+      "Raport tygodniowy (pomiary + zdjęcia) co 7 dni",
       "Waga rano na czczo, po toalecie",
       "Posiłek potreningowy do 30 min po treningu",
       "Warzywa do każdego posiłku",
@@ -290,7 +290,7 @@ const GUIDELINE_TEMPLATES: {
     goal: "Budowa masy: +3 kg w 12 tygodni",
     focus: "Ten tydzień: progresja obciążenia, surplus +300 kcal",
     rules: [
-      "Raport dnia do godziny 20:00",
+      "Raport tygodniowy (pomiary + zdjęcia) co 7 dni",
       "Białko min. 2 g/kg masy ciała",
       "Posiłek potreningowy do 45 min po treningu",
       "Sen 7–8 h — bez niego brak progresji",
@@ -305,7 +305,7 @@ const GUIDELINE_TEMPLATES: {
     goal: "Forma: życiówka na 10 km w 10 tygodni",
     focus: "Ten tydzień: 2 jednostki biegowe + 1 interwały",
     rules: [
-      "Raport dnia do godziny 20:00",
+      "Raport tygodniowy (pomiary + zdjęcia) co 7 dni",
       "Długie bieganie w niedzielę, tempo umiarkowane",
       "Węgle przed i po biegu powyżej 8 km",
       "Rozciąganie 10 min po każdym treningu",
@@ -320,7 +320,7 @@ const GUIDELINE_TEMPLATES: {
     goal: "Reset: sen 7+ h i stabilność przez 4 tygodnie",
     focus: "Ten tydzień: bez treningów siłowych, spacer 30 min dziennie",
     rules: [
-      "Raport dnia do godziny 20:00",
+      "Raport tygodniowy (pomiary + zdjęcia) co 7 dni",
       "Spanie do 22:30, bez ekranów po 22:00",
       "Kofeina tylko do 14:00",
       "3 stałe posiłki + 1 przekąska",

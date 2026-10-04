@@ -1158,6 +1158,109 @@ export function setTrainingLogEntry(
   return map[String(dayId)];
 }
 
+// ---- Tryb sesji treningowej: serie (powtórzenia × kg × RIR) ----
+// Jedna seria = jeden wiersz tabeli (jak w myfitcoach: # / Powt. / KG /
+// RIR / ✓). Stan „done" odhacza serię i odpala timer przerwy.
+
+export type SetLogEntry = {
+  reps: string;
+  kg: string;
+  rir: string;
+  done: boolean;
+};
+
+const setLogKey = (email: string) => `fitcoach_set_log_${email}`;
+
+export function getSetLog(
+  email: string,
+  dayId: number
+): Record<string, SetLogEntry[]> {
+  const raw = safeGet(setLogKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj !== "object" || obj === null) return {};
+    return (obj[String(dayId)] ?? {}) as Record<string, SetLogEntry[]>;
+  } catch {
+    return {};
+  }
+}
+
+export function setExerciseSets(
+  email: string,
+  dayId: number,
+  exerciseId: string,
+  sets: SetLogEntry[]
+): void {
+  const raw = safeGet(setLogKey(email));
+  let map: Record<string, Record<string, SetLogEntry[]>> = {};
+  try {
+    const obj = raw ? JSON.parse(raw) : null;
+    if (typeof obj === "object" && obj !== null) map = obj;
+  } catch {
+    /* ignore */
+  }
+  map[String(dayId)] = { ...(map[String(dayId)] ?? {}), [exerciseId]: sets };
+  safeSet(setLogKey(email), JSON.stringify(map));
+}
+
+// ---- Zastępowanie ćwiczeń (klient podmienia ćwiczenie na własne) ----
+// Nadpisuje nazwę z planu trenera bez naruszania planu — klucz:
+// dzień planu → id ćwiczenia → nowa nazwa.
+
+const subsKey = (email: string) => `fitcoach_subs_${email}`;
+
+export function getSubstitutions(
+  email: string
+): Record<string, Record<string, string>> {
+  const raw = safeGet(subsKey(email));
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    if (typeof obj !== "object" || obj === null) return {};
+    return obj as Record<string, Record<string, string>>;
+  } catch {
+    return {};
+  }
+}
+
+export function setSubstitution(
+  email: string,
+  dayId: number,
+  exerciseId: string,
+  name: string | null
+): void {
+  const all = getSubstitutions(email);
+  const day = { ...(all[String(dayId)] ?? {}) };
+  if (name === null) delete day[exerciseId];
+  else day[exerciseId] = name;
+  all[String(dayId)] = day;
+  safeSet(subsKey(email), JSON.stringify(all));
+}
+
+// ---- Aktywna sesja treningowa (timer jak w myfitcoach) ----
+
+export type WorkoutSession = { dayId: number; startedAt: number };
+
+const sessionKey = (email: string) => `fitcoach_session_${email}`;
+
+export function getWorkoutSession(email: string): WorkoutSession | null {
+  const raw = safeGet(sessionKey(email));
+  if (!raw) return null;
+  try {
+    const obj = JSON.parse(raw) as WorkoutSession;
+    if (obj && typeof obj.startedAt === "number" && obj.dayId) return obj;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveWorkoutSession(email: string, s: WorkoutSession | null) {
+  if (s === null) safeSet(sessionKey(email), "");
+  else safeSet(sessionKey(email), JSON.stringify(s));
+}
+
 // ---- Ostatni łyk wody (do przypomnień o nawodnieniu) ----
 
 export function getLastDrinkTs(email: string): number {

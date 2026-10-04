@@ -39,7 +39,16 @@ import {
   setMealChoice,
   getTrainingLog,
   setTrainingLogEntry,
+  getSetLog,
+  setExerciseSets,
+  getSubstitutions,
+  setSubstitution,
+  getWorkoutSession,
+  saveWorkoutSession,
   type ExerciseLogEntry,
+  type SetLogEntry,
+  type WorkoutSession,
+  type TrainingExercise,
   getMealsDoneByDate,
   getWaterAll,
   getLastDrinkTs,
@@ -66,6 +75,7 @@ import { buildWeeklyReview } from "@/lib/coach";
 import { fileToDataUrl } from "@/lib/images";
 import MealAddPanel from "@/components/MealAddPanel";
 import RestTimer from "@/components/RestTimer";
+import ExerciseCard from "@/components/ExerciseCard";
 import PwaRegister from "@/components/PwaRegister";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -3240,10 +3250,15 @@ function TrainingSection({ content }: { content: TrainerContent }) {
   const [email, setEmail] = useState("demo@fitcoach.ai");
   const [doneIds, setDoneIds] = useState<string[]>([]);
   const [log, setLog] = useState<Record<string, ExerciseLogEntry>>({});
-  // Progresja: ostatni wpis tego samego ćwiczenia z wcześniejszego dnia planu
-  const [prevMap, setPrevMap] = useState<
-    Record<string, { day: number; entry: ExerciseLogEntry } | null>
+  // Historia: wszystkie wcześniejsze wpisy tego ćwiczenia w planie
+  const [histMap, setHistMap] = useState<
+    Record<string, { day: number; entry: ExerciseLogEntry }[]>
   >({});
+  // Tryb sesji: serie (tabela jak w myfitcoach), podmiany ćwiczeń, licznik
+  const [setsMap, setSetsMap] = useState<Record<string, SetLogEntry[]>>({});
+  const [subs, setSubs] = useState<Record<string, string>>({});
+  const [session, setSession] = useState<WorkoutSession | null>(null);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   // Pływający timer przerwy
   const [timerTrigger, setTimerTrigger] = useState(0);
   const [timerSec, setTimerSec] = useState(90);
@@ -3254,9 +3269,20 @@ function TrainingSection({ content }: { content: TrainerContent }) {
     setEmail(storedEmail);
     setDoneIds(getDoneExerciseIds(storedEmail, activeDayNum));
     setLog(getTrainingLog(storedEmail, activeDayNum));
+    setSetsMap(getSetLog(storedEmail, activeDayNum));
+    setSubs(getSubstitutions(storedEmail)[String(activeDayNum)] ?? {});
+    setSession(getWorkoutSession(storedEmail));
   }, [activeDayNum]);
 
-  // Budujemy mapę „poprzednio" dla wszystkich ćwiczeń aktywnego dnia.
+  // Tykający licznik sesji (jak 01:03:21 w myfitcoach)
+  useEffect(() => {
+    if (!session) return;
+    setNowTs(Date.now());
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [session]);
+
+  // Budujemy historię (wszystkie wpisy) dla ćwiczeń aktywnego dnia.
   // Kolejność przeglądania: wcześniejsze dni → koniec tygodnia (plan jest
   // cykliczny, więc np. wtorkowe ćwiczenie może „powtórzyć się" w piątek).
   useEffect(() => {
@@ -3266,23 +3292,19 @@ function TrainingSection({ content }: { content: TrainerContent }) {
     for (let d = days.length; d > activeDayNum; d--) order.push(d);
     const logs: Record<number, Record<string, ExerciseLogEntry>> = {};
     for (const d of order) logs[d] = getTrainingLog(email, d);
-    const map: Record<string, { day: number; entry: ExerciseLogEntry } | null> =
-      {};
+    const map: Record<string, { day: number; entry: ExerciseLogEntry }[]> = {};
     for (const ex of exs) {
-      let found: { day: number; entry: ExerciseLogEntry } | null = null;
+      const list: { day: number; entry: ExerciseLogEntry }[] = [];
       for (const d of order) {
         const dayExs = content.training.dayExercises[d] ?? [];
         const idx = dayExs.findIndex((e) => e.name === ex.name);
         if (idx < 0) continue;
         const entry = logs[d]?.[String(idx + 1)];
-        if (entry && (entry.kg || entry.reps)) {
-          found = { day: d, entry };
-          break;
-        }
+        if (entry && (entry.kg || entry.reps)) list.push({ day: d, entry });
       }
-      map[ex.name] = found;
+      map[ex.name] = list;
     }
-    setPrevMap(map);
+    setHistMap(map);
   }, [email, activeDayNum, days.length, content]);
 
   const startRest = (sec: number) => {
@@ -3301,19 +3323,99 @@ function TrainingSection({ content }: { content: TrainerContent }) {
     }
   };
 
-  const updateLog = (
-    exId: string,
-    field: keyof ExerciseLogEntry,
-    value: string
-  ) => {
-    const entry = log[exId] ?? { kg: "", reps: "", effort: "" };
-    setLog(
-      setTrainingLogEntry(email, activeDayNum, exId, {
-        ...entry,
-        [field]: value,
-      })
-    );
+  // 🚀 Start / koniec sesji treningowej (licznik czasu)
+  const startSession = () => {
+    const s: WorkoutSession = { dayId: activeDayNum, startedAt: Date.now() };
+    saveWorkoutSession(email, s);
+    setSession(s);
+    setNowTs(s.startedAt);
   };
+
+  const endSession = () => {
+    saveWorkoutSession(email, null);
+    setSession(null);
+  };
+
+  // Domyślne wiersze serii: tyle, ile w planie; pierwszy wiersz
+  // podmieniamy starym logiem (kg × powt.), jeśli klient już coś logował
+  const defaultSets = (ex: TrainingExercise, exId: string): SetLogEntry[] => {
+    const n = Math.max(1, Math.min(10, parseInt(ex.series, 10) || 3));
+    const rows: SetLogEntry[] = Array.from({ length: n }, () => ({
+      reps: "",
+      kg: "",
+      rir: "",
+      done: false,
+    }));
+    const legacy = log[exId];
+    if (legacy && (legacy.kg || legacy.reps)) {
+      rows[0] = { reps: legacy.reps, kg: legacy.kg, rir: "", done: false };
+    }
+    return rows;
+  };
+
+  const updateSets = (exId: string, next: SetLogEntry[]) => {
+    setExerciseSets(email, activeDayNum, exId, next);
+    setSetsMap((m) => ({ ...m, [exId]: next }));
+
+    // Mirror do logu jednoepisodowego — widok trenera pokazuje
+    // „kg × powtórzenia" na podstawie ostatniej odhaczonej serii
+    const val =
+      [...next].reverse().find((s) => s.done && (s.kg || s.reps)) ??
+      [...next].reverse().find((s) => s.kg || s.reps);
+    if (val) {
+      const rir = val.rir === "" ? null : Number(val.rir);
+      const effort =
+        rir === null ? "" : rir <= 1 ? "meczacy" : rir <= 2 ? "sredni" : "latwy";
+      setLog(
+        setTrainingLogEntry(email, activeDayNum, exId, {
+          kg: val.kg,
+          reps: val.reps,
+          effort,
+        })
+      );
+    }
+
+    // Wszystkie serie odhaczone = ćwiczenie gotowe (startuje timer przerwy)
+    if (
+      next.length > 0 &&
+      next.every((s) => s.done) &&
+      !doneIds.includes(exId)
+    ) {
+      toggleExercise(exId);
+    }
+  };
+
+  const updateSub = (exId: string, name: string | null) => {
+    setSubstitution(email, activeDayNum, exId, name);
+    setSubs((m) => {
+      const next = { ...m };
+      if (name === null) delete next[exId];
+      else next[exId] = name;
+      return next;
+    });
+  };
+
+  const fmtElapsed = (ms: number) => {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  };
+
+  const sessionActive = session !== null && session.dayId === activeDayNum;
+  const totalSets = exercises.reduce(
+    (sum, ex, i) =>
+      sum +
+      (setsMap[String(i + 1)]?.length ??
+        Math.max(1, parseInt(ex.series, 10) || 3)),
+    0
+  );
+  const doneSetsCount = exercises.reduce(
+    (sum, _, i) =>
+      sum + (setsMap[String(i + 1)] ?? []).filter((s) => s.done).length,
+    0
+  );
 
   const doneCount = exercises.filter((_, i) =>
     doneIds.includes(String(i + 1))
@@ -3362,6 +3464,47 @@ function TrainingSection({ content }: { content: TrainerContent }) {
 
       <TrainerTipsBanner content={content} />
 
+      {/* Tryb sesji: licznik czasu + licznik serii (jak w myfitcoach) */}
+      {sessionActive && session ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                Trening trwa
+              </p>
+              <p className="font-mono text-xl font-bold text-slate-50">
+                {fmtElapsed(nowTs - session.startedAt)}
+              </p>
+            </div>
+            <span className="rounded-full bg-slate-950/60 px-3 py-1 text-[11px] text-slate-200 ring-1 ring-emerald-500/40">
+              Serie: {doneSetsCount}/{totalSets}
+            </span>
+            <span className="rounded-full bg-slate-950/60 px-3 py-1 text-[11px] text-slate-200">
+              Ćwiczenia: {doneCount}/{exercises.length}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={endSession}
+            className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
+          >
+            🏁 Zakończ trening
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={startSession}
+          className="w-full rounded-2xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/25"
+        >
+          🚀 Rozpocznij trening — włącz licznik czasu i loguj serie
+        </button>
+      )}
+
       <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4 text-xs text-slate-200">
         <div className="flex items-center justify-between">
           <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">
@@ -3387,154 +3530,25 @@ function TrainingSection({ content }: { content: TrainerContent }) {
             </p>
           )}
           {exercises.map((ex, i) => {
-            const isDone = doneIds.includes(String(i + 1));
-            const entry = log[String(i + 1)] ?? {
-              kg: "",
-              reps: "",
-              effort: "",
-            };
+            const exId = String(i + 1);
+            const sub = subs[exId] ?? null;
             return (
-              <article
+              <ExerciseCard
                 key={i}
-                onClick={() => toggleExercise(String(i + 1))}
-                className={`flex cursor-pointer flex-col gap-3 rounded-2xl border p-4 transition md:flex-row md:items-center md:justify-between ${
-                  isDone
-                    ? "border-emerald-500/50 bg-emerald-500/10"
-                    : "border-slate-800 bg-slate-950/80 hover:border-slate-600"
-                }`}
-              >
-                <div className="flex flex-1 items-center gap-3">
-                  <span
-                    className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border transition ${
-                      isDone
-                        ? "border-emerald-400 bg-emerald-500 text-slate-950"
-                        : "border-slate-600 text-slate-700"
-                    }`}
-                    aria-hidden
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                  </span>
-                  <div className="flex-1 space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      Ćwiczenie {i + 1}
-                    </p>
-                    <h2
-                      className={`text-sm font-semibold ${
-                        isDone
-                          ? "text-slate-400 line-through"
-                          : "text-slate-50"
-                      }`}
-                    >
-                      {ex.name}
-                    </h2>
-
-                    {/* Mój log serii */}
-                    <div
-                      className="mt-2 flex flex-wrap items-center gap-1.5"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span className="text-[10px] uppercase tracking-wide text-slate-500">
-                        Mój log:
-                      </span>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="kg"
-                        aria-label={`Waga ćwiczenia ${i + 1}`}
-                        value={entry.kg}
-                        onChange={(e) =>
-                          updateLog(String(i + 1), "kg", e.target.value)
-                        }
-                        className="w-16 rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
-                      />
-                      <span className="text-slate-500">×</span>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="powt."
-                        aria-label={`Powtórzenia ćwiczenia ${i + 1}`}
-                        value={entry.reps}
-                        onChange={(e) =>
-                          updateLog(String(i + 1), "reps", e.target.value)
-                        }
-                        className="w-16 rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
-                      />
-                      <select
-                        aria-label={`Wysiłek ćwiczenia ${i + 1}`}
-                        value={entry.effort}
-                        onChange={(e) =>
-                          updateLog(String(i + 1), "effort", e.target.value)
-                        }
-                        className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-[11px] text-slate-200 focus:border-emerald-500 focus:outline-none"
-                      >
-                        <option value="">Wysiłek</option>
-                        <option value="latwy">Łatwy</option>
-                        <option value="sredni">Średni</option>
-                        <option value="meczacy">Męczący</option>
-                      </select>
-                      {(() => {
-                        const prev = prevMap[ex.name] ?? null;
-                        if (!prev) return null;
-                        const kgNow = parseFloat(entry.kg.replace(",", "."));
-                        const kgPrev = parseFloat(
-                          String(prev.entry.kg).replace(",", ".")
-                        );
-                        const delta =
-                          Number.isFinite(kgNow) && Number.isFinite(kgPrev)
-                            ? Math.round((kgNow - kgPrev) * 10) / 10
-                            : null;
-                        return (
-                          <span className="w-full text-[10px] text-slate-500">
-                            Poprzednio (dzień {prev.day}):{" "}
-                            {prev.entry.kg ? `${prev.entry.kg} kg` : "—"}
-                            {prev.entry.reps ? ` × ${prev.entry.reps}` : ""}
-                            {delta !== null && delta !== 0 && (
-                              <span
-                                className={
-                                  delta > 0
-                                    ? "ml-1 font-semibold text-emerald-400"
-                                    : "ml-1 font-semibold text-amber-400"
-                                }
-                              >
-                                {delta > 0 ? "▲" : "▼"} {Math.abs(delta)} kg
-                              </span>
-                            )}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid flex-1 gap-2 text-[11px] text-slate-200 md:grid-cols-3">
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
-                    <p className="text-slate-400">Serie</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-50">
-                      {ex.series}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center">
-                    <p className="text-slate-400">Czas pracy</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-50">
-                      {ex.workTime}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      startRest(parseRestSec(ex.rest));
-                    }}
-                    className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-center transition hover:border-emerald-500/50 hover:bg-slate-900"
-                    title="Odpal timer przerwy"
-                  >
-                    <p className="text-slate-400">Przerwa</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-50">
-                      ⏱ {ex.rest}
-                    </p>
-                  </button>
-                </div>
-              </article>
+                ex={ex}
+                exId={exId}
+                idx={i}
+                displayName={sub ?? ex.name}
+                isDone={doneIds.includes(exId)}
+                sets={setsMap[exId] ?? defaultSets(ex, exId)}
+                history={histMap[ex.name] ?? []}
+                sub={sub}
+                restSec={parseRestSec(ex.rest)}
+                onToggle={() => toggleExercise(exId)}
+                onSets={(next) => updateSets(exId, next)}
+                onSub={(name) => updateSub(exId, name)}
+                onRest={startRest}
+              />
             );
           })}
         </div>

@@ -147,6 +147,25 @@ export default function TrainerClientPage({
   const [ownRecipes, setOwnRecipes] = useState<Recipe[]>([]);
   const [ownWorkouts, setOwnWorkouts] = useState<Workout[]>([]);
 
+  // Live-sync: dane klienta (dziennik, raport tygodniowy) żyją w
+  // localStorage — gdy podopieczny złoży raport w innej karcie, ta karta
+  // dostaje event `storage` i sama odświeża widok raportów.
+  // Odświeżamy TYLKO sekcje raportowe, żeby nie nadpisywać
+  // niezapisanych zmian w formularzu planu / wytycznych.
+  useEffect(() => {
+    const sync = () => {
+      setDailyLogs(getDailyLogs(email));
+      setWeekly(getWeeklyReport(email));
+      setWeeklyOverdue(getWeeklyReportStatus(email).overdueDays);
+    };
+    window.addEventListener("storage", sync);
+    window.addEventListener("fitcoach:data", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("fitcoach:data", sync);
+    };
+  }, [email]);
+
   useEffect(() => {
     const id = getTrainerIdentity();
     if (!id) {

@@ -53,7 +53,8 @@ export default function TrainerDashboard() {
     setReady(true);
   }, [router]);
 
-  // Chmura: odśwież listę podopiecznych po każdej synchronizacji z Supabase.
+  // Chmura: odśwież listę podopiecznych po każdej synchronizacji z Supabase
+  // + po zapisie danych z innej karty (klient złożył raport w panelu).
   useEffect(() => {
     if (!identity) return;
     const onSynced = () => {
@@ -62,7 +63,13 @@ export default function TrainerDashboard() {
       setAttention(getAttentionList(identity.id));
     };
     window.addEventListener(CLOUD_SYNCED_EVENT, onSynced);
-    return () => window.removeEventListener(CLOUD_SYNCED_EVENT, onSynced);
+    window.addEventListener("storage", onSynced);
+    window.addEventListener("fitcoach:data", onSynced);
+    return () => {
+      window.removeEventListener(CLOUD_SYNCED_EVENT, onSynced);
+      window.removeEventListener("storage", onSynced);
+      window.removeEventListener("fitcoach:data", onSynced);
+    };
   }, [identity]);
 
   // Decyzja przy propozycji celu (adaptacyjny cel podopiecznego)

@@ -407,6 +407,13 @@ function safeSet(key: string, value: string) {
   } catch {
     /* ignore */
   }
+  // Powiadom otwarte widoki w tej samej karcie (oraz `storage` w innych),
+  // żeby panel trenera odświeżał raporty bez ręcznego F5.
+  try {
+    window.dispatchEvent(new CustomEvent("fitcoach:data", { detail: key }));
+  } catch {
+    /* ignore */
+  }
   // Tryb hybrydowy: każde zapisane trafia też (z debounce) do chmury.
   schedulePush(key, value);
 }

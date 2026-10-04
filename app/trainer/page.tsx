@@ -10,6 +10,9 @@ import {
   getReport,
   getPlan,
   getClientProfile,
+  getClientContent,
+  getWeeklyReportStatus,
+  getWorkoutSession,
   getTrainerReportFields,
   saveTrainerReportFields,
   REPORT_FIELDS,
@@ -131,6 +134,31 @@ export default function TrainerDashboard() {
 
   const trainer = identity ? getTrainerById(identity.id) : undefined;
 
+  // Status każdego podopiecznego na dziś: raport tygodniowy, świeży
+  // raport bez odpowiedzi, trwający teraz trening (dane jak w CoachPro:
+  // panel dnia pilnuje, kto raportuje i kto ćwiczy).
+  const statusByEmail: Record<
+    string,
+    { weeklyDue: boolean; reportNew: boolean; trainingNow: boolean }
+  > = {};
+  for (const c of clients) {
+    const weekly = getWeeklyReportStatus(c.email);
+    const cc = getClientContent(c.email);
+    const rep = getReport(c.email);
+    statusByEmail[c.email] = {
+      weeklyDue: weekly.due,
+      reportNew:
+        !!rep && (!cc.feedback?.at || rep.submittedAt > cc.feedback.at),
+      trainingNow: !!getWorkoutSession(c.email),
+    };
+  }
+  const kpi = {
+    total: clients.length,
+    overdue: clients.filter((c) => statusByEmail[c.email]?.weeklyDue).length,
+    fresh: clients.filter((c) => statusByEmail[c.email]?.reportNew).length,
+    live: clients.filter((c) => statusByEmail[c.email]?.trainingNow).length,
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
       <aside className="hidden md:flex w-64 bg-slate-950/95 border-r border-slate-800 flex-col">
@@ -209,6 +237,84 @@ export default function TrainerDashboard() {
         <div className="p-6">
           {view === "clients" && (
             <>
+          {/* 📊 Panel dnia — kto raportuje, kto ćwiczy */}
+          <section className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Podopieczni
+              </p>
+              <p className="mt-1 text-2xl font-extrabold text-slate-50">
+                {kpi.total}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                aktywnych współprac
+              </p>
+            </div>
+            <div
+              className={`rounded-2xl border p-4 ${
+                kpi.overdue > 0
+                  ? "border-red-500/50 bg-red-500/10"
+                  : "border-slate-800 bg-slate-950/80"
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Raport tyg. zaległy
+              </p>
+              <p
+                className={`mt-1 text-2xl font-extrabold ${
+                  kpi.overdue > 0 ? "text-red-300" : "text-slate-50"
+                }`}
+              >
+                {kpi.overdue}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {kpi.overdue > 0 ? "🔥 wymaga przypomnienia" : "✓ wszyscy na czas"}
+              </p>
+            </div>
+            <div
+              className={`rounded-2xl border p-4 ${
+                kpi.fresh > 0
+                  ? "border-amber-500/50 bg-amber-500/10"
+                  : "border-slate-800 bg-slate-950/80"
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Nowe raporty
+              </p>
+              <p
+                className={`mt-1 text-2xl font-extrabold ${
+                  kpi.fresh > 0 ? "text-amber-300" : "text-slate-50"
+                }`}
+              >
+                {kpi.fresh}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {kpi.fresh > 0 ? "czekają na Twoją odpowiedź" : "✓ skrzynka czysta"}
+              </p>
+            </div>
+            <div
+              className={`rounded-2xl border p-4 ${
+                kpi.live > 0
+                  ? "border-sky-500/50 bg-sky-500/10"
+                  : "border-slate-800 bg-slate-950/80"
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Trening trwa teraz
+              </p>
+              <p
+                className={`mt-1 text-2xl font-extrabold ${
+                  kpi.live > 0 ? "text-sky-300" : "text-slate-50"
+                }`}
+              >
+                {kpi.live}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {kpi.live > 0 ? "🔵 klienci ćwiczą" : "nikt nie ćwiczy"}
+              </p>
+            </div>
+          </section>
+
           {/* 🚩 Do uwagi — czerwone flagi i decyzje celowe */}
           {attention.length > 0 && (
             <section className="mb-6 rounded-2xl border border-rose-500/40 bg-rose-500/5 p-4">
@@ -309,25 +415,43 @@ export default function TrainerDashboard() {
                 const report = getReport(c.email);
                 const profile = getClientProfile(c.email);
                 const plan = identity ? getPlan(identity.id, c.email) : null;
+                const st = statusByEmail[c.email];
                 return (
                   <Link
                     key={c.email}
                     href={`/trainer/client/${encodeURIComponent(c.email)}`}
                     className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-[0_18px_30px_rgba(15,23,42,0.9)] hover:border-emerald-400/60 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] transition"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-700 text-slate-950 flex items-center justify-center text-sm font-bold shadow-lg">
                         {c.name.charAt(0).toUpperCase()}
                       </div>
-                      {plan ? (
-                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-                          Plan przypisany
-                        </span>
-                      ) : (
-                        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">
-                          Brak planu
-                        </span>
-                      )}
+                      <div className="flex flex-wrap justify-end gap-1">
+                        {st?.weeklyDue && (
+                          <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300 ring-1 ring-red-500/40">
+                            🔴 Raport zaległy
+                          </span>
+                        )}
+                        {st?.reportNew && (
+                          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300 ring-1 ring-amber-500/40">
+                            🟡 Nowy raport
+                          </span>
+                        )}
+                        {st?.trainingNow && (
+                          <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300 ring-1 ring-sky-500/40">
+                            🔵 Trening trwa
+                          </span>
+                        )}
+                        {plan ? (
+                          <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                            Plan przypisany
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">
+                            Brak planu
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="mt-3 text-sm font-semibold text-slate-50">{c.name}</p>
                     <p className="text-[11px] text-slate-400">{c.email}</p>
@@ -350,6 +474,17 @@ export default function TrainerDashboard() {
                         />
                         <p className="text-[11px] text-slate-500">
                           Raport dzienny: {report ? "wysłany" : "brak"}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            st?.weeklyDue ? "bg-red-400" : "bg-emerald-400"
+                          }`}
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Raport tyg.:{" "}
+                          {st?.weeklyDue ? "zaległy — przypomnij" : "aktualny ✓"}
                         </p>
                       </div>
                     </div>

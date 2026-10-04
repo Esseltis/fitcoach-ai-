@@ -53,6 +53,8 @@ import {
   type SessionRequest,
 } from "@/lib/store";
 import { resizeImage } from "@/components/ChatSection";
+import MacroCalculator from "@/components/MacroCalculator";
+import RecordsView from "@/components/RecordsView";
 import TrainerQuickLibrary from "@/components/TrainerQuickLibrary";
 import {
   IntroEditor,
@@ -69,6 +71,7 @@ import {
 type TabKey =
   | "report"
   | "wykonanie"
+  | "records"
   | "profile"
   | "intro"
   | "nutrition"
@@ -86,6 +89,7 @@ type TabKey =
 const TABS: { key: TabKey; label: string }[] = [
   { key: "report", label: "Raport" },
   { key: "wykonanie", label: "Wykonanie" },
+  { key: "records", label: "Rekordy" },
   { key: "profile", label: "Profil" },
   { key: "intro", label: "Wstęp" },
   { key: "nutrition", label: "Analiza" },
@@ -676,7 +680,10 @@ export default function TrainerClientPage({
           <WykonanieSection email={email} content={content} report={report} />
         )}
 
+        {tab === "records" && <RecordsView email={email} content={content} />}
+
         {tab === "profile" && (
+          <>
           <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
             <div className="flex items-center justify-between">
               <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
@@ -724,6 +731,14 @@ export default function TrainerClientPage({
               </div>
             )}
           </section>
+
+          <MacroCalculator
+            email={email}
+            content={content}
+            setContent={setContent}
+            profile={profile}
+          />
+          </>
         )}
 
         {tab === "intro" && <IntroEditor c={content} set={setContent} />}

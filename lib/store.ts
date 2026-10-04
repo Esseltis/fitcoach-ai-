@@ -156,18 +156,201 @@ export type ClientRecord = {
   trainerId: string;
 };
 
+// Profesjonalna ankieta wstępna (intake) — wzorowana na standardowych
+// formularzach PT: dane osobiste, cele, wywiad zdrowotny (PAR-Q),
+// historia treningowa, żywienie, regeneracja, dyspozycyjność.
+// Stare zapisy (bez nowych pól) są normalizowane w getClientProfile().
 export type ClientProfile = {
+  // — Dane osobiste —
   goal: string;
   gender: string;
   age: string;
   weight: string;
   height: string;
   activity: string;
-  trainingFrequency: string;
+  occupation: string; // tryb pracy
+  // — Cele —
+  goalShort: string; // cel krótkoterminowy
+  goalLong: string; // cel długoterminowy
+  goalDeadline: string; // termin
+  motivation: string; // motywacja
+  successMeasure: string; // jak pozna, że osiągnął cel
+  // — Zdrowie / PAR-Q —
+  medicalClearance: string; // zgodа lekarza
+  healthConditions: string[]; // choroby przewlekłe
+  injuries: string; // kontuzje i operacje
+  painPoints: string[]; // dolegliwości
+  medications: string; // leki
+  exertionSymptoms: string; // objawy przy wysiłku (Tak/Nie)
+  // — Historia treningowa —
+  trainingExp: string;
+  sportsHistory: string;
+  gymAccess: string; // dostęp do sprzętu
+  dislikedExercises: string;
+  trainingFrequency: string; // treningi/tydz.
+  // — Żywienie —
   mealsPerDay: string;
+  allergies: string;
+  dislikedFoods: string;
+  cooking: string;
+  breakfast: string;
+  coffee: string;
+  alcohol: string;
+  smoking: string;
+  sweets: string;
+  waterLiters: string;
   preferences: string;
+  // — Regeneracja / tryb życia —
+  sleepHours: string;
+  sleepTime: string;
+  stressLevel: string; // 1–5
+  stepsPerDay: string;
+  // — Dyspozycyjność —
+  availableDays: string[];
+  preferredTime: string;
+  trainingMode: string;
+  // — Kontakt i oczekiwania —
+  phone: string;
+  expectations: string; // oczekiwania wobec trenera
+  comments: string;
+  parqConsent: string; // oświadczenie o stanie zdrowia
   healthNotes: string;
   submittedAt: string;
+};
+
+export const EMPTY_CLIENT_PROFILE: ClientProfile = {
+  goal: "",
+  gender: "mężczyzna",
+  age: "",
+  weight: "",
+  height: "",
+  activity: "",
+  occupation: "",
+  goalShort: "",
+  goalLong: "",
+  goalDeadline: "",
+  motivation: "",
+  successMeasure: "",
+  medicalClearance: "",
+  healthConditions: [],
+  injuries: "",
+  painPoints: [],
+  medications: "",
+  exertionSymptoms: "",
+  trainingExp: "",
+  sportsHistory: "",
+  gymAccess: "",
+  dislikedExercises: "",
+  trainingFrequency: "",
+  mealsPerDay: "",
+  allergies: "",
+  dislikedFoods: "",
+  cooking: "",
+  breakfast: "",
+  coffee: "",
+  alcohol: "",
+  smoking: "",
+  sweets: "",
+  waterLiters: "",
+  preferences: "",
+  sleepHours: "",
+  sleepTime: "",
+  stressLevel: "",
+  stepsPerDay: "",
+  availableDays: [],
+  preferredTime: "",
+  trainingMode: "",
+  phone: "",
+  expectations: "",
+  comments: "",
+  parqConsent: "",
+  healthNotes: "",
+  submittedAt: "",
+};
+
+// Słowniki ankiety — wspólne dla formularza klienta i raportu trenera.
+export const PROFILE_OPTIONS = {
+  occupations: [
+    "Praca siedząca",
+    "Praca fizyczna",
+    "Praca zmianowa",
+    "Student / uczeń",
+    "Emerytura",
+    "Inne",
+  ],
+  goals: [
+    { value: "Redukcja tkanki tłuszczowej", label: "Redukcja (spalenie tłuszczu)" },
+    { value: "Utrzymanie sylwetki", label: "Utrzymanie sylwetki" },
+    { value: "Budowa masy mięśniowej", label: "Masa / budowa mięśni" },
+    { value: "Poprawa wydolności", label: "Poprawa wydolności" },
+    { value: "Zdrowie i dobre samopoczucie", label: "Zdrowie i dobre samopoczucie" },
+  ],
+  activities: [
+    { value: "Brak (siedzący tryb)", label: "Brak / siedzący tryb" },
+    { value: "Niska (1-2 treningi/tydz.)", label: "Niska (1-2 treningi/tydz.)" },
+    { value: "Umiarkowana (3-4 treningi/tydz.)", label: "Umiarkowana (3-4 treningi/tydz.)" },
+    { value: "Wysoka (5-6 treningi/tydz.)", label: "Wysoka (5-6 treningi/tydz.)" },
+    { value: "Bardzo wysoka (praca fizyczna / codziennie)", label: "Bardzo wysoka (codziennie)" },
+  ],
+  medicalClearance: [
+    "Tak — mam zgodę lekarza",
+    "Nie — nie było potrzeby",
+    "Nie wiem",
+    "Nie dotyczy",
+  ],
+  healthConditions: [
+    "Nadciśnienie",
+    "Choroby serca",
+    "Cukrzyca",
+    "Choroby tarczycy",
+    "Astma / POChP",
+    "Osteoporoza",
+    "Choroby kręgosłupa",
+    "Padaczka",
+    "Ciąża / połóg",
+    "Inne",
+  ],
+  painPoints: [
+    "Odcinek szyjny (kark)",
+    "Odcinek piersiowy",
+    "Odcinek lędźwiowy (plecy)",
+    "Bark / ramię",
+    "Łokieć / nadgarstek",
+    "Biodro",
+    "Kolano",
+    "Staw skokowy (kostka)",
+    "Pięta",
+  ],
+  experiences: [
+    "Nigdy nie ćwiczyłem/am",
+    "Mniej niż 1 rok",
+    "1–2 lata",
+    "3–5 lat",
+    "5+ lat",
+  ],
+  gymAccess: [
+    "Siłownia komercyjna",
+    "Domowa siłownia (hantle / ławka)",
+    "Brak sprzętu (trening własny)",
+    "Klub sportowy / hala",
+  ],
+  cooking: ["Tak, codziennie", "Częściowo", "Raczej nie", "Nie"],
+  frequencies: ["Codziennie", "Kilka razy w tygodniu", "Okazjonalnie", "Wcale"],
+  days: ["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Ndz"],
+  preferredTimes: [
+    "Rano (6–9)",
+    "Przedpołudnie (9–12)",
+    "Południe (12–15)",
+    "Popołudnie (15–19)",
+    "Wieczór (19–22)",
+  ],
+  trainingModes: [
+    "Siłownia",
+    "Trening w domu",
+    "Online z trenerem",
+    "Plener / bieganie",
+  ],
+  stressLevels: ["1", "2", "3", "4", "5"],
 };
 
 export const DEMO_TRAINERS: Trainer[] = [
@@ -606,7 +789,9 @@ export function getClientProfile(email: string): ClientProfile | null {
   const raw = safeGet(clientProfileKey(email));
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ClientProfile;
+    // Merge z defaultami — stare ankiety (bez nowych pól) dostają puste wartości
+    const parsed = JSON.parse(raw) as Partial<ClientProfile>;
+    return { ...EMPTY_CLIENT_PROFILE, ...parsed };
   } catch {
     return null;
   }

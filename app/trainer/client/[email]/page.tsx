@@ -56,6 +56,7 @@ import { resizeImage } from "@/components/ChatSection";
 import MacroCalculator from "@/components/MacroCalculator";
 import RecordsView from "@/components/RecordsView";
 import WeightProgress from "@/components/WeightProgress";
+import ClientIntakeReport from "@/components/ClientIntakeReport";
 import TrainerQuickLibrary from "@/components/TrainerQuickLibrary";
 import {
   IntroEditor,
@@ -702,38 +703,20 @@ export default function TrainerClientPage({
                 </button>
               )}
             </div>
-            {!profile ? (
+            {!profile && (
               <p className="text-sm text-slate-400">
-                Klient nie wypełnił jeszcze profilu wstępnego.
+                Klient nie wypełnił jeszcze ankiety wstępnej (intake).
               </p>
-            ) : (
-              <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <Row label="Cel" value={profile.goal} />
-                <Row label="Płeć" value={profile.gender} />
-                <Row label="Wiek" value={`${profile.age} lat`} />
-                <Row label="Waga" value={`${profile.weight} kg`} />
-                <Row label="Wzrost" value={`${profile.height} cm`} />
-                <Row label="Aktywność" value={profile.activity} />
-                <Row label="Treningi / tydz." value={profile.trainingFrequency} />
-                <Row label="Posiłki dziennie" value={profile.mealsPerDay} />
-                <div className="col-span-1 sm:col-span-2">
-                  <p className="text-xs text-slate-400">Preferencje / uwagi:</p>
-                  <p className="mt-1 rounded-lg bg-slate-900 p-2 text-slate-200">
-                    {profile.preferences || "—"}
-                  </p>
-                </div>
-                <div className="col-span-1 sm:col-span-2">
-                  <p className="text-xs text-slate-400">Zdrowie / przeciwwskazania:</p>
-                  <p className="mt-1 rounded-lg bg-slate-900 p-2 text-slate-200">
-                    {profile.healthNotes || "—"}
-                  </p>
-                </div>
-                <p className="col-span-1 text-[11px] text-slate-500 sm:col-span-2">
-                  Wysłano: {new Date(profile.submittedAt).toLocaleString("pl-PL")}
-                </p>
-              </div>
             )}
           </section>
+
+          {profile && (
+            <ClientIntakeReport
+              profile={profile}
+              clientName={clientName}
+              email={email}
+            />
+          )}
 
           <MacroCalculator
             email={email}

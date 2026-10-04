@@ -257,6 +257,24 @@ export default function ClientDashboardPage() {
     setEmail(storedEmail);
     setHasTrainer(Boolean(trainerId));
     if (storedEmail) setContent(getClientContent(storedEmail));
+
+    // Głęboki link ?sekcja=… — pozwala wejść od razu w wybraną sekcję
+    // (używany m.in. przez redirecty ze starych tras /client/trening itd.)
+    const wanted = new URLSearchParams(window.location.search).get("sekcja");
+    const known: SectionId[] = [
+      "dieta",
+      "nawodnienie",
+      "trening",
+      "suplementy",
+      "catering",
+      "porady",
+      "analiza",
+      "plan-zywieniowy",
+    ];
+    if (wanted && known.includes(wanted as SectionId)) {
+      setActiveSection(wanted as SectionId);
+    }
+
     setReady(true);
   }, [router]);
 

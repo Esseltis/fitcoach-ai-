@@ -55,6 +55,7 @@ import {
   getBodyWeightKg,
   getActivities,
   getReport,
+  getWeeklyReportStatus,
   setMoodForDate,
   getMoodByDate,
   getTasksDone,
@@ -940,6 +941,11 @@ function DashboardSection({
   const [streakData, setStreakData] = useState({ streak: 0, monthPct: 0 });
   const [tasksDone, setTasksDone] = useState<string[]>([]);
   const [reportAt, setReportAt] = useState<string | null>(null);
+  const [weeklyBan, setWeeklyBan] = useState<{
+    due: boolean;
+    overdue: number;
+    lastAt: string | null;
+  } | null>(null);
   const [mood, setMood] = useState<{ satiety: number; motivation: number }>({
     satiety: 0,
     motivation: 0,
@@ -1018,6 +1024,13 @@ function DashboardSection({
   useEffect(() => {
     setTasksDone(getTasksDone(email, todayISO()));
     setReportAt(getReport(email)?.submittedAt ?? null);
+    // Nakaz raportu tygodniowego (pomiary + zdjęcia raz na 7 dni)
+    const ws = getWeeklyReportStatus(email);
+    setWeeklyBan({
+      due: ws.due,
+      overdue: ws.overdueDays,
+      lastAt: ws.last?.submittedAt ?? null,
+    });
   }, [email]);
 
   const toggleTask = (task: string) => {
@@ -1037,6 +1050,32 @@ function DashboardSection({
 
   return (
     <div className="space-y-6">
+      {/* 📋 Nakaz: raport tygodniowy — pomiary + zdjęcia raz na 7 dni */}
+      {weeklyBan?.due && (
+        <Link
+          href="/client/raport?tab=weekly"
+          className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-red-500/50 bg-red-500/10 px-4 py-3 transition hover:bg-red-500/20"
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700 dark:text-red-400">
+              📋 Raport tygodniowy{" "}
+              {weeklyBan.overdue > 1
+                ? `— zaległy od ${weeklyBan.overdue} dni`
+                : "— do wysłania"}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+              Co 7 dni wyślij trenerowi pomiary sylwetki i zdjęcia.{" "}
+              {weeklyBan.lastAt
+                ? `Ostatni: ${new Date(weeklyBan.lastAt).toLocaleDateString("pl-PL")}.`
+                : "Pierwszy raport jeszcze nie był wysłany."}
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-red-700 dark:text-red-400">
+            Wyślij teraz →
+          </span>
+        </Link>
+      )}
+
       <GuidelinesCard g={content.guidelines} />
 
       {/* 🧠 Coaching AI — podgląd tygodnia */}

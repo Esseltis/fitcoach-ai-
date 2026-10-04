@@ -7,6 +7,9 @@ import {
   getTrainerIdentity,
   getClientByEmail,
   getReport,
+  getWeeklyReport,
+  getWeeklyReportStatus,
+  getProgressPhotos,
   getPlan,
   getClientProfile,
   getTrainerReportFields,
@@ -36,6 +39,7 @@ import {
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
+  type WeeklyReport,
   type ClientProfile,
   type TrainerPlan,
   type TrainerContent,
@@ -106,6 +110,8 @@ export default function TrainerClientPage({
   const [trainerId, setTrainerId] = useState<string | null>(null);
   const [clientName, setClientName] = useState(email);
   const [report, setReport] = useState<ClientReport | null>(null);
+  const [weekly, setWeekly] = useState<WeeklyReport | null>(null);
+  const [weeklyOverdue, setWeeklyOverdue] = useState(0);
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [tab, setTab] = useState<TabKey>("report");
   const [content, setContent] = useState<TrainerContent>(() =>
@@ -136,6 +142,8 @@ export default function TrainerClientPage({
     const client = getClientByEmail(email);
     if (client) setClientName(client.name);
     setReport(getReport(email));
+    setWeekly(getWeeklyReport(email));
+    setWeeklyOverdue(getWeeklyReportStatus(email).overdueDays);
     setProfile(getClientProfile(email));
     setContent(getClientContent(email));
     const existing = getPlan(id.id, email);
@@ -453,6 +461,93 @@ export default function TrainerClientPage({
                   ))}
                 <p className="text-[11px] text-slate-500">
                   Wysłano: {new Date(report.submittedAt).toLocaleString("pl-PL")}
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* 📋 Raport tygodniowy — pomiary + zdjęcia sylwetki (co 7 dni) */}
+          <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+                📋 Raport tygodniowy (pomiary + zdjęcia)
+              </h2>
+              {weeklyOverdue > 0 ? (
+                <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-semibold text-red-300">
+                  {weeklyOverdue > 1
+                    ? `ZALEGŁY od ${weeklyOverdue} dni`
+                    : "DO WYSŁANIA"}
+                </span>
+              ) : weekly ? (
+                <span className="text-[10px] text-slate-500">
+                  Aktualny ✓
+                </span>
+              ) : null}
+            </div>
+            {!weekly ? (
+              <p className="text-sm text-slate-400">
+                Klient jeszcze nie wysłał raportu tygodniowego — wymaga on
+                pomiarów sylwetki i zdjęcia.
+              </p>
+            ) : (
+              <div className="space-y-3 text-sm">
+                <Row
+                  label="Pomiary sylwetki"
+                  value={String(weekly.values.measurements ?? "—")}
+                />
+                <Row
+                  label="Dni z codziennym wpisem"
+                  value={`${String(weekly.values.daysLogged ?? 0)}/7`}
+                />
+                <Row
+                  label="Treningi (z wpisów)"
+                  value={String(weekly.values.trainings ?? 0)}
+                />
+                <Row
+                  label="Średnie samopoczucie"
+                  value={
+                    Number(weekly.values.avgWellbeing) > 0
+                      ? `${String(weekly.values.avgWellbeing)}/5`
+                      : "—"
+                  }
+                />
+                {String(weekly.values.notes ?? "").trim() && (
+                  <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-3">
+                    <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                      Uwagi klienta
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-xs text-slate-200">
+                      {String(weekly.values.notes)}
+                    </p>
+                  </div>
+                )}
+                {(() => {
+                  const ids = new Set(weekly.photoIds);
+                  const shots = getProgressPhotos(email).filter((p) =>
+                    ids.has(p.id)
+                  );
+                  if (shots.length === 0) return null;
+                  return (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500">
+                        Zdjęcia z tego raportu ({shots.length})
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-2">
+                        {shots.map((p) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            key={p.id}
+                            src={p.dataUrl}
+                            alt={`Sylwetka ${p.date}`}
+                            className="h-24 w-20 rounded-lg object-cover ring-1 ring-slate-700"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+                <p className="text-[11px] text-slate-500">
+                  Wysłano: {new Date(weekly.submittedAt).toLocaleString("pl-PL")}
                 </p>
               </div>
             )}

@@ -351,6 +351,135 @@ export function saveReport(email: string, data: ClientReport) {
   safeSet(reportKey(email), JSON.stringify(data));
 }
 
+// ---- Codzienne wpisy dnia (samopoczucie, jedzenie, trening) ----
+// Dziennik trzyma HISTORIĘ po dniach — raport tygodniowy zbiera
+// ostatnie 7 dni w podsumowanie. getReport to nadal „ostatni wpis"
+// dla coachingu i panelu trenera.
+
+export type DailyLogEntry = {
+  date: string; // YYYY-MM-DD
+  values: Record<string, string | number | boolean>;
+  submittedAt: string; // ISO
+};
+
+const dailyLogKey = (email: string) => `fitcoach_daily_log_${email}`;
+
+export function getDailyLogs(email: string): Record<string, DailyLogEntry> {
+  const raw = safeGet(dailyLogKey(email));
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, DailyLogEntry> = {};
+    for (const [date, v] of Object.entries(parsed as Record<string, unknown>)) {
+      const e = v as Partial<DailyLogEntry> | null;
+      if (e && typeof e === "object" && e.values && typeof e.values === "object") {
+        out[date] = {
+          date,
+          values: e.values as Record<string, string | number | boolean>,
+          submittedAt:
+            typeof e.submittedAt === "string"
+              ? e.submittedAt
+              : new Date(0).toISOString(),
+        };
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function saveDailyLog(
+  email: string,
+  date: string,
+  values: Record<string, string | number | boolean>
+): DailyLogEntry {
+  const all = getDailyLogs(email);
+  const entry: DailyLogEntry = {
+    date,
+    values,
+    submittedAt: new Date().toISOString(),
+  };
+  all[date] = entry;
+  safeSet(dailyLogKey(email), JSON.stringify(all));
+  return entry;
+}
+
+// ---- Raport tygodniowy (obowiązkowy raz na 7 dni) ----
+// Dołącza pomiary sylwetki i zdjęcia — panel przypomina, gdy termin
+// minął (getWeeklyReportStatus → due).
+
+export type WeeklyReport = {
+  submittedAt: string; // ISO
+  values: Record<string, string | number | boolean>;
+  photoIds: string[];
+};
+
+const weeklyReportKey = (email: string) => `fitcoach_weekly_report_${email}`;
+const WEEK_MS = 7 * 86_400_000;
+
+export function getWeeklyReport(email: string): WeeklyReport | null {
+  const raw = safeGet(weeklyReportKey(email));
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(raw) as Partial<WeeklyReport> | null;
+    if (!p || typeof p !== "object") return null;
+    return {
+      submittedAt:
+        typeof p.submittedAt === "string"
+          ? p.submittedAt
+          : new Date(0).toISOString(),
+      values:
+        p.values && typeof p.values === "object" ? (p.values as WeeklyReport["values"]) : {},
+      photoIds: Array.isArray(p.photoIds) ? p.photoIds.map(String) : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveWeeklyReport(
+  email: string,
+  data: { values: Record<string, string | number | boolean>; photoIds: string[] }
+): WeeklyReport {
+  const report: WeeklyReport = {
+    submittedAt: new Date().toISOString(),
+    values: data.values,
+    photoIds: data.photoIds,
+  };
+  safeSet(weeklyReportKey(email), JSON.stringify(report));
+  return report;
+}
+
+export type WeeklyReportStatus = {
+  last: WeeklyReport | null;
+  due: boolean; // termin minął (7 dni) lub raportu jeszcze nie było
+  overdueDays: number; // ile dni po terminie (0 = aktualny)
+  nextDueAt: string | null; // ISO kolejnego terminu
+};
+
+export function getWeeklyReportStatus(email: string): WeeklyReportStatus {
+  const last = getWeeklyReport(email);
+  if (!last) {
+    return { last: null, due: true, overdueDays: 1, nextDueAt: null };
+  }
+  const sent = Date.parse(last.submittedAt);
+  const elapsed = Number.isFinite(sent) ? Date.now() - sent : Infinity;
+  const due = elapsed >= WEEK_MS;
+  const overdueDays = due
+    ? Math.max(1, Math.floor(elapsed / 86_400_000) - 6)
+    : 0;
+  return {
+    last,
+    due,
+    overdueDays,
+    nextDueAt: Number.isFinite(sent)
+      ? new Date(sent + WEEK_MS).toISOString()
+      : null,
+  };
+}
+
 // ---- Profil klienta (raport wstępny) ----
 
 const clientProfileKey = (email: string) => `fitcoach_client_profile_${email}`;

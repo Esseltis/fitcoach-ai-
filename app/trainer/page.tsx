@@ -78,6 +78,14 @@ export default function TrainerDashboard() {
     if (identity) setAttention(getAttentionList(identity.id));
   };
 
+  // Ręczne odświeżenie danych z localStorage (przycisk ⟳ przy liście)
+  const reload = () => {
+    if (!identity) return;
+    setClients(getClientsForTrainer(identity.id));
+    setReportFields(getTrainerReportFields(identity.id));
+    setAttention(getAttentionList(identity.id));
+  };
+
   const persist = (next: ReportConfigField[]) => {
     if (!identity) return;
     setReportFields(next);
@@ -420,9 +428,19 @@ export default function TrainerDashboard() {
             </p>
           )}
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              Podopieczni ({q ? `${visible.length}/${clients.length}` : clients.length})
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Podopieczni ({q ? `${visible.length}/${clients.length}` : clients.length})
+              </p>
+              <button
+                type="button"
+                onClick={reload}
+                title="Odśwież dane z pamięci przeglądarki (raporty, dzienniki, flagi)"
+                className="rounded-lg border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 transition hover:border-emerald-500/60 hover:text-emerald-300"
+              >
+                ⟳ Odśwież
+              </button>
+            </div>
             {clients.length > 0 && (
               <input
                 value={query}

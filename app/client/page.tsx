@@ -25,6 +25,7 @@ import {
   Flame,
   ShoppingBasket,
   Calendar,
+  Trophy,
 } from "lucide-react";
 import {
   getClientContent,
@@ -71,6 +72,8 @@ import {
   addDishLog,
   removeDishLog,
   type DishLogEntry,
+  getDailyLogs,
+  saveDailyLog,
 } from "@/lib/store";
 import { CLOUD_SYNCED_EVENT, cloudSignOut } from "@/lib/cloud";
 import { buildWeeklyReview } from "@/lib/coach";
@@ -82,6 +85,7 @@ import PwaRegister from "@/components/PwaRegister";
 import ChatSection from "@/components/ChatSection";
 import CalendarSection from "@/components/CalendarSection";
 import SessionReport from "@/components/SessionReport";
+import RecordsView from "@/components/RecordsView";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -146,7 +150,8 @@ type SectionId =
   | "diet"
   | "progress"
   | "chat"
-  | "kalendarz";
+  | "kalendarz"
+  | "rekordy";
 
 const bodyStats = [
   { label: "Wiek", value: "35", unit: "lat", icon: Timer },
@@ -283,6 +288,7 @@ export default function ClientDashboardPage() {
       "plan-zywieniowy",
       "chat",
       "kalendarz",
+      "rekordy",
     ];
     if (wanted && known.includes(wanted as SectionId)) {
       setActiveSection(wanted as SectionId);
@@ -428,6 +434,11 @@ export default function ClientDashboardPage() {
       href: "/client/aktywnosci",
     },
     {
+      id: "rekordy",
+      label: "Moje rekordy",
+      icon: Trophy,
+    },
+    {
       id: "zakupy",
       label: "Lista zakupów",
       icon: ShoppingBasket,
@@ -498,6 +509,7 @@ export default function ClientDashboardPage() {
                 const isCatering = item.id === "catering";
                 const isChat = item.id === "chat";
                 const isCal = item.id === "kalendarz";
+                const isRec = item.id === "rekordy";
                 const active =
                   (isDashboard && activeSection === "dashboard" && !showIntro) ||
                   (isIntro && showIntro) ||
@@ -510,7 +522,8 @@ export default function ClientDashboardPage() {
                   (isTraining && activeSection === "trening") ||
                   (isCatering && activeSection === "catering") ||
                   (isChat && activeSection === "chat") ||
-                  (isCal && activeSection === "kalendarz");
+                  (isCal && activeSection === "kalendarz") ||
+                  (isRec && activeSection === "rekordy");
                 const disabled =
                   !hasTrainer &&
                   item.id !== "dashboard" &&
@@ -583,6 +596,11 @@ export default function ClientDashboardPage() {
                       if (isCal) {
                         setShowIntro(false);
                         setActiveSection("kalendarz");
+                        return;
+                      }
+                      if (isRec) {
+                        setShowIntro(false);
+                        setActiveSection("rekordy");
                         return;
                       }
                       setShowIntro(false);
@@ -753,6 +771,13 @@ export default function ClientDashboardPage() {
             {activeSection === "chat" && <ChatSection email={email ?? ""} />}
             {activeSection === "kalendarz" && (
               <CalendarSection email={email ?? ""} />
+            )}
+            {activeSection === "rekordy" && (
+              <RecordsView
+                email={email ?? ""}
+                content={content}
+                variant="client"
+              />
             )}
           </>
         )}
@@ -1023,6 +1048,11 @@ function DashboardSection({
     setWeekScore({ score: r.score, tip: r.tips[0] ?? "" });
   }, [email]);
 
+  // Szybki dziennik dnia (sen + kroki) — uzupełniany z panelu głównego,
+  // bez wchodzenia w formularz raportu; trafia do tych samych values.
+  const [quick, setQuick] = useState({ sleep: "", steps: "" });
+  const [quickSaved, setQuickSaved] = useState(false);
+
   useEffect(() => {
     const meals = getMealsDoneByDate(email);
     const water = getWaterAll(email);
@@ -1083,6 +1113,11 @@ function DashboardSection({
   useEffect(() => {
     setTasksDone(getTasksDone(email, todayISO()));
     setReportAt(getReport(email)?.submittedAt ?? null);
+    const dv = getDailyLogs(email)[todayISO()]?.values ?? {};
+    setQuick({
+      sleep: dv.sleepHours != null ? String(dv.sleepHours) : "",
+      steps: dv.steps != null ? String(dv.steps) : "",
+    });
     // Nakaz raportu tygodniowego (pomiary + zdjęcia raz na 7 dni)
     const ws = getWeeklyReportStatus(email);
     setWeeklyBan({
@@ -1094,6 +1129,20 @@ function DashboardSection({
 
   const toggleTask = (task: string) => {
     setTasksDone(toggleTaskDone(email, todayISO(), task));
+  };
+
+  // Zapis sen / kroki — merge z istniejącym wpisem dnia, żeby nie skasować
+  // wartości wpisanych wcześniej w formularzu raportu.
+  const saveQuick = (field: "sleepHours" | "steps", raw: string) => {
+    const cur = getDailyLogs(email)[todayISO()];
+    const value = raw.trim();
+    if (!value && !cur) return; // nie tworzymy pustego wpisu
+    saveDailyLog(email, todayISO(), {
+      ...(cur?.values ?? {}),
+      [field]: value,
+    });
+    setQuickSaved(true);
+    window.setTimeout(() => setQuickSaved(false), 2000);
   };
 
   const setMoodValue = (field: "satiety" | "motivation", value: number) => {
@@ -1300,6 +1349,55 @@ function DashboardSection({
               </div>
               <p className="mt-1 text-[10px] text-slate-500">
                 {streakData.monthPct}% aktywności w tym miesiącu
+              </p>
+            </div>
+
+            {/* Szybki dziennik: sen i kroki */}
+            <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/60 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                  Dziennik dnia 📝
+                </p>
+                {quickSaved && (
+                  <span className="text-[10px] font-semibold text-emerald-300">
+                    Zapisano ✓
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-[10px] text-slate-400">Sen (h)</span>
+                  <input
+                    value={quick.sleep}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setQuick((q) => ({ ...q, sleep: v }));
+                      saveQuick("sleepHours", v);
+                    }}
+                    onBlur={(e) => saveQuick("sleepHours", e.target.value)}
+                    inputMode="decimal"
+                    placeholder="np. 7.5"
+                    className="mt-0.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-400"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[10px] text-slate-400">Kroki</span>
+                  <input
+                    value={quick.steps}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setQuick((q) => ({ ...q, steps: v }));
+                      saveQuick("steps", v);
+                    }}
+                    onBlur={(e) => saveQuick("steps", e.target.value)}
+                    inputMode="numeric"
+                    placeholder="np. 10000"
+                    className="mt-0.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-emerald-400"
+                  />
+                </label>
+              </div>
+              <p className="mt-1.5 text-[10px] text-slate-500">
+                Trener widzi te wartości w raporcie dziennym.
               </p>
             </div>
           </div>

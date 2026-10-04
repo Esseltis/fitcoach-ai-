@@ -31,6 +31,7 @@ export default function TrainerDashboard() {
     null
   );
   const [view, setView] = useState<"clients" | "report">("clients");
+  const [query, setQuery] = useState("");
   const [clients, setClients] = useState<ClientRecord[]>([]);
   const [attention, setAttention] = useState<AttentionEntry[]>([]);
   const [reportFields, setReportFields] = useState<ReportConfigField[]>([]);
@@ -158,6 +159,15 @@ export default function TrainerDashboard() {
     fresh: clients.filter((c) => statusByEmail[c.email]?.reportNew).length,
     live: clients.filter((c) => statusByEmail[c.email]?.trainingNow).length,
   };
+
+  // Filtr listy — po imieniu i e-mailu (KPI liczone na pełnej liście).
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? clients.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q)
+      )
+    : clients;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex">
@@ -402,16 +412,30 @@ export default function TrainerDashboard() {
               ✅ Nikt nie wymaga uwagi — wszyscy raportują i trzymają plan.
             </p>
           )}
-          <p className="mb-4 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Podopieczni ({clients.length})
-          </p>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Podopieczni ({q ? `${visible.length}/${clients.length}` : clients.length})
+            </p>
+            {clients.length > 0 && (
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="🔍 Szukaj podopiecznego (imię lub e-mail)…"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-100 outline-none placeholder:text-slate-500 focus:border-emerald-400 sm:w-72"
+              />
+            )}
+          </div>
           {clients.length === 0 ? (
             <p className="text-sm text-slate-400">
               Brak przypisanych podopiecznych.
             </p>
+          ) : visible.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Brak wyników dla „{query.trim()}” — spróbuj innej frazy.
+            </p>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {clients.map((c) => {
+              {visible.map((c) => {
                 const report = getReport(c.email);
                 const profile = getClientProfile(c.email);
                 const plan = identity ? getPlan(identity.id, c.email) : null;

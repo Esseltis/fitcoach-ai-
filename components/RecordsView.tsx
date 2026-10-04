@@ -23,9 +23,11 @@ type Rec = {
 export default function RecordsView({
   email,
   content,
+  variant = "trainer",
 }: {
   email: string;
   content: TrainerContent;
+  variant?: "trainer" | "client";
 }) {
   const days = content.training.days;
   const map = new Map<string, Rec>();
@@ -84,11 +86,12 @@ export default function RecordsView({
     <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-5 shadow-[0_18px_30px_rgba(15,23,42,0.9)]">
       <div>
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-          🏆 Rekordy podopiecznego
+          {variant === "client" ? "🏆 Moje rekordy" : "🏆 Rekordy podopiecznego"}
         </h2>
         <p className="mt-0.5 text-xs text-slate-400">
-          Najlepsze wyniki zebrane z całej historii treningów — ciężar,
-          powtórzenia i dzień planu, w którym padł rekord.
+          {variant === "client"
+            ? "Twoje najlepsze wyniki z historii treningów — zobacz, co już podnosisz i pobij własny rekord."
+            : "Najlepsze wyniki zebrane z całej historii treningów — ciężar, powtórzenia i dzień planu, w którym padł rekord."}
         </p>
       </div>
 
@@ -135,8 +138,9 @@ export default function RecordsView({
 
       {records.length > 0 && (
         <p className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-[11px] text-slate-500">
-          💡 Przebij wynik w {records[0]?.name}, a karta rekordu zaktualizuje
-          się automatycznie po zakończeniu treningu.
+          {variant === "client"
+            ? "💡 Kolejny rekord wpiszesz w Treningu — każda zalogowana seria aktualizuje te karty."
+            : `💡 Przebij wynik w ${records[0]?.name}, a karta rekordu zaktualizuje się automatycznie po zakończeniu treningu.`}
         </p>
       )}
     </section>

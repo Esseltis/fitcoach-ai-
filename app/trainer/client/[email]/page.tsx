@@ -55,6 +55,7 @@ import {
 import { resizeImage } from "@/components/ChatSection";
 import MacroCalculator from "@/components/MacroCalculator";
 import RecordsView from "@/components/RecordsView";
+import WeightProgress from "@/components/WeightProgress";
 import TrainerQuickLibrary from "@/components/TrainerQuickLibrary";
 import {
   IntroEditor,
@@ -673,6 +674,8 @@ export default function TrainerClientPage({
               </button>
             </div>
           </section>
+
+          <WeightProgress email={email} />
           </>
         )}
 
@@ -1576,6 +1579,15 @@ function PrintSummary({
 }
 
 // ---- Czat z podopiecznym (zakładka "Czat") ----
+// Szybkie odpowiedzi w czacie — pigułki wstawiają gotowy tekst do edycji.
+const QUICK_REPLIES = [
+  "Dobra robota, tak trzymaj! 💪",
+  "Pilnuj RIR 2 w seriach głównych.",
+  "Wyślij mi zdjęcie posiłku 📸",
+  "Pamiętaj o raporcie dnia do 20:00.",
+  "Jak samopoczucie po ostatnim treningu?",
+];
+
 function TrainerChat({ email }: { email: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
@@ -1687,6 +1699,24 @@ function TrainerChat({ email }: { email: string }) {
           </button>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          Szybka odpowiedź:
+        </span>
+        {QUICK_REPLIES.map((q) => (
+          <button
+            key={q}
+            type="button"
+            onClick={() =>
+              setText((prev) => (prev ? `${prev} ${q}` : q))
+            }
+            className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] text-slate-300 transition hover:border-emerald-500 hover:text-emerald-300"
+          >
+            {q}
+          </button>
+        ))}
+      </div>
 
       <div className="flex items-end gap-2 rounded-2xl border border-slate-700 bg-slate-900 p-2">
         <input

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -36,6 +36,10 @@ import {
   getDishLogByDate,
   getMeasurements,
   getClientsForTrainer,
+  getChat,
+  sendChatMessage,
+  getSessionRequests,
+  decideSessionRequest,
   GENERAL_RECIPES,
   GENERAL_WORKOUTS,
   type ClientReport,
@@ -45,7 +49,10 @@ import {
   type TrainerContent,
   type Recipe,
   type Workout,
+  type ChatMessage,
+  type SessionRequest,
 } from "@/lib/store";
+import { resizeImage } from "@/components/ChatSection";
 import TrainerQuickLibrary from "@/components/TrainerQuickLibrary";
 import {
   IntroEditor,
@@ -72,7 +79,9 @@ type TabKey =
   | "training"
   | "catering"
   | "guidelines"
-  | "plan";
+  | "plan"
+  | "chat"
+  | "calendar";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "report", label: "Raport" },
@@ -88,6 +97,8 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "catering", label: "Catering" },
   { key: "guidelines", label: "Wytyczne" },
   { key: "plan", label: "Plan" },
+  { key: "chat", label: "Czat" },
+  { key: "calendar", label: "Kalendarz" },
 ];
 
 const PLAN_FIELDS: { key: keyof TrainerPlan; label: string; icon: string }[] = [
@@ -830,6 +841,9 @@ export default function TrainerClientPage({
             </div>
           </section>
         )}
+
+        {tab === "chat" && <TrainerChat email={email} />}
+        {tab === "calendar" && <TrainerCalendar email={email} />}
       </main>
     </div>
 
@@ -1543,5 +1557,300 @@ function PrintSummary({
         Wygenerowano z FitCoach AI — {new Date().toLocaleString("pl-PL")}
       </p>
     </div>
+  );
+}
+
+// ---- Czat z podopiecznym (zakładka "Czat") ----
+function TrainerChat({ email }: { email: string }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [text, setText] = useState("");
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!email) return;
+    setMessages(getChat(email));
+  }, [email]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "nearest" });
+  }, [messages.length]);
+
+  const send = () => {
+    if (!email) return;
+    const t = text.trim();
+    if (!t && !pendingImage) return;
+    setMessages(
+      sendChatMessage(email, {
+        from: "trainer",
+        text: t || "📷 Zdjęcie",
+        ...(pendingImage ? { image: pendingImage } : {}),
+      })
+    );
+    setText("");
+    setPendingImage(null);
+  };
+
+  const handlePhoto = async (file: File) => {
+    try {
+      setPendingImage(await resizeImage(file));
+    } catch {
+      /* ignoruj błąd odczytu */
+    }
+  };
+
+  const fmt = (at: string) =>
+    new Date(at).toLocaleString("pl-PL", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+        💬 Czat z podopiecznym
+      </h2>
+      <div className="flex max-h-[55vh] flex-col gap-3 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        {messages.length === 0 && (
+          <p className="py-6 text-center text-sm text-slate-500">
+            Brak wiadomości — napisz pierwszą.
+          </p>
+        )}
+        {messages.map((m) => {
+          const mine = m.from === "trainer";
+          return (
+            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                  mine
+                    ? "rounded-br-md bg-emerald-600 text-white"
+                    : "rounded-bl-md border border-slate-700 bg-slate-800 text-slate-100"
+                }`}
+              >
+                {!mine && (
+                  <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    Podopieczny
+                  </p>
+                )}
+                {m.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={m.image}
+                    alt="Załącznik"
+                    className="mb-1.5 max-h-56 w-full rounded-lg object-cover"
+                  />
+                )}
+                {m.text && <p className="whitespace-pre-line">{m.text}</p>}
+                <p
+                  className={`mt-1 text-right text-[10px] ${
+                    mine ? "text-emerald-100/80" : "text-slate-500"
+                  }`}
+                >
+                  {fmt(m.at)}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {pendingImage && (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 p-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={pendingImage} alt="Załącznik" className="h-16 w-16 rounded-lg object-cover" />
+          <div className="flex-1 text-xs text-slate-400">Zdjęcie dołączone</div>
+          <button
+            type="button"
+            onClick={() => setPendingImage(null)}
+            className="text-xs text-red-400 hover:text-red-300"
+          >
+            Usuń
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-end gap-2 rounded-2xl border border-slate-700 bg-slate-900 p-2">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void handlePhoto(f);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          title="Dodaj zdjęcie"
+          className="rounded-xl border border-slate-700 px-3 py-2 text-sm text-slate-300 transition hover:border-emerald-500 hover:text-emerald-300"
+        >
+          📷
+        </button>
+        <textarea
+          rows={1}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder="Odpowiedz podopiecznemu…"
+          className="max-h-32 min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500"
+        />
+        <button
+          type="button"
+          onClick={send}
+          disabled={!text.trim() && !pendingImage}
+          className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-40"
+        >
+          Wyślij
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// ---- Kalendarz: prośby podopiecznego (zakładka "Kalendarz") ----
+function TrainerCalendar({ email }: { email: string }) {
+  const [requests, setRequests] = useState<SessionRequest[]>([]);
+  const [info, setInfo] = useState("");
+
+  useEffect(() => {
+    if (!email) return;
+    setRequests(getSessionRequests(email));
+  }, [email]);
+
+  const decide = (id: string, status: "confirmed" | "declined") => {
+    if (!email) return;
+    setRequests(decideSessionRequest(email, id, status));
+    setInfo(
+      status === "confirmed"
+        ? "Termin potwierdzony — podopieczny widzi status w kalendarzu."
+        : "Termin odrzucony."
+    );
+  };
+
+  const STATUS_BADGE: Record<SessionRequest["status"], { label: string; cls: string }> = {
+    requested: {
+      label: "Prośba — oczekuje",
+      cls: "bg-amber-500/15 text-amber-300 ring-amber-500/40",
+    },
+    confirmed: {
+      label: "Potwierdzony ✓",
+      cls: "bg-emerald-500/15 text-emerald-300 ring-emerald-500/40",
+    },
+    declined: {
+      label: "Odrzucony ✗",
+      cls: "bg-red-500/15 text-red-300 ring-red-500/40",
+    },
+  };
+
+  const fmtDate = (d: string) => {
+    const [y, m, day] = d.split("-");
+    return `${day}.${m}.${y}`;
+  };
+
+  const pending = requests.filter((r) => r.status === "requested");
+  const decided = [...requests].reverse().filter((r) => r.status !== "requested");
+
+  return (
+    <section className="space-y-4">
+      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
+        📅 Kalendarz — prośby o termin
+      </h2>
+
+      {info && (
+        <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-200">
+          {info}
+        </p>
+      )}
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        <p className="text-sm font-bold text-slate-100">
+          Oczekujące ({pending.length})
+        </p>
+        {pending.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">Brak próśeb o termin.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {pending.map((r) => (
+              <li
+                key={r.id}
+                className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/30 bg-slate-950/50 px-3 py-2.5"
+              >
+                <span className="font-mono text-sm font-bold text-slate-100">
+                  {fmtDate(r.date)} · {r.time}
+                </span>
+                <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300 ring-1 ring-amber-500/40">
+                  {STATUS_BADGE.requested.label}
+                </span>
+                {r.note && (
+                  <span className="flex-1 truncate text-xs text-slate-500">
+                    „{r.note}"
+                  </span>
+                )}
+                <span className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => decide(r.id, "confirmed")}
+                  className="rounded-full bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-slate-950 hover:bg-emerald-400"
+                >
+                  ✅ Potwierdź
+                </button>
+                <button
+                  type="button"
+                  onClick={() => decide(r.id, "declined")}
+                  className="rounded-full border border-red-500/50 px-3.5 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+                >
+                  ❌ Odrzuć
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        <p className="text-sm font-bold text-slate-100">Historia decyzji</p>
+        {decided.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">Brak rozstrzygniętych prośeb.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {decided.map((r) => {
+              const st = STATUS_BADGE[r.status];
+              return (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2"
+                >
+                  <span className="font-mono text-sm text-slate-300">
+                    {fmtDate(r.date)} · {r.time}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${st.cls}`}
+                  >
+                    {st.label}
+                  </span>
+                  {r.decidedAt && (
+                    <span className="text-[11px] text-slate-600">
+                      decyzja: {new Date(r.decidedAt).toLocaleString("pl-PL")}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }

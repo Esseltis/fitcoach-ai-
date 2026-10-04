@@ -24,6 +24,7 @@ import {
   Camera,
   Flame,
   ShoppingBasket,
+  Calendar,
 } from "lucide-react";
 import {
   getClientContent,
@@ -78,6 +79,9 @@ import MealAddPanel from "@/components/MealAddPanel";
 import RestTimer from "@/components/RestTimer";
 import ExerciseCard from "@/components/ExerciseCard";
 import PwaRegister from "@/components/PwaRegister";
+import ChatSection from "@/components/ChatSection";
+import CalendarSection from "@/components/CalendarSection";
+import SessionReport from "@/components/SessionReport";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -141,7 +145,8 @@ type SectionId =
   | "plan"
   | "diet"
   | "progress"
-  | "chat";
+  | "chat"
+  | "kalendarz";
 
 const bodyStats = [
   { label: "Wiek", value: "35", unit: "lat", icon: Timer },
@@ -236,6 +241,11 @@ type TopDish = {
 export default function ClientDashboardPage() {
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  // Raport PDF po treningu (druk z osobnego komponentu)
+  const [printReport, setPrintReport] = useState<{
+    dayId: number;
+    elapsedSec?: number;
+  } | null>(null);
   const [ready, setReady] = useState(false);
   const [activeSection, setActiveSection] = useState<SectionId>("dashboard");
   const [activeTrainingDay, setActiveTrainingDay] = useState(1);
@@ -271,6 +281,8 @@ export default function ClientDashboardPage() {
       "porady",
       "analiza",
       "plan-zywieniowy",
+      "chat",
+      "kalendarz",
     ];
     if (wanted && known.includes(wanted as SectionId)) {
       setActiveSection(wanted as SectionId);
@@ -428,6 +440,16 @@ export default function ClientDashboardPage() {
       href: "/client/coaching",
     },
     {
+      id: "kalendarz",
+      label: "Kalendarz",
+      icon: Calendar,
+    },
+    {
+      id: "chat",
+      label: "Czat z trenerem",
+      icon: MessageCircle,
+    },
+    {
       id: "raport",
       label: "Wyślij raport",
       icon: FileText,
@@ -436,7 +458,8 @@ export default function ClientDashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+    <>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex print:hidden">
       {/* Lewy pasek nawigacji */}
       <aside className="hidden md:flex w-64 bg-slate-950/95 border-r border-slate-800 flex-col">
         <div className="h-16 px-5 flex items-center border-b border-slate-800">
@@ -473,6 +496,8 @@ export default function ClientDashboardPage() {
                 const isHydration = item.id === "nawodnienie";
                 const isTraining = item.id === "trening";
                 const isCatering = item.id === "catering";
+                const isChat = item.id === "chat";
+                const isCal = item.id === "kalendarz";
                 const active =
                   (isDashboard && activeSection === "dashboard" && !showIntro) ||
                   (isIntro && showIntro) ||
@@ -483,7 +508,9 @@ export default function ClientDashboardPage() {
                   (isSupplements && activeSection === "suplementy") ||
                   (isHydration && activeSection === "nawodnienie") ||
                   (isTraining && activeSection === "trening") ||
-                  (isCatering && activeSection === "catering");
+                  (isCatering && activeSection === "catering") ||
+                  (isChat && activeSection === "chat") ||
+                  (isCal && activeSection === "kalendarz");
                 const disabled =
                   !hasTrainer &&
                   item.id !== "dashboard" &&
@@ -546,6 +573,16 @@ export default function ClientDashboardPage() {
                       if (isCatering) {
                         setShowIntro(false);
                         setActiveSection("catering");
+                        return;
+                      }
+                      if (isChat) {
+                        setShowIntro(false);
+                        setActiveSection("chat");
+                        return;
+                      }
+                      if (isCal) {
+                        setShowIntro(false);
+                        setActiveSection("kalendarz");
                         return;
                       }
                       setShowIntro(false);
@@ -690,7 +727,14 @@ export default function ClientDashboardPage() {
             {activeSection === "nawodnienie" && (
               <HydrationSection content={content} />
             )}
-            {activeSection === "trening" && <TrainingSection content={content} />}
+            {activeSection === "trening" && (
+              <TrainingSection
+                content={content}
+                onPrintReport={(dayId, elapsedSec) =>
+                  setPrintReport({ dayId, elapsedSec })
+                }
+              />
+            )}
             {activeSection === "catering" && <CateringSection content={content} />}
             {activeSection === "settings" && <SettingsSection />}
             {activeSection === "plan" && (
@@ -706,7 +750,10 @@ export default function ClientDashboardPage() {
               />
             )}
             {activeSection === "progress" && <ProgressSection />}
-            {activeSection === "chat" && <ChatSection />}
+            {activeSection === "chat" && <ChatSection email={email ?? ""} />}
+            {activeSection === "kalendarz" && (
+              <CalendarSection email={email ?? ""} />
+            )}
           </>
         )}
       </main>
@@ -730,6 +777,18 @@ export default function ClientDashboardPage() {
       {/* PWA: rejestracja service workera + prośba o powiadomienia */}
       <PwaRegister />
     </div>
+
+    {/* Raport PDF po treningu — widoczny tylko przy drukowaniu */}
+    {printReport && (
+      <SessionReport
+        email={email ?? ""}
+        content={content}
+        dayId={printReport.dayId}
+        elapsedSec={printReport.elapsedSec}
+        onDone={() => setPrintReport(null)}
+      />
+    )}
+    </>
   );
 }
 
@@ -3297,7 +3356,13 @@ function parseRestSec(rest?: string): number {
   return /min/i.test(rest) ? n * 60 : n;
 }
 
-function TrainingSection({ content }: { content: TrainerContent }) {
+function TrainingSection({
+  content,
+  onPrintReport,
+}: {
+  content: TrainerContent;
+  onPrintReport: (dayId: number, elapsedSec?: number) => void;
+}) {
   const t = content.training;
   const days = t.days;
   const [activeIdx, setActiveIdx] = useState(0);
@@ -3315,6 +3380,11 @@ function TrainingSection({ content }: { content: TrainerContent }) {
   const [setsMap, setSetsMap] = useState<Record<string, SetLogEntry[]>>({});
   const [subs, setSubs] = useState<Record<string, string>>({});
   const [session, setSession] = useState<WorkoutSession | null>(null);
+  // Podsumowanie ostatnio zakończonej sesji → pasek z raportem PDF
+  const [finished, setFinished] = useState<{
+    dayId: number;
+    elapsedSec: number;
+  } | null>(null);
   const [nowTs, setNowTs] = useState(() => Date.now());
   // Pływający timer przerwy
   const [timerTrigger, setTimerTrigger] = useState(0);
@@ -3389,8 +3459,13 @@ function TrainingSection({ content }: { content: TrainerContent }) {
   };
 
   const endSession = () => {
+    const elapsedSec = session
+      ? Math.round((Date.now() - session.startedAt) / 1000)
+      : 0;
+    const dayId = session?.dayId ?? activeDayNum;
     saveWorkoutSession(email, null);
     setSession(null);
+    setFinished({ dayId, elapsedSec });
   };
 
   // Domyślne wiersze serii: tyle, ile w planie; pierwszy wiersz
@@ -3459,6 +3534,7 @@ function TrainingSection({ content }: { content: TrainerContent }) {
     const ss = String(s % 60).padStart(2, "0");
     return `${hh}:${mm}:${ss}`;
   };
+  const fmtSecShort = (sec: number) => fmtElapsed(sec * 1000);
 
   const sessionActive = session !== null && session.dayId === activeDayNum;
   const totalSets = exercises.reduce(
@@ -3552,6 +3628,37 @@ function TrainingSection({ content }: { content: TrainerContent }) {
             🏁 Zakończ trening
           </button>
         </div>
+      ) : finished ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+              ✅ Trening zakończony
+            </p>
+            <p className="text-sm text-slate-200">
+              {days[finished.dayId - 1]?.label ?? "Dzień treningowy"} · czas{" "}
+              {fmtSecShort(finished.elapsedSec)} — pobierz raport PDF z
+              podsumowaniem serii.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                onPrintReport(finished.dayId, finished.elapsedSec)
+              }
+              className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400"
+            >
+              📄 Raport PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => setFinished(null)}
+              className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-300 transition hover:border-slate-500"
+            >
+              Zamknij
+            </button>
+          </div>
+        </div>
       ) : (
         <button
           type="button"
@@ -3577,6 +3684,14 @@ function TrainingSection({ content }: { content: TrainerContent }) {
                 {activeDay?.status ?? "—"}
               </span>
             </span>
+            <button
+              type="button"
+              title="Podsumowanie dnia w PDF"
+              onClick={() => onPrintReport(activeDayNum)}
+              className="rounded-full border border-slate-700 px-3 py-1 text-[11px] font-semibold text-slate-300 transition hover:border-emerald-500 hover:text-emerald-300"
+            >
+              📄 Raport PDF
+            </button>
           </div>
         </div>
 
@@ -4654,30 +4769,6 @@ function ProgressSection() {
             37 <span className="text-[11px] text-slate-400">cm</span>
           </p>
         </div>
-      </div>
-    </section>
-  );
-}
-
-function ChatSection() {
-  return (
-    <section className="space-y-4 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 text-xs text-slate-200">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-400">
-            Czat z trenerem (demo)
-          </p>
-          <p className="text-xs text-slate-300">
-            W wersji produkcyjnej tutaj będzie lista wiadomości i szybkie
-            odpowiedzi AI.
-          </p>
-        </div>
-      </div>
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-        <p className="text-[11px] text-slate-400">
-          Na razie to tylko makieta – w przyszłości zobaczysz tu historię
-          rozmów z trenerem, wpisy z raportów i podpowiedzi AI.
-        </p>
       </div>
     </section>
   );

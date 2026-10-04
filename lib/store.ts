@@ -480,6 +480,124 @@ export function getWeeklyReportStatus(email: string): WeeklyReportStatus {
   };
 }
 
+// ---- Czat klient ↔ trener (jak CoachPro) ----
+// Wiadomości trzymane per klient — panel klienta i edytor trenera
+// czytają ten sam zapis (demo działa na jednym urządzeniu).
+
+export type ChatMessage = {
+  id: string;
+  from: "client" | "trainer";
+  text: string;
+  at: string; // ISO
+  image?: string; // dataUrl zdjęcia (opcjonalnie)
+};
+
+const chatKey = (email: string) => `fitcoach_chat_${email}`;
+
+export function getChat(email: string): ChatMessage[] {
+  const raw = safeGet(chatKey(email));
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return (arr as ChatMessage[])
+      .filter((m) => m && typeof m.text === "string")
+      .sort((a, b) => (a.at < b.at ? -1 : 1));
+  } catch {
+    return [];
+  }
+}
+
+export function sendChatMessage(
+  email: string,
+  msg: { from: "client" | "trainer"; text: string; image?: string }
+): ChatMessage[] {
+  const list = getChat(email);
+  const next: ChatMessage = {
+    id: crypto.randomUUID(),
+    from: msg.from,
+    text: msg.text.slice(0, 2000),
+    at: new Date().toISOString(),
+    ...(msg.image ? { image: msg.image } : {}),
+  };
+  list.push(next);
+  safeSet(chatKey(email), JSON.stringify(list));
+  return list;
+}
+
+// ---- Kalendarz: prośby o trening (klient → trener) ----
+// Jak w CoachPro: klient wybiera dzień i godzinę, wysyła prośbę
+// (status: oczekuje), trener potwierdza lub odrzuca.
+
+export type SessionRequest = {
+  id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  note: string;
+  status: "requested" | "confirmed" | "declined";
+  createdAt: string; // ISO
+  decidedAt?: string;
+};
+
+const sessionReqKey = (email: string) => `fitcoach_session_requests_${email}`;
+
+export function getSessionRequests(email: string): SessionRequest[] {
+  const raw = safeGet(sessionReqKey(email));
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [];
+    return (arr as SessionRequest[])
+      .filter((r) => r && typeof r.date === "string")
+      .sort((a, b) =>
+        a.date === b.date ? (a.time < b.time ? -1 : 1) : a.date < b.date ? -1 : 1
+      );
+  } catch {
+    return [];
+  }
+}
+
+export function addSessionRequest(
+  email: string,
+  data: { date: string; time: string; note?: string }
+): SessionRequest[] {
+  const list = getSessionRequests(email);
+  const next: SessionRequest = {
+    id: crypto.randomUUID(),
+    date: data.date,
+    time: data.time,
+    note: (data.note ?? "").slice(0, 300),
+    status: "requested",
+    createdAt: new Date().toISOString(),
+  };
+  list.push(next);
+  safeSet(sessionReqKey(email), JSON.stringify(list));
+  return list;
+}
+
+export function decideSessionRequest(
+  email: string,
+  id: string,
+  status: "confirmed" | "declined"
+): SessionRequest[] {
+  const list = getSessionRequests(email).map((r) =>
+    r.id === id
+      ? { ...r, status, decidedAt: new Date().toISOString() }
+      : r
+  );
+  safeSet(sessionReqKey(email), JSON.stringify(list));
+  return list;
+}
+
+export function removeSessionRequest(
+  email: string,
+  id: string
+): SessionRequest[] {
+  const list = getSessionRequests(email).filter((r) => r.id !== id);
+  safeSet(sessionReqKey(email), JSON.stringify(list));
+  return list;
+}
+
 // ---- Profil klienta (raport wstępny) ----
 
 const clientProfileKey = (email: string) => `fitcoach_client_profile_${email}`;
